@@ -1,0 +1,448 @@
+/* Import Google Font */
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap");
+
+/* General reset for margins, padding, and other styles */
+* {
+    margin: 0;
+    padding: 0;
+    border: none;
+    box-sizing: border-box;
+    font-family: "Poppins", sans-serif; /* Set default font */
+}
+
+/* Main body styling with a flex layout */
+body {
+    display: flex;
+}
+
+/* Sidebar styling */
+.sidebar {
+    position: sticky; /* Makes sidebar stick to the viewport */
+    top: 0; /* Aligns to the top */
+    left: 0;
+    bottom: 0;
+    width: 110px; /* Default width */
+    height: 100vh; /* Full viewport height */
+    padding: 0 1.7rem; /* Adds horizontal padding */
+    color: #fff; /* Text color */
+    overflow: hidden; /* Hides content when collapsed */
+    transition: all 0.5s linear; /* Smooth width transition */
+    background: #19695E; /* Background color */
+}
+
+/* Sidebar expands on hover */
+.sidebar:hover {
+    width: 240px; /* Expanded width */
+    transition: 0.5s; /* Smooth transition */
+}
+
+/* Menu container styling */
+.menu {
+    height: 88%; /* Take up most of the sidebar */
+    position: relative;
+    list-style: none; /* Remove bullet points */
+    padding: 0;
+}
+
+/* Individual menu items */
+.menu li {
+    padding: 1rem;
+    margin: 8px 0;
+    border-radius: 8px; /* Rounded corners */
+    transition: all 0.5s ease-in-out; /* Smooth hover effect */
+}
+
+/* Hover effect and active state for menu items */
+.menu li:hover,
+.active {
+    background: #e0e0e058; /* Light background color */
+}
+
+/* Menu link styling */
+.menu a {
+    color: #fff; /* Text color */
+    font-size: 14px;
+    text-decoration: none; /* Remove underline */
+    display: flex; /* Flex layout for icon and text */
+    align-items: center;
+    gap: 1.5rem; /* Spacing between icon and text */
+}
+
+/* Hide text overflow */
+.menu a span {
+    overflow: hidden;
+}
+
+/* Icon size for menu items */
+.menu a i {
+    font-size: 1.2rem;
+}
+
+/* Logout button styling */
+.logout {
+    position: absolute; /* Positioned at the bottom */
+    bottom: 0;
+    left: 0;
+    width: 100%;
+}
+
+/* Main content styling */
+.main--content {
+    position: relative;
+    background: #ebe9e9; /* Light gray background */
+    width: 100%; /* Full width */
+    padding: 1rem; /* Adds padding */
+}
+/* Adjust the card--container for centering */
+.card--container {
+    max-width: 600px;
+    width: 100%;
+    background: #fff;
+    padding: 40px 30px;
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+    margin: auto; /* Center container */
+}
+
+.header--wrapper img {
+    width: auto; /* Maintain the aspect ratio */
+    height: 70px; /* Adjust height for a larger size */
+    max-height: 100%; /* Ensure it doesn't exceed the header height */
+    object-fit: contain; /* Prevent distortion */
+}
+
+.header--wrapper {
+    display: flex; /* Flex layout */
+    justify-content: space-between; /* Space out elements */
+    align-items: center; /* Align items vertically */
+    flex-wrap: wrap; /* Allow wrapping for smaller screens */
+    background: #fff; /* White background */
+    border-radius: 10px; /* Rounded corners */
+    padding: 15px 2rem; /* Padding around content */
+    margin-bottom: 1rem; /* Spacing below header */
+}
+/* Header title styling */
+.header--title {
+    color: #19695E; /* Green text color */
+}
+
+form .form-content .title{
+    position: relative;
+    font-size: 24px;
+    font-weight: 500;
+    color: #333;
+}
+form .form-content .title:before{
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 3px;
+    width: 25px;
+    background: #19695E;
+}
+form .signup-form .title:before{
+    width: 20px;
+}   
+form .form-content .input-boxes{
+    margin-top: 30px;
+}
+form .form-content .input-box{
+    display: flex;
+    align-items: center;
+    height: 50px;
+    width: 100%;  
+    margin: 10px 0; 
+    position: relative;
+}
+.form-content .input-box input{
+    height: 100%;
+    width: 100%;
+    outline: none;
+    border: none;
+    padding: 0 30px;
+    font-size: 16px;
+    font-weight: 500;
+    border-bottom: 2px solid rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+}
+form .form-content .input-box input:focus,
+form .form-content .input-box input:valid{
+    border-color: #19695E;
+}
+form .form-content .input-box i{
+    position: absolute;
+    color: #19695E;
+    font-size: 17px;
+}
+form .form-content .text{
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+}
+form .form-content .text a{
+    text-decoration: none;
+}
+form .form-content .text a:hover{
+    text-decoration: underline;
+}
+form .form-content .button{
+    color: #fff;
+    margin-top: 40px;
+}
+form .form-content .button input{
+    color: #fff;
+    background: #19695E;
+    border-radius: 6px; 
+    padding: 0;
+    cursor: pointer;
+    transition: all 0.4s ease;
+}
+form .form-content .button input:hover{
+    background: #19695E;
+}
+form .form-content label{
+    color: #19695E;
+    cursor: pointer;
+} 
+form .form-content label:hover{
+    text-decoration: underline;
+}
+form .form-content .log-text,
+form .form-content .sign-up-text{
+    text-align: center; 
+    margin-top: 25px;
+}
+
+
+
+/* Card container styling */
+.card--container {
+    position: relative;
+    max-width: 600px;
+    width: 100%;
+    background: #fff;
+    padding: 40px 30px;
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+    perspective: 2700;
+    z-index: 2;background: #fff; /* White background */
+    padding: 2rem; /* Padding around content */
+    border-radius: 10px; /* Rounded corners */
+}
+
+/* Flex layout for card wrapper */
+.card--wrapper {
+    display: flex;
+    flex-wrap: wrap; /* Allow wrapping for smaller screens */
+    gap: 1rem; /* Spacing between cards */
+}
+.main--title {
+    color: #19695E; /* Green text color */
+    padding-bottom: 10px;
+    font-size: 20px;
+}
+
+/* Individual card styling */
+.survey--card {
+    background: rgb(229, 223, 223); /* Light gray background */
+    border-radius: 10px;
+    padding: 1.2rem; /* Padding inside card */
+    width: 290px;
+    height: 150px;
+    display: flex; /* Flex layout */
+    flex-direction: column; /* Stack content vertically */
+    justify-content: space-between; /* Space out content */
+    transition: all 0.5s ease-in-out; /* Smooth hover effect */
+}
+
+/* Hover effect for cards */
+.survey--card:hover {
+    transform: translateY(-5px); /* Slight upward movement */
+}
+
+/* Card header layout */
+.card--header {
+    display: flex; /* Flex layout */
+    justify-content: space-between; /* Space out elements */
+    align-items: center; /* Center items vertically */
+    margin-bottom: 20px;
+}
+
+/* Amount section inside card */
+.amount {
+    display: flex; /* Flex layout */
+    flex-direction: column; /* Stack content vertically */
+}
+
+/* Title styling */
+.title {
+    font-size: 12px;
+    font-weight: 200; /* Thin font weight */
+}
+
+/* Amount value styling */
+.amount--value {
+    font-size: 24px;
+    font-family: "Courier New", Courier, monospace; /* Monospace font */
+    font-weight: 600;
+}
+
+/* Icon styling for cards */
+.icon {
+    color: #fff; /* White color */
+    padding: 1rem; /* Padding around icon */
+    height: 60px;
+    width: 60px;
+    text-align: center;
+    border-radius: 50%; /* Circular icon */
+    font-size: 1.5rem;
+    background: #19695E; /* Green background */
+}
+
+/* Detail text inside card */
+.card-detail {
+    font-size: 18px;
+    color: #777777; /* Gray text */
+    letter-spacing: 2px; /* Add spacing between letters */
+    font-family: "Courier New", Courier, monospace;
+}
+
+/* Light background color options for cards */
+.light-red {
+    background: rgb(251, 233, 233);
+}
+.light-purple {
+    background: rgb(254, 226, 254);
+}
+.light-green {
+    background: rgb(235, 254, 235);
+}
+.light-blue {
+    background: rgb(236, 236, 254);
+}
+
+/* Dark background color options for cards */
+.dark-red {
+    background: red;
+}
+.dark-purple {
+    background: purple;
+}
+.dark-green {
+    background: green;
+}
+.dark-blue {
+    background: blue;
+}
+
+
+
+/* Table section styling */
+.tabular--wrapper {
+    background: #fff; /* White background */
+    margin-top: 1rem; /* Spacing above table */
+    border-radius: 10px; /* Rounded corners */
+    padding: 2rem; /* Padding inside table container */
+}
+
+/* Table container styling */
+.table--container {
+    width: 100%;
+}
+
+/* Table layout */
+table {
+    width: 100%;
+    border-collapse: collapse; /* Remove borders between cells */
+}
+
+/* Table header styling */
+thead {
+    background: #19695E; /* Green background */
+    color: #fff; /* White text */
+}
+
+/* Table header cell styling */
+th {
+    padding: 15px; /* Padding inside cells */
+    text-align: left; /* Align text to the left */
+}
+
+/* Table body styling */
+tbody {
+    background: #f2f2f2; /* Light gray background */
+}
+
+/* Table data cell styling */
+td {
+    padding: 15px;
+    font-size: 14px;
+    color: #333; /* Dark text color */
+}
+
+/* Alternate row background color */
+tr:nth-child(even) {
+    background: #fff;
+}
+
+/* Table footer styling */
+tfoot {
+    background: #19695E; /* Green background */
+    font-weight: bold; /* Bold text */
+    color: #fff; /* White text */
+}
+
+/* Footer cell padding */
+tfoot td {
+    padding: 15px;
+    color: #fff;
+}
+
+/* Button styles inside table */
+.table--container button {
+    color: #19695E;
+    background: none;
+    cursor: pointer;
+}
+
+
+
+
+
+/* General button styling */
+.button-link {
+    display: inline-block;
+    text-align: center;
+    padding: 12px 24px;
+    background: #19695E; /* Same button background */
+    color: #fff;
+    text-decoration: none; /* Remove underline */
+    border-radius: 6px; /* Rounded corners */
+    font-size: 16px; /* Font size */
+    transition: all 0.4s ease;
+}
+
+/* Button hover effect */
+.button:hover {
+    background-color: #19695E; /* Green background on hover */
+    cursor: pointer;
+}
+
+/* SVG (icon) inside button */
+.button svg {
+    width: 1.6em;
+    margin: -0.2em 0.8em 1em;
+    position: absolute;
+    display: flex;
+    transition: all 0.6s ease; /* Smooth hover effect */
+}
+
+/* Button icon hover effect */
+.button:hover svg {
+    transform: translateX(5px); /* Slight movement */
+}
+
+/* Button text styling */
+.text {
+    margin: 0 1.5em;
+}

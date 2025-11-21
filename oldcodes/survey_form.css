@@ -1,0 +1,651 @@
+/* Import Google Font */
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap");
+
+/* General reset for margins, padding, and other styles */
+* {
+    margin: 0;
+    padding: 0;
+    border: none;
+    box-sizing: border-box;
+    font-family: "Poppins", sans-serif; /* Set default font */
+}
+
+/* Main body styling with a flex layout */
+body {
+    display: flex;
+}
+
+/* Sidebar styling */
+.sidebar {
+    position: sticky; /* Makes sidebar stick to the viewport */
+    top: 0; /* Aligns to the top */
+    left: 0;
+    bottom: 0;
+    width: 110px; /* Default width */
+    height: 100vh; /* Full viewport height */
+    padding: 0 1.7rem; /* Adds horizontal padding */
+    color: #fff; /* Text color */
+    overflow: hidden; /* Hides content when collapsed */
+    transition: all 0.5s linear; /* Smooth width transition */
+    background: #19695E; /* Background color */
+}
+
+/* Sidebar expands on hover */
+.sidebar:hover {
+    width: 240px; /* Expanded width */
+    transition: 0.5s; /* Smooth transition */
+}
+
+/* Logo section styling */
+.logo {
+    height: 80px;
+    padding: 16px;
+}
+
+/* Menu container styling */
+.menu {
+    height: 88%; /* Take up most of the sidebar */
+    position: relative;
+    list-style: none; /* Remove bullet points */
+    padding: 0;
+}
+
+/* Individual menu items */
+.menu li {
+    padding: 1rem;
+    margin: 8px 0;
+    border-radius: 8px; /* Rounded corners */
+    transition: all 0.5s ease-in-out; /* Smooth hover effect */
+}
+
+/* Hover effect and active state for menu items */
+.menu li:hover,
+.active {
+    background: #e0e0e058; /* Light background color */
+}
+
+/* Menu link styling */
+.menu a {
+    color: #fff; /* Text color */
+    font-size: 14px;
+    text-decoration: none; /* Remove underline */
+    display: flex; /* Flex layout for icon and text */
+    align-items: center;
+    gap: 1.5rem; /* Spacing between icon and text */
+}
+
+/* Hide text overflow */
+.menu a span {
+    overflow: hidden;
+}
+
+/* Icon size for menu items */
+.menu a i {
+    font-size: 1.2rem;
+}
+
+
+/* Logout button styling */
+.logout {
+    position: absolute; /* Positioned at the bottom */
+    bottom: 0;
+    left: 0;
+    width: 100%;
+}
+
+/* Main content styling */
+.main--content {
+    position: relative;
+    background: #ebe9e9; /* Light gray background */
+    width: 100%; /* Full width */
+    padding: 1rem; /* Adds padding */
+}
+
+/* Header wrapper for logo and user info */
+.header--wrapper img {
+    width: 100p; /* Maintain the aspect ratio */
+    height: 70px; /* Adjust height for a larger size */
+    max-height: 100%; /* Ensure it doesn't exceed the header height */
+    object-fit: contain; /* Prevent distortion */
+}
+
+.header--wrapper {
+    display: flex; /* Flex layout */
+    justify-content: space-between; /* Space out elements */
+    align-items: center; /* Align items vertically */
+    flex-wrap: wrap; /* Allow wrapping for smaller screens */
+    background: #fff; /* White background */
+    border-radius: 10px; /* Rounded corners */
+    padding: 15px 2rem; /* Padding around content */
+    margin-bottom: 1rem; /* Spacing below header */
+}
+
+/* Header title styling */
+.header--title {
+    color: #19695E; /* Green text color */
+}
+
+/* User info section styling */
+.user--info {
+    display: flex; /* Flex layout */
+    align-items: center; /* Center items vertically */
+    gap: 1rem; /* Spacing between items */
+    
+}
+
+/* Card container styling */
+.card--container {
+    background: #fff; /* White background */
+    padding: 2rem; /* Padding around content */
+    border-radius: 10px; /* Rounded corners */
+}
+
+/* Flex layout for card wrapper */
+.card--wrapper {
+    display: flex;
+    flex-wrap: wrap; /* Allow wrapping for smaller screens */
+    gap: 1rem; /* Spacing between cards */
+}
+
+/* Card title styling */
+.main--title {
+    color: #19695E; /* Green text color */
+    padding-bottom: 10px;
+    font-size: 15px;
+}
+
+/* Individual card styling */
+.payment--card {
+    background: rgb(229, 223, 223); /* Light gray background */
+    border-radius: 10px;
+    padding: 1.2rem; /* Padding inside card */
+    width: 290px;
+    height: 150px;
+    display: flex; /* Flex layout */
+    flex-direction: column; /* Stack content vertically */
+    justify-content: space-between; /* Space out content */
+    transition: all 0.5s ease-in-out; /* Smooth hover effect */
+}
+
+/* Hover effect for cards */
+.payment--card:hover {
+    transform: translateY(-5px); /* Slight upward movement */
+}
+
+/* Card header layout */
+.card--header {
+    display: flex; /* Flex layout */
+    justify-content: space-between; /* Space out elements */
+    align-items: center; /* Center items vertically */
+    margin-bottom: 20px;
+}
+
+/* Amount section inside card */
+.amount {
+    display: flex; /* Flex layout */
+    flex-direction: column; /* Stack content vertically */
+}
+
+/* Title styling */
+.title {
+    font-size: 12px;
+    font-weight: 200; /* Thin font weight */
+}
+
+/* Amount value styling */
+.amount--value {
+    font-size: 24px;
+    font-family: "Courier New", Courier, monospace; /* Monospace font */
+    font-weight: 600;
+}
+
+/* Icon styling for cards */
+.icon {
+    color: #fff; /* White color */
+    padding: 1rem; /* Padding around icon */
+    height: 60px;
+    width: 60px;
+    text-align: center;
+    border-radius: 50%; /* Circular icon */
+    font-size: 1.5rem;
+    background: #19695E; /* Green background */
+}
+
+/* Detail text inside card */
+.card-detail {
+    font-size: 18px;
+    color: #777777; /* Gray text */
+    letter-spacing: 2px; /* Add spacing between letters */
+    font-family: "Courier New", Courier, monospace;
+}
+
+/* Light background color options for cards */
+.light-red {
+    background: rgb(251, 233, 233);
+}
+.light-purple {
+    background: rgb(254, 226, 254);
+}
+.light-green {
+    background: rgb(235, 254, 235);
+}
+.light-blue {
+    background: rgb(236, 236, 254);
+}
+
+/* Dark background color options for cards */
+.dark-red {
+    background: red;
+}
+.dark-purple {
+    background: purple;
+}
+.dark-green {
+    background: green;
+}
+.dark-blue {
+    background: blue;
+}
+
+/* Table section styling */
+.tabular--wrapper {
+    background: #fff; /* White background */
+    margin-top: 1rem; /* Spacing above table */
+    border-radius: 10px; /* Rounded corners */
+    padding: 2rem; /* Padding inside table container */
+}
+
+/* Table container styling */
+.table--container {
+    width: 100%;
+}
+
+/* Table layout */
+table {
+    width: 100%;
+    border-collapse: collapse; /* Remove borders between cells */
+}
+
+/* Table header styling */
+thead {
+    background: #19695E; /* Green background */
+    color: #fff; /* White text */
+}
+
+/* Table header cell styling */
+th {
+    padding: 15px; /* Padding inside cells */
+    text-align: left; /* Align text to the left */
+}
+
+/* Table body styling */
+tbody {
+    background: #f2f2f2; /* Light gray background */
+}
+
+/* Table data cell styling */
+td {
+    padding: 15px;
+    font-size: 14px;
+    color: #333; /* Dark text color */
+}
+
+/* Alternate row background color */
+tr:nth-child(even) {
+    background: #fff;
+}
+
+/* Table footer styling */
+tfoot {
+    background: #19695E; /* Green background */
+    font-weight: bold; /* Bold text */
+    color: #fff; /* White text */
+}
+
+/* Footer cell padding */
+tfoot td {
+    padding: 15px;
+    color: #fff;
+}
+
+/* Button styles inside table */
+.table--container button {
+    color: green;
+    background: none;
+    cursor: pointer;
+}
+
+/* Survey Form */
+
+/* Thin border around sections inside the 'second form' */
+.first.form .step,
+.second.form .step,
+.third.form.form .step,
+.fourth.form.form .step,
+.fifth.form.form .step,
+.sixth.form.form .step {
+    border: 1px solid #19695E; /* Light gray border for the step section */
+    border-radius: 5px; /* Optional: rounded corners */
+    padding: 20px; /* Spacing inside the border */
+    margin-bottom: 20px; /* Space between steps */
+    background-color: #ffffff; /* Ensures a clean white background */
+}
+
+/* Horizontal line above "Spouse Information" */
+.third.form .line::before,
+.second.form .spouse::before {
+    content: "";
+    display: block;
+    width: 100%; /* Full-width horizontal line */
+    height: 2px; /* Adjust thickness of the line */
+    background-color: #19695E; /* Light gray line color */
+    margin-bottom: 15px; /* Space below the line */
+}
+/* Container */
+.container {
+    position: relative;
+    max-width: 1500px;
+    width: 100%;
+    border-radius: 10px;
+    padding: 30px;
+    margin: 10px auto; /* Adjusted to account for potential fixed headers */
+    background-color: white;
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15); /* Enhanced shadow */
+}
+
+/* Form Title */
+.container .title {
+    font-size: 22px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 15px;
+}
+
+/* Spouse */
+.container .spouse {
+    font-size: 16px;
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 15px;
+}
+.container .spouse::before {
+    content: "";
+    display: block;
+    width: 50px;
+    height: 4px;
+    background-color: #19695E;
+    margin-bottom: 10px;
+    border-radius: 2px;
+}
+
+/* Table Header */
+.styled-table thead.table-header {
+    font-size: 15px;
+    font-weight: 300;
+    color: #333;
+    margin-bottom: 15px;
+    position: relative;
+    text-align: center;
+}
+
+/* Table Fields */
+.table-fields {
+    width: 100%; /* Ensures the table takes up full width of the container */
+    overflow-x: auto; /* Adds horizontal scrolling for small screens */
+}
+
+.styled-table {
+    width: 100%; /* Makes the table take up the full width */
+    border-collapse: collapse; /* Removes spacing between cells */
+    margin: 20px 0; /* Adds some spacing around the table */
+}
+
+.styled-table th, .styled-table td {
+    padding: 5px; /* Adds spacing inside table cells */
+    text-align: center; /* Aligns text to the left */
+    border: 1px solid #ccc; /* Adds a border to cells */
+}
+
+.styled-table th {
+    background-color: #19695E; /* Header background color */
+    color: white; /* Header text color */
+    font-weight: 100;
+}
+
+.styled-table td input,
+.styled-table td select {
+    width: 100%; /* Makes inputs and selects take up full cell width */
+    border: none;
+    outline: none;
+    padding: 5px;
+}
+
+/* Step Section */
+.step {
+    margin-bottom: 20px;
+}
+
+.step .title {
+    font-size: 20px;
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 10px;
+}
+
+/* Fields Container */
+.fields {
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: column; /* Stack input fields vertically */
+    gap: 20px; /* Adds space between rows */
+}
+
+/* Input Field Alignment */
+.input-fields {
+    display: flex; /* Horizontal alignment of label and input */
+    align-items: center; /* Center inputs vertically with labels */
+    gap: 20px; /* Space between label and input box */
+    width:100%; /* Ensure full width */
+    
+}
+
+/* Labels */
+.input-fields label {
+    font-size: 14px;
+    font-weight: 500;
+    color: #555;
+    text-align: left;
+    flex: 1; /* Allow labels to take equal space */
+    
+}
+
+/* Input Fields */
+.input-fields select,
+.input-fields input {
+    flex: 2; /* Input fields take more space */
+    height: 40px;
+    padding: 8px 12px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background-color: white;
+    text-align: center;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Input Focus Styles */
+.input-fields select:focus,
+.input-fields input:focus {
+    border-color: #19695E;
+    box-shadow: 0 0 5px rgba(25, 105, 94, 0.3);
+    outline: none;
+}
+
+/* Dropdown Placeholder Styling */
+.input-fields select option:disabled {
+    color: #aaa;
+}
+
+/* Second From */
+.second.form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px; /* Space between sections */
+}
+.secfields {
+    display: flex;
+    flex-wrap: wrap; /* Wrap items to next line on smaller screens */
+    flex-direction: flex; /* Arrange fields in a single column */
+    gap: 15px; /* Add spacing between rows */
+}
+.firstinput-fields {
+    width: 100%; /* Full width for all fields */
+    display: flex;
+    flex-direction: column;
+    gap: 5px; /* Space between label and input */
+    flex: 1 1 calc(25% - 15px); /* 4 items per row with gap considered */
+    min-width: 200px; /* Prevent fields from becoming too small */
+    box-sizing: border-box; /* Include padding and borders */
+}
+
+.firstinput-fields label {
+    font-size: 14px;
+    font-weight: 100;
+    color: #555;
+    display: block; /* Place label above input */
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.firstinput-fields select,
+.firstinput-fields input {
+    height: 40px;
+    width: 100%; /* Make inputs and select take full width of their container */
+    padding: 8px;
+    font-size: 14px;
+    text-align: center;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    background-color: white; /* Light background for inputs */
+}
+.firstinput-fields select:focus,
+.firstinput-fields input:focus {
+    border-color: #19695E;
+    box-shadow: 0 0 5px rgba(25, 105, 94, 0.3);
+    outline: none;
+}
+
+/* Dropdown Placeholder Styling */
+.firstinput-fields select option:disabled {
+    color: #aaa;
+}
+.firstinput-fields {
+    width: 100%; /* Default width for smaller screens */
+    max-width: 48%; /* Half-width on larger screens */
+    display: flex;
+    flex-direction: column;
+    gap: 5px; /* Space between label and input */
+}
+
+
+/* Button Design */ 
+button {
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    display: inline-block;
+    text-align: center;
+    font-weight: 400;
+    padding: 0.7em 2em;
+    border: 2px solid #19695E;
+    border-radius: 6px;
+    position: relative;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.1);
+    color: #19695E;
+    text-decoration: none;
+    transition: 0.3s ease all;
+    z-index: 1;
+}
+  
+button:before {
+    transition: 0.5s all ease;
+    position: absolute;
+    top: 0;
+    left: 50%;
+    right: 50%;
+    bottom: 0;
+    opacity: 0;
+    content: '';
+    background-color: #19695E;
+    z-index: -1;
+}
+  
+button:hover, button:focus {
+    color: white;
+}
+  
+button:hover:before, button:focus:before {
+    transition: 0.5s all ease;
+    left: 0;
+    right: 0;
+    opacity: 1;
+}
+  
+button:active {
+    transform: scale(0.9);
+}
+   
+
+/* Form Buttons */
+form .buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+form .backBtn,
+form .nextBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    border: none;
+    border-radius: 5px;
+    color: #fff;
+    background-color: #19695E;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.3s ease;
+}
+
+form .backBtn:hover,
+form .nextBtn:hover {
+    background-color: #16432c;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+form .backBtn i,
+form .nextBtn i {
+    font-size: 16px;
+    margin-right: 5px;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .fields {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .input-fields {
+        max-width: 100%; /* Full width for smaller screens */
+    }
+
+    form .buttons {
+        justify-content: center;
+    }
+}
