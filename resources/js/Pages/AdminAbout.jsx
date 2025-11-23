@@ -3,6 +3,14 @@ import React from 'react'
 import { Link } from '@inertiajs/react'
 
 export default function AdminAbout() {
+  const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+  async function logoutAdmin() {
+    try {
+      await fetch('/admin/logout', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf() } })
+    } finally {
+      window.location.href = '/'
+    }
+  }
   return (
     <div className="flex min-h-screen">
       <aside className="w-60 flex-shrink-0 bg-white text-gray-700 p-4 border-r border-gray-200">
@@ -15,7 +23,7 @@ export default function AdminAbout() {
           <li className="px-2 py-3 rounded hover:bg-gray-100 hover:text-emerald-700"><Link href="/admin/beneficiaries" className="block">Beneficiaries</Link></li>
           <li className="px-2 py-3 rounded hover:bg-gray-100 hover:text-emerald-700"><Link href="/admin/profile" className="block">Profile</Link></li>
           <li className="px-2 py-3 rounded bg-emerald-50 text-emerald-800"><Link href="/admin/about" className="block">About</Link></li>
-          <li className="px-2 py-3 rounded hover:bg-red-50 text-red-700 mt-20"><Link href="/admin/logout" method="post" as="button" className="w-full text-left">Log out</Link></li>
+          <li className="px-2 py-3 rounded hover:bg-red-50 text-red-700 mt-20"><button onClick={logoutAdmin} className="w-full text-left">Log out</button></li>
         </ul>
       </aside>
 

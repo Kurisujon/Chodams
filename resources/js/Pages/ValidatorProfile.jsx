@@ -12,6 +12,15 @@ export default function ValidatorProfile() {
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [activeTab, setActiveTab] = useState('account');
+  const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+  async function logoutValidator() {
+    try {
+      await fetch('/validator/logout', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf() } })
+    } finally {
+      window.location.href = '/'
+    }
+  }
 
   useEffect(() => {
     fetch('/validator/api/profile')
@@ -42,97 +51,86 @@ export default function ValidatorProfile() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-28 hover:w-60 transition-all duration-300 bg-green-800 text-white p-4">
-        <ul className="space-y-2 mt-6">
-          <li className="px-2 py-3 rounded hover:bg-green-700 cursor-pointer">
-            <Link href="/validator/dashboard" className="block">Validator Dashboard</Link>
-          </li>
-          <li className="px-2 py-3 rounded hover:bg-green-700 cursor-pointer">
-            <Link href="/validator/survey-form" className="block">Survey Form</Link>
-          </li>
-          <li className="px-2 py-3 rounded bg-green-700 cursor-pointer">
-            <Link href="/validator/profile" className="block">Profile</Link>
-          </li>
-          <li className="px-2 py-3 rounded hover:bg-red-600 cursor-pointer mt-20">
-            <Link href="/validator/logout" method="post" as="button" className="w-full text-left">Logout</Link>
-          </li>
+      <aside className="w-60 flex-shrink-0 bg-white text-gray-700 p-4 border-r border-gray-200">
+        <div className="flex items-center gap-2 mb-6">
+          <div className="w-7 h-7 rounded-full bg-emerald-600 text-white grid place-items-center font-bold">C</div>
+          <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
+        </div>
+        <ul className="space-y-1">
+          <li className="px-2 py-3 rounded hover:bg-gray-100 hover:text-emerald-700 cursor-pointer"><Link href="/validator/dashboard" className="block">Dashboard</Link></li>
+          <li className="px-2 py-3 rounded hover:bg-gray-100 hover:text-emerald-700 cursor-pointer"><Link href="/validator/survey-form" className="block">Survey Form</Link></li>
+          <li className="px-2 py-3 rounded bg-emerald-50 text-emerald-800 cursor-pointer"><Link href="/validator/profile" className="block">Profile</Link></li>
+          <li className="px-2 py-3 rounded hover:bg-red-50 text-red-700 cursor-pointer mt-20"><button onClick={logoutValidator} className="w-full text-left">Log out</button></li>
         </ul>
       </aside>
-      <main className="flex-1 p-6 bg-gray-100">
-        <div className="max-w-3xl mx-auto">
-          <div className="flex justify-between items-center bg-white p-4 rounded shadow">
-            <h1 className="text-2xl font-semibold text-green-800">Validator Profile</h1>
-            <img src="/image/greenlogo1.jpg" alt="logo" className="h-14 object-contain" />
+
+      <main className="flex-1 p-6 bg-gray-50">
+        <section className="mt-6 max-w-6xl mx-auto">
+          <div className="bg-white rounded-2xl border border-gray-200 p-2 mb-6">
+            <div className="flex gap-2">
+              <button type="button" onClick={()=>setActiveTab('account')} className={`px-3 py-2 rounded-xl text-sm font-medium ${activeTab==='account' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700'}`}>Account Details</button>
+              <button type="button" onClick={()=>setActiveTab('password')} className={`px-3 py-2 rounded-xl text-sm font-medium ${activeTab==='password' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700'}`}>Change Password</button>
+            </div>
           </div>
 
-          <div className="mt-6 bg-white rounded shadow p-6 space-y-6">
-            <div>
-              <h2 className="text-lg font-medium text-gray-900">Account Details</h2>
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <div className="text-sm text-gray-500">Name</div>
-                  <input className="w-full border rounded p-2 bg-gray-50" value={profile.name || ''} readOnly />
+          {activeTab === 'account' && (
+            <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-emerald-800">Account</h3>
+              </div>
+              <div className="flex flex-col items-center text-center">
+                <img src={'/image/greenlogo1.jpg'} alt="avatar" className="w-20 h-20 rounded-full object-cover border"/>
+                <div className="mt-3 w-full space-y-2">
+                  <div>
+                    <div className="text-sm text-gray-500">Name</div>
+                    <div className="font-medium text-gray-900">{profile.name || '-'}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">Username</div>
+                    <div className="font-medium text-gray-900">{profile.username || '-'}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">Email</div>
+                    <div className="font-medium text-gray-900">{profile.email || '-'}</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-sm text-gray-500">Email</div>
-                  <input className="w-full border rounded p-2 bg-gray-50" value={profile.email || ''} readOnly />
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500">Username</div>
-                  <input className="w-full border rounded p-2 bg-gray-50" value={profile.username || ''} readOnly />
+                <div className="mt-4 flex items-center gap-3">
+                  <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-xs">Active</span>
+                  <button type="button" onClick={()=>setActiveTab('password')} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl">Change Password</button>
                 </div>
               </div>
             </div>
+          )}
 
-            <div>
-              <h2 className="text-lg font-medium text-gray-900">Change Password</h2>
-              <p className="mt-1 text-sm text-gray-600">Use a strong, unique password.</p>
-              <div className="mt-4 space-y-4">
+          {activeTab === 'password' && (
+            <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-emerald-800">Change Password</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <div className="text-sm text-gray-500">Current Password</div>
-                  <input
-                    type="password"
-                    className="w-full border rounded p-2"
-                    value={form.current_password}
-                    onChange={e => setForm({ ...form, current_password: e.target.value })}
-                  />
+                  <input type="password" className="border border-gray-300 rounded-xl p-2.5 w-full focus:outline-none focus:ring-2 focus:ring-emerald-300" value={form.current_password} onChange={e=>setForm({ ...form, current_password: e.target.value })}/>
                   {errors.current_password && <div className="text-red-600 text-sm mt-1">{errors.current_password[0]}</div>}
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">New Password</div>
-                  <input
-                    type="password"
-                    className="w-full border rounded p-2"
-                    value={form.password}
-                    onChange={e => setForm({ ...form, password: e.target.value })}
-                  />
+                  <input type="password" className="border border-gray-300 rounded-xl p-2.5 w-full focus:outline-none focus:ring-2 focus:ring-emerald-300" value={form.password} onChange={e=>setForm({ ...form, password: e.target.value })}/>
                   {errors.password && <div className="text-red-600 text-sm mt-1">{errors.password[0]}</div>}
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Confirm Password</div>
-                  <input
-                    type="password"
-                    className="w-full border rounded p-2"
-                    value={form.password_confirmation}
-                    onChange={e => setForm({ ...form, password_confirmation: e.target.value })}
-                  />
+                  <input type="password" className="border border-gray-300 rounded-xl p-2.5 w-full focus:outline-none focus:ring-2 focus:ring-emerald-300" value={form.password_confirmation} onChange={e=>setForm({ ...form, password_confirmation: e.target.value })}/>
                   {errors.password_confirmation && <div className="text-red-600 text-sm mt-1">{errors.password_confirmation[0]}</div>}
                 </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    className="px-4 py-2 bg-green-800 text-white rounded"
-                    disabled={saving}
-                    onClick={updatePassword}
-                  >
-                    {saving ? 'Saving...' : 'Save'}
-                  </button>
-                  {saved && <span className="text-sm text-gray-600">Saved.</span>}
-                </div>
+              </div>
+              <div className="mt-4 flex items-center gap-3">
+                <button type="button" className="px-4 py-2 bg-emerald-600 text-white rounded-xl" disabled={saving} onClick={updatePassword}>{saving ? 'Saving...' : 'Change Password'}</button>
+                {saved && <span className="text-sm text-gray-600">Saved.</span>}
               </div>
             </div>
-          </div>
-        </div>
+          )}
+        </section>
       </main>
     </div>
   );

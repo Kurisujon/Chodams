@@ -1,7 +1,10 @@
-import { Link } from '@inertiajs/react';
+import { Link, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 
 export default function Landing() {
+  const [showLogin, setShowLogin] = useState(false)
+  const { data, setData, post, processing, errors, reset } = useForm({ username: '', password: '' })
+  function submit(e) { e.preventDefault(); post('/login', { onSuccess: () => { setShowLogin(false); reset(); } }) }
   return (
     <div className="min-h-screen bg-white">
       <header className="fixed top-0 w-full backdrop-blur bg-white/80 border-b border-black/5 z-50">
@@ -18,7 +21,7 @@ export default function Landing() {
               <a href="#features" className="text-gray-700 hover:text-gray-900">Contact</a>
             </nav>
             <div className="ml-auto flex items-center gap-4">
-              <Link href="/login" className="px-4 py-2 rounded-lg bg-emerald-600 text-white shadow hover:bg-emerald-700">Login</Link>
+              <button onClick={() => setShowLogin(true)} className="px-4 py-2 rounded-lg bg-emerald-600 text-white shadow hover:bg-emerald-700">Login</button>
             </div>
           </div>
         </div>
@@ -73,6 +76,44 @@ export default function Landing() {
           </div>
         </div>
       </section>
+
+      {showLogin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-5xl bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
+            <div className="grid grid-cols-1 md:grid-cols-2">
+              <div className="relative h-80 md:h-[520px] bg-gray-100">
+                <img src="/image/city_housing_building.jpg" alt="City Housing Building" className="absolute inset-0 w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/30 via-emerald-500/20 to-emerald-400/10"></div>
+                <div className="absolute bottom-4 left-4 right-4">
+                  <h3 className="text-white text-xl font-semibold">Welcome to CHoDaMS</h3>
+                  <p className="text-emerald-50 text-xs mt-1">City Housing Data Management System</p>
+                </div>
+              </div>
+              <div className="p-8">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold text-gray-500">User Login</span>
+                  <button onClick={() => setShowLogin(false)} className="p-2 rounded-full hover:bg-gray-100">
+                    <svg className="w-5 h-5 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+                  </button>
+                </div>
+                {errors.error && <div className="mt-2 p-2 rounded bg-red-50 border border-red-200 text-red-700 text-sm">{errors.error}</div>}
+                <form onSubmit={submit} className="mt-4 space-y-3">
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Username</label>
+                    <input type="text" value={data.username} onChange={e=>setData('username', e.target.value)} className="w-full border border-gray-300 rounded-full p-2.5 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Enter username" />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Password</label>
+                    <input type="password" value={data.password} onChange={e=>setData('password', e.target.value)} className="w-full border border-gray-300 rounded-full p-2.5 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Enter password" />
+                  </div>
+                  <button type="submit" disabled={processing} className="w-full mt-2 px-4 py-2 rounded-full bg-emerald-600 text-white hover:bg-emerald-700">Log in</button>
+                  <div className="mt-2 text-xs text-gray-500">Use Admin or Validator credentials</div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BrandMarquee />
 

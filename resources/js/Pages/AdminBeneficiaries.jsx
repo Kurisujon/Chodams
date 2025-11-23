@@ -12,6 +12,16 @@ export default function AdminBeneficiaries() {
   const [searchApproved, setSearchApproved] = useState('')
   const [error, setError] = useState('')
 
+  const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+
+  async function logoutAdmin() {
+    try {
+      await fetch('/admin/logout', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf() } })
+    } finally {
+      window.location.href = '/'
+    }
+  }
+
   useEffect(() => {
     fetchValidated(1, '')
     fetchApproved(1, '')
@@ -53,7 +63,7 @@ export default function AdminBeneficiaries() {
           <li className="px-2 py-3 rounded bg-emerald-50 text-emerald-800 cursor-pointer"><Link href="/admin/beneficiaries" className="block">Beneficiaries</Link></li>
           <li className="px-2 py-3 rounded hover:bg-gray-100 hover:text-emerald-700 cursor-pointer"><Link href="/admin/profile" className="block">Profile</Link></li>
           <li className="px-2 py-3 rounded hover:bg-gray-100 hover:text-emerald-700 cursor-pointer"><Link href="/admin/about" className="block">About</Link></li>
-          <li className="px-2 py-3 rounded hover:bg-red-50 text-red-700 cursor-pointer mt-20"><Link href="/admin/logout" method="post" as="button" className="w-full text-left">Log out</Link></li>
+          <li className="px-2 py-3 rounded hover:bg-red-50 text-red-700 cursor-pointer mt-20"><button onClick={logoutAdmin} className="w-full text-left">Log out</button></li>
         </ul>
       </aside>
 

@@ -25,6 +25,16 @@ export default function AdminDashboard() {
   const displacedChart = useRef(null)
   const doubleUpChart = useRef(null)
 
+  const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+
+  async function logoutAdmin() {
+    try {
+      await fetch('/admin/logout', { method: 'POST', headers: { 'X-CSRF-TOKEN': csrf() } })
+    } finally {
+      window.location.href = '/'
+    }
+  }
+
   useEffect(() => {
     fetchTotals()
     fetchBarangay()
@@ -153,7 +163,7 @@ export default function AdminDashboard() {
           <li className="px-2 py-3 rounded hover:bg-gray-100 hover:text-emerald-700 cursor-pointer"><Link href="/admin/beneficiaries" className="block">Beneficiaries</Link></li>
           <li className="px-2 py-3 rounded hover:bg-gray-100 hover:text-emerald-700 cursor-pointer"><Link href="/admin/profile" className="block">Profile</Link></li>
           <li className="px-2 py-3 rounded hover:bg-gray-100 hover:text-emerald-700 cursor-pointer"><a href="#">About</a></li>
-          <li className="px-2 py-3 rounded hover:bg-red-50 text-red-700 cursor-pointer mt-20"><Link href="/admin/logout" method="post" as="button" className="w-full text-left">Log out</Link></li>
+          <li className="px-2 py-3 rounded hover:bg-red-50 text-red-700 cursor-pointer mt-20"><button onClick={logoutAdmin} className="w-full text-left">Log out</button></li>
         </ul>
       </aside>
 
