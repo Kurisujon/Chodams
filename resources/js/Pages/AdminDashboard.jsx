@@ -9,6 +9,7 @@ export default function AdminDashboard() {
   const [classificationData, setClassificationData] = useState({})
   const [subclassDisplacedData, setSubclassDisplacedData] = useState([])
   const [subclassDoubleUpData, setSubclassDoubleUpData] = useState([])
+  const [mapPoints, setMapPoints] = useState([])
 
   const [showBarangay, setShowBarangay] = useState(false)
   const [showClassification, setShowClassification] = useState(true)
@@ -19,6 +20,8 @@ export default function AdminDashboard() {
   const classificationRef = useRef(null)
   const displacedRef = useRef(null)
   const doubleUpRef = useRef(null)
+  const mapRef = useRef(null)
+  const leafletMap = useRef(null)
 
   const barangayChart = useRef(null)
   const classificationChart = useRef(null)
@@ -41,6 +44,7 @@ export default function AdminDashboard() {
     fetchClassification()
     fetchSubclassDisplaced()
     fetchSubclassDoubleUp()
+    fetchMapPoints()
   }, [])
 
   async function fetchTotals() {
@@ -62,6 +66,10 @@ export default function AdminDashboard() {
   async function fetchSubclassDoubleUp() {
     const res = await axios.get('/admin/api/subclass-doubleup')
     setSubclassDoubleUpData(res.data.data || [])
+  }
+  async function fetchMapPoints() {
+    const res = await axios.get('/admin/api/map-points', { params: { scope: 'all', mode: 'survey' } })
+    setMapPoints(res.data.points || [])
   }
 
   useEffect(() => {
@@ -150,6 +158,30 @@ export default function AdminDashboard() {
       options: { responsive: true, scales: { x: { stacked: true }, y: { beginAtZero: true, stacked: true } }, plugins: { legend: { display: true } } }
     })
   }, [subclassDoubleUpData])
+
+  useEffect(() => {
+    if (!window.L) return
+    if (!mapRef.current) return
+    if (!mapPoints || mapPoints.length === 0) return
+    if (leafletMap.current) {
+      leafletMap.current.remove()
+      leafletMap.current = null
+    }
+    const valid = mapPoints.filter(p => typeof p.lat === 'number' && typeof p.lng === 'number')
+    const center = valid.length ? [valid[0].lat, valid[0].lng] : [8.145, 125.145]
+    const map = window.L.map(mapRef.current).setView(center, 12)
+    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map)
+    valid.forEach(p => {
+      const marker = window.L.circleMarker([p.lat, p.lng], { radius: 8, color: '#10B981', fillColor: '#10B981', fillOpacity: 0.6 })
+      const img = p.photo_url ? `<img src=\"${p.photo_url}\" style=\"width:100%;max-width:220px;border-radius:8px;margin-top:8px\"/>` : `<div style=\"font-size:12px;color:#6b7280;margin-top:6px\">No photo</div>`
+      const name = p.name || 'Unknown'
+      const cls = p.classification || 'Unknown'
+      const html = `<div style=\"min-width:220px\"><div style=\"font-weight:600;color:#065f46\">${name}</div><div style=\"margin-top:2px;color:#374151\">${cls}</div>${img}</div>`
+      marker.bindPopup(html)
+      marker.addTo(map)
+    })
+    leafletMap.current = map
+  }, [mapPoints])
 
   return (
     <div className="flex min-h-screen">
@@ -240,15 +272,8 @@ export default function AdminDashboard() {
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-900">Distribution Map</h3>
-            <p className="text-xs text-gray-500">Last updated: 7 days ago</p>
-            <div className="relative mt-4 h-56">
-              <img src="https://upload.wikimedia.org/wikipedia/commons/8/83/World_map_blank_without_borders.svg" alt="World map" className="absolute inset-0 w-full h-full object-contain opacity-80" />
-              <span className="absolute w-3 h-3 rounded-full bg-emerald-600 border-2 border-white" style={{ top: '35%', left: '30%' }}></span>
-              <span className="absolute w-3 h-3 rounded-full bg-emerald-600 border-2 border-white" style={{ top: '50%', left: '55%' }}></span>
-              <span className="absolute w-3 h-3 rounded-full bg-emerald-600 border-2 border-white" style={{ top: '60%', left: '45%' }}></span>
-              <span className="absolute w-3 h-3 rounded-full bg-emerald-600 border-2 border-white" style={{ top: '30%', left: '70%' }}></span>
-              <span className="absolute w-3 h-3 rounded-full bg-emerald-600 border-2 border-white" style={{ top: '70%', left: '20%' }}></span>
-            </div>
+            <p className="text-xs text-gray-500">All surveys</p>
+            <div ref={mapRef} className="mt-4 h-56 rounded-xl overflow-hidden border" />
           </div>
         </section>
 

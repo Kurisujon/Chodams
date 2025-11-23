@@ -71,6 +71,7 @@ Route::prefix('admin/api')->group(function () {
 
     Route::get('/survey/{survey_id}', [ValidatorDashboardController::class, 'adminSurveyDetails']);
     Route::get('/survey/{survey_id}/photo', [ValidatorDashboardController::class, 'adminSurveyPhoto']);
+    Route::get('/map-points', [ValidatorDashboardController::class, 'adminMapPoints']);
 });
 
 // Validator Logout

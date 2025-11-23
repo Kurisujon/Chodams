@@ -705,6 +705,118 @@ class ValidatorDashboardController extends Controller
         return response($row->house_photo)->header('Content-Type', $type);
     }
 
+    public function adminMapPoints(Request $request)
+    {
+        $scope = strtolower(trim((string)$request->get('scope', 'submitted')));
+        $mode = strtolower(trim((string)$request->get('mode', 'barangay')));
+
+        if ($mode === 'survey') {
+            $q = DB::table('survey_response')
+                ->select('survey_id','barangay','classification','first_name','last_name','middle_name','suffix','latitude','longitude','house_photo_type');
+            if ($scope !== 'all') {
+                $q->whereIn('is_submitted', [1,2]);
+            }
+            $q->whereNotNull('latitude')->whereNotNull('longitude')->where('latitude','!=','')->where('longitude','!=','');
+            $rows = $q->get();
+
+            $normalizeClass = function($c) {
+                $c = trim((string)$c);
+                $lc = strtolower($c);
+                if ($lc === 'double-up' || $lc === 'double up' || $lc === 'doubled-up' || $lc === 'double-up') return 'Double-up';
+                if ($lc === 'upgrading_of_land_tenure' || $lc === 'upgrading of land tenure' || $lc === 'upgrading') return 'Upgrading of Land Tenure';
+                if ($lc === 'displaced') return 'Displaced';
+                if ($lc === 'homeless') return 'Homeless';
+                return $c ?: 'Unknown';
+            };
+
+            $points = [];
+            foreach ($rows as $r) {
+                $lat = is_numeric($r->latitude ?? null) ? (float)$r->latitude : null;
+                $lng = is_numeric($r->longitude ?? null) ? (float)$r->longitude : null;
+                if ($lat === null || $lng === null) continue;
+                $nameParts = [];
+                if (!empty($r->first_name)) $nameParts[] = $r->first_name;
+                if (!empty($r->middle_name)) $nameParts[] = substr($r->middle_name, 0, 1) . '.';
+                if (!empty($r->last_name)) $nameParts[] = $r->last_name;
+                if (!empty($r->suffix)) $nameParts[] = $r->suffix;
+                $name = implode(' ', $nameParts);
+                $hasPhoto = !empty($r->house_photo_type);
+                $points[] = [
+                    'survey_id' => $r->survey_id,
+                    'barangay' => $r->barangay ?: 'Unknown',
+                    'classification' => $normalizeClass($r->classification ?: 'Unknown'),
+                    'lat' => $lat,
+                    'lng' => $lng,
+                    'name' => $name,
+                    'has_photo' => $hasPhoto,
+                    'photo_url' => $hasPhoto ? '/admin/api/survey/'.$r->survey_id.'/photo' : null,
+                ];
+            }
+            return response()->json(['points' => $points]);
+        }
+
+        $countsQuery = DB::table('survey_response')
+            ->select('barangay','classification', DB::raw('COUNT(*) AS count'));
+        $coordsQuery = DB::table('survey_response')
+            ->select(
+                'barangay',
+                DB::raw('MAX(NULLIF(latitude, "")) AS latitude'),
+                DB::raw('MAX(NULLIF(longitude, "")) AS longitude')
+            );
+
+        if ($scope !== 'all') {
+            $countsQuery->whereIn('is_submitted', [1,2]);
+            $coordsQuery->whereIn('is_submitted', [1,2]);
+        }
+
+        $counts = $countsQuery->groupBy('barangay','classification')->get();
+        $coords = $coordsQuery->groupBy('barangay')->get();
+
+        $coordMap = [];
+        foreach ($coords as $c) {
+            $coordMap[$c->barangay ?: 'Unknown'] = [
+                'lat' => is_numeric($c->latitude ?? null) ? (float)$c->latitude : null,
+                'lng' => is_numeric($c->longitude ?? null) ? (float)$c->longitude : null,
+            ];
+        }
+
+        $normalizeClass = function($c) {
+            $c = trim((string)$c);
+            $lc = strtolower($c);
+            if ($lc === 'double-up' || $lc === 'double up' || $lc === 'doubled-up' || $lc === 'double-up') return 'Double-up';
+            if ($lc === 'upgrading_of_land_tenure' || $lc === 'upgrading of land tenure' || $lc === 'upgrading') return 'Upgrading of Land Tenure';
+            if ($lc === 'displaced') return 'Displaced';
+            if ($lc === 'homeless') return 'Homeless';
+            return $c ?: 'Unknown';
+        };
+
+        $points = [];
+        foreach ($counts as $row) {
+            $b = $row->barangay ?: 'Unknown';
+            $cls = $normalizeClass($row->classification ?: 'Unknown');
+            if (!isset($points[$b])) {
+                $points[$b] = [
+                    'barangay' => $b,
+                    'lat' => $coordMap[$b]['lat'] ?? null,
+                    'lng' => $coordMap[$b]['lng'] ?? null,
+                    'counts' => [
+                        'Homeless' => 0,
+                        'Displaced' => 0,
+                        'Double-up' => 0,
+                        'Upgrading of Land Tenure' => 0,
+                    ],
+                    'total' => 0,
+                ];
+            }
+            if (isset($points[$b]['counts'][$cls])) {
+                $points[$b]['counts'][$cls] += (int)$row->count;
+            }
+            $points[$b]['total'] += (int)$row->count;
+        }
+
+        return response()->json(['points' => array_values($points)]);
+    }
+
     protected function computePoints(array $row): int
     {
         $points = 0;
@@ -978,6 +1090,9 @@ class ValidatorDashboardController extends Controller
     public function mobileSubmitSurvey(Request $request)
     {
         $data = $request->json()->all();
+        if (empty($data)) {
+            $data = $request->all();
+        }
 
         $norm = function($v) { return is_string($v) ? trim($v) : $v; };
         $val = function($key) use ($data, $norm) { return $norm($data[$key] ?? null); };
@@ -985,12 +1100,48 @@ class ValidatorDashboardController extends Controller
         $house_photo_blob = null;
         $house_photo_filename = null;
         $house_photo_type = null;
-        if (!empty($data['house_photo'])) {
-            $decoded = base64_decode($data['house_photo']);
+        $hp = $data['house_photo'] ?? $request->input('house_photo');
+        if ($hp) {
+            $s = is_string($hp) ? $hp : '';
+            $typeFromDataUri = null;
+            if (strpos($s, 'base64,') !== false) {
+                $pos = strpos($s, ',');
+                $head = substr($s, 0, $pos);
+                $s = substr($s, $pos + 1);
+                $p1 = strpos($head, ':');
+                $p2 = strpos($head, ';');
+                if ($p1 !== false && $p2 !== false) {
+                    $typeFromDataUri = substr($head, $p1 + 1, $p2 - $p1 - 1);
+                }
+            }
+            $decoded = base64_decode($s);
             if ($decoded !== false) {
+                if (strlen($decoded) > 5 * 1024 * 1024) {
+                    return response()->json(['message' => 'File too large'], 422);
+                }
+                $t = $val('house_photo_type') ?: $request->input('house_photo_type') ?: ($typeFromDataUri ?: 'image/jpeg');
+                $allowed = ['image/jpeg','image/png','image/gif','image/jpg'];
+                if (!in_array($t, $allowed)) {
+                    return response()->json(['message' => 'Invalid file type'], 422);
+                }
                 $house_photo_blob = $decoded;
-                $house_photo_filename = $val('house_photo_filename');
-                $house_photo_type = $val('house_photo_type') ?: 'image/jpeg';
+                $house_photo_filename = $val('house_photo_filename') ?: $request->input('house_photo_filename');
+                $house_photo_type = $t;
+            }
+        }
+        if (!$house_photo_blob) {
+            $file = $request->file('house_photo');
+            if ($file) {
+                if ($file->getSize() > 5 * 1024 * 1024) {
+                    return response()->json(['message' => 'File too large'], 422);
+                }
+                $allowed = ['image/jpeg','image/png','image/gif','image/jpg'];
+                if (!in_array($file->getMimeType(), $allowed)) {
+                    return response()->json(['message' => 'Invalid file type'], 422);
+                }
+                $house_photo_blob = file_get_contents($file->getRealPath());
+                $house_photo_filename = $file->getClientOriginalName();
+                $house_photo_type = $file->getMimeType();
             }
         }
 
