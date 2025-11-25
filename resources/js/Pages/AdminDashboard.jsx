@@ -13,8 +13,6 @@ export default function AdminDashboard() {
 
   const [showBarangay, setShowBarangay] = useState(false)
   const [showClassification, setShowClassification] = useState(true)
-  const [showDisplaced, setShowDisplaced] = useState(false)
-  const [showDoubleUp, setShowDoubleUp] = useState(false)
 
   const barangayRef = useRef(null)
   const classificationRef = useRef(null)
@@ -83,7 +81,7 @@ export default function AdminDashboard() {
     barangayChart.current = new window.Chart(barangayRef.current, {
       type: 'doughnut',
       data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: '#fff', borderWidth: 2, hoverOffset: 6 }] },
-      options: { responsive: true, cutout: '65%', plugins: { legend: { position: 'bottom' } }, animation: { duration: 800 } }
+      options: { responsive: true, cutout: '78%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle' } } }, animation: { duration: 800 } }
     })
   }, [barangayData])
 
@@ -123,18 +121,30 @@ export default function AdminDashboard() {
     if (!displacedRef.current) return
     const subclasses = Array.from(new Set(subclassDisplacedData.map(i => i.subclass_displaced || 'Unknown')))
     const barangays = Array.from(new Set(subclassDisplacedData.map(i => i.barangay || 'Unknown')))
+    const colors = emeraldColors(subclasses.length)
     const datasets = subclasses.map((sub, idx) => ({
       label: sub,
       data: barangays.map(b => {
         const row = subclassDisplacedData.find(r => (r.barangay || 'Unknown') === b && (r.subclass_displaced || 'Unknown') === sub)
         return Number(row?.count) || 0
       }),
-      backgroundColor: `hsl(${(idx * 360) / (subclasses.length || 1)},70%,50%)`
+      backgroundColor: colors[idx],
+      borderRadius: 8,
+      maxBarThickness: 22
     }))
     displacedChart.current = new window.Chart(displacedRef.current, {
       type: 'bar',
       data: { labels: barangays, datasets },
-      options: { responsive: true, scales: { x: { stacked: true }, y: { beginAtZero: true, stacked: true } }, plugins: { legend: { display: true } } }
+      options: { 
+        responsive: true, 
+        indexAxis: 'y', 
+        scales: { 
+          x: { stacked: true, grid: { color: 'rgba(16,185,129,0.1)' }, ticks: { color: '#374151' } }, 
+          y: { stacked: true, grid: { display: false }, ticks: { color: '#374151' } } 
+        }, 
+        plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle' } } }, 
+        animation: { duration: 800 } 
+      }
     })
   }, [subclassDisplacedData])
 
@@ -144,18 +154,30 @@ export default function AdminDashboard() {
     if (!doubleUpRef.current) return
     const subclasses = Array.from(new Set(subclassDoubleUpData.map(i => i.subclass_doubleup || 'Unknown')))
     const barangays = Array.from(new Set(subclassDoubleUpData.map(i => i.barangay || 'Unknown')))
+    const colors = emeraldColors(subclasses.length)
     const datasets = subclasses.map((sub, idx) => ({
       label: sub,
       data: barangays.map(b => {
         const row = subclassDoubleUpData.find(r => (r.barangay || 'Unknown') === b && (r.subclass_doubleup || 'Unknown') === sub)
         return Number(row?.count) || 0
       }),
-      backgroundColor: `hsl(${(idx * 360) / (subclasses.length || 1)},70%,50%)`
+      backgroundColor: colors[idx],
+      borderRadius: 8,
+      maxBarThickness: 22
     }))
     doubleUpChart.current = new window.Chart(doubleUpRef.current, {
       type: 'bar',
       data: { labels: barangays, datasets },
-      options: { responsive: true, scales: { x: { stacked: true }, y: { beginAtZero: true, stacked: true } }, plugins: { legend: { display: true } } }
+      options: { 
+        responsive: true, 
+        indexAxis: 'y', 
+        scales: { 
+          x: { stacked: true, grid: { color: 'rgba(16,185,129,0.1)' }, ticks: { color: '#374151' } }, 
+          y: { stacked: true, grid: { display: false }, ticks: { color: '#374151' } } 
+        }, 
+        plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle' } } }, 
+        animation: { duration: 800 } 
+      }
     })
   }, [subclassDoubleUpData])
 
@@ -193,6 +215,8 @@ export default function AdminDashboard() {
         <ul className="space-y-1">
           <li className="px-2 py-3 rounded bg-emerald-50 text-emerald-800 cursor-pointer"><Link href="/admin/dashboard" className="block">Dashboard</Link></li>
           <li className="px-2 py-3 rounded hover:bg-gray-100 hover:text-emerald-700 cursor-pointer"><Link href="/admin/beneficiaries" className="block">Beneficiaries</Link></li>
+          <li className="px-2 py-3 rounded hover:bg-gray-100 hover:text-emerald-700 cursor-pointer"><Link href="/admin/project-sites" className="block">Project Sites</Link></li>
+          <li className="px-2 py-3 rounded hover:bg-gray-100 hover:text-emerald-700 cursor-pointer"><Link href="/admin/assignments" className="block">Assignments</Link></li>
           <li className="px-2 py-3 rounded hover:bg-gray-100 hover:text-emerald-700 cursor-pointer"><Link href="/admin/profile" className="block">Profile</Link></li>
           <li className="px-2 py-3 rounded hover:bg-gray-100 hover:text-emerald-700 cursor-pointer"><a href="#">About</a></li>
           <li className="px-2 py-3 rounded hover:bg-red-50 text-red-700 cursor-pointer mt-20"><button onClick={logoutAdmin} className="w-full text-left">Log out</button></li>
@@ -255,9 +279,9 @@ export default function AdminDashboard() {
         <section className={`mt-6 bg-white rounded-2xl border border-gray-200 p-6 ${!showBarangay && 'hidden'}`}>
           <div className="max-w-4xl mx-auto">
             <h3 className="text-lg font-semibold text-emerald-800 mb-4">Barangay Overview</h3>
-            <canvas ref={barangayRef} style={{ height: 340 }} />
+            <canvas ref={barangayRef} style={{ height: 200 }} />
             <p className="mt-3 text-center text-sm text-gray-700">
-              {barangayData.length > 0 ? `Barangay ${[...barangayData].sort((a,b)=>b.count-a.count)[0].barangay} has the highest number.` : 'Report will appear here...'}
+              {describeBarangay(barangayData)}
             </p>
           </div>
         </section>
@@ -269,6 +293,7 @@ export default function AdminDashboard() {
               <span className="text-xs text-gray-500">Stacked overview</span>
             </div>
             <canvas ref={classificationRef} style={{ height: 240 }} />
+            <p className="mt-3 text-sm text-gray-700">{describeClassification(classificationData)}</p>
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-900">Distribution Map</h3>
@@ -278,18 +303,17 @@ export default function AdminDashboard() {
         </section>
 
         <section className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className={`bg-white rounded shadow p-6 ${!showDisplaced && 'hidden'}`}>
+          <div className="bg-white rounded-2xl border border-gray-200 p-6">
             <div className="mb-2 font-medium text-emerald-800">Subclass Displaced</div>
             <canvas ref={displacedRef} />
+            <p className="mt-3 text-sm text-gray-700">{describeDisplaced(subclassDisplacedData)}</p>
           </div>
-          <div className={`bg-white rounded shadow p-6 ${!showDoubleUp && 'hidden'}`}>
+          <div className="bg-white rounded-2xl border border-gray-200 p-6">
             <div className="mb-2 font-medium text-emerald-800">Subclass Double-Up</div>
             <canvas ref={doubleUpRef} />
+            <p className="mt-3 text-sm text-gray-700">{describeDoubleUp(subclassDoubleUpData)}</p>
           </div>
-          <div className="flex gap-3">
-            <button className="px-3 py-2 border rounded text-emerald-800" onClick={() => setShowDisplaced(v=>!v)}>Toggle Displaced</button>
-            <button className="px-3 py-2 border rounded text-emerald-800" onClick={() => setShowDoubleUp(v=>!v)}>Toggle Double-Up</button>
-          </div>
+          
         </section>
       </main>
     </div>
@@ -298,4 +322,54 @@ export default function AdminDashboard() {
   function emeraldColors(n) {
     const baseHue = 158
     return Array.from({ length: n }, (_, i) => `hsl(${baseHue},70%,${60 - i * (30 / Math.max(n, 1))}%)`)
+  }
+  function describeBarangay(data) {
+    if (!data || data.length === 0) return 'Report will appear here once data is available.'
+    const sorted = [...data].sort((a,b)=>Number(b.count||0)-Number(a.count||0))
+    const total = sorted.reduce((s,i)=>s+Number(i.count||0),0)
+    const top = sorted.slice(0,3)
+    const low = sorted[sorted.length-1]
+    const pct = (n)=> total? Math.round((n/total)*100):0
+    return `${top[0].barangay} leads with ${top[0].count} (${pct(top[0].count)}%). ${top[1] ? top[1].barangay+' and '+top[2]?.barangay+' follow with '+(top[1].count)+' and '+(top[2]?.count||0)+'. ' : ''}${low ? 'Lowest is '+low.barangay+' ('+low.count+'). ' : ''}Total across barangays is ${total}.`
+  }
+  function describeClassification(map) {
+    const keys = Object.keys(map||{})
+    if (keys.length===0) return 'Report will appear here once data is available.'
+    const totals = keys.map(k=>({k, t: Object.values(map[k]||{}).reduce((s,v)=>s+Number(v||0),0)}))
+    const grand = totals.reduce((s,i)=>s+i.t,0)
+    const sorted = totals.sort((a,b)=>b.t-a.t)
+    const pct = (n)=> grand? Math.round((n/grand)*100):0
+    const top = sorted[0]
+    const topBarangay = Object.entries(map[top.k]||{}).sort((a,b)=>Number(b[1]||0)-Number(a[1]||0))[0]
+    const tbName = topBarangay? topBarangay[0] : 'Unknown'
+    const tbCount = topBarangay? Number(topBarangay[1]||0) : 0
+    return `${top.k} is most prevalent with ${top.t} (${pct(top.t)}%). Highest concentration is in ${tbName} (${tbCount}). Combined total is ${grand}, with ${sorted.slice(1).map(i=>i.k+' '+i.t+' ('+pct(i.t)+'%)').join(', ')}.`
+  }
+  function describeDisplaced(rows) {
+    if (!rows || rows.length===0) return 'Report will appear here once data is available.'
+    const totals = {}
+    rows.forEach(r=>{ const k = r.subclass_displaced||'Unknown'; totals[k]=(totals[k]||0)+Number(r.count||0) })
+    const arr = Object.entries(totals).map(([k,v])=>({k, v}))
+    const sum = arr.reduce((s,i)=>s+i.v,0)
+    const sorted = arr.sort((a,b)=>b.v-a.v)
+    const pct = (n)=> sum? Math.round((n/sum)*100):0
+    const top = sorted[0]
+    const topBarangay = rows.filter(r=>(r.subclass_displaced||'Unknown')===top.k).sort((a,b)=>Number(b.count||0)-Number(a.count||0))[0]
+    const tbName = topBarangay? (topBarangay.barangay||'Unknown') : 'Unknown'
+    const tbCount = topBarangay? Number(topBarangay.count||0) : 0
+    return `${top.k} dominates Displaced with ${top.v} (${pct(top.v)}%). Peak count is in ${tbName} (${tbCount}). Total Displaced subclasses recorded: ${sum}.`
+  }
+  function describeDoubleUp(rows) {
+    if (!rows || rows.length===0) return 'Report will appear here once data is available.'
+    const totals = {}
+    rows.forEach(r=>{ const k = r.subclass_doubleup||'Unknown'; totals[k]=(totals[k]||0)+Number(r.count||0) })
+    const arr = Object.entries(totals).map(([k,v])=>({k, v}))
+    const sum = arr.reduce((s,i)=>s+i.v,0)
+    const sorted = arr.sort((a,b)=>b.v-a.v)
+    const pct = (n)=> sum? Math.round((n/sum)*100):0
+    const top = sorted[0]
+    const topBarangay = rows.filter(r=>(r.subclass_doubleup||'Unknown')===top.k).sort((a,b)=>Number(b.count||0)-Number(a.count||0))[0]
+    const tbName = topBarangay? (topBarangay.barangay||'Unknown') : 'Unknown'
+    const tbCount = topBarangay? Number(topBarangay.count||0) : 0
+    return `${top.k} leads Double‑up with ${top.v} (${pct(top.v)}%). Highest is observed in ${tbName} (${tbCount}). Total Double‑up subclasses recorded: ${sum}.`
   }

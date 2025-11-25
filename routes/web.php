@@ -30,6 +30,19 @@ Route::get('/admin/beneficiaries', function () {
     return Inertia::render('AdminBeneficiaries');
 });
 
+// Admin Project Sites (React)
+Route::get('/admin/project-sites', function () {
+    return Inertia::render('AdminProjectSites');
+});
+Route::get('/admin/project-sites/add', function () {
+    return Inertia::render('AdminProjectAdd');
+});
+
+// Admin Assignments (React)
+Route::get('/admin/assignments', function () {
+    return Inertia::render('AdminAssignments');
+});
+
 // Admin Profile (React)
 Route::get('/admin/profile', function () {
     return Inertia::render('AdminProfile');
@@ -61,6 +74,7 @@ Route::prefix('admin/api')->group(function () {
     Route::get('/subclass-doubleup', [ValidatorDashboardController::class, 'adminSubclassDoubleUp']);
     Route::get('/beneficiaries/validated', [ValidatorDashboardController::class, 'adminBeneficiariesValidated']);
     Route::get('/beneficiaries/approved', [ValidatorDashboardController::class, 'adminBeneficiariesApproved']);
+    Route::get('/beneficiaries/affiliated', [ValidatorDashboardController::class, 'adminBeneficiariesAffiliated']);
 
     Route::get('/profile', [ValidatorDashboardController::class, 'adminProfile']);
     Route::post('/profile', [ValidatorDashboardController::class, 'adminProfileUpdate']);
@@ -72,6 +86,15 @@ Route::prefix('admin/api')->group(function () {
     Route::get('/survey/{survey_id}', [ValidatorDashboardController::class, 'adminSurveyDetails']);
     Route::get('/survey/{survey_id}/photo', [ValidatorDashboardController::class, 'adminSurveyPhoto']);
     Route::get('/map-points', [ValidatorDashboardController::class, 'adminMapPoints']);
+
+    // Project Sites API
+    Route::get('/project-sites', [ValidatorDashboardController::class, 'adminProjectSitesList']);
+    Route::post('/project-sites', [ValidatorDashboardController::class, 'adminProjectSitesCreate']);
+
+    // Assignments API
+    Route::get('/assignments', [ValidatorDashboardController::class, 'adminAssignmentsList']);
+    Route::get('/assignments/pending', [ValidatorDashboardController::class, 'adminAssignmentsPending']);
+    Route::post('/assignments', [ValidatorDashboardController::class, 'adminAssignmentsCreate']);
 });
 
 // Validator Logout

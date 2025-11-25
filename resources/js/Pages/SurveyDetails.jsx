@@ -172,10 +172,10 @@ export default function SurveyDetails() {
                   <td className="border border-gray-300 px-3 py-2">{m.age}</td>
                   <td className="border border-gray-300 px-3 py-2">{m.sex}</td>
                   <td className="border border-gray-300 px-3 py-2">{m.relationship}</td>
-                  <td className="border border-gray-300 px-3 py-2">{m.civilStatus}</td>
-                  <td className="border border-gray-300 px-3 py-2">{m.educationalAttainment}</td>
+                  <td className="border border-gray-300 px-3 py-2">{m.civilStatus || m.civil_status}</td>
+                  <td className="border border-gray-300 px-3 py-2">{m.educationalAttainment || m.educational_attainment}</td>
                   <td className="border border-gray-300 px-3 py-2">{m.occupation}</td>
-                  <td className="border border-gray-300 px-3 py-2">{m.monthlyIncome}</td>
+                  <td className="border border-gray-300 px-3 py-2">{m.monthlyIncome || m.monthly_income}</td>
                 </tr>
               )) : (
                 <tr><td className="border border-gray-300 px-3 py-2" colSpan={8}>No household members found.</td></tr>

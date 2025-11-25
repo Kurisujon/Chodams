@@ -69,6 +69,7 @@ export default function SurveyForm() {
   const [lon, setLon] = useState('')
   const vSigRef = useRef(null)
   const rSigRef = useRef(null)
+  const [signaturePath, setSignaturePath] = useState('')
   const inputClass = 'w-full border border-gray-300 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-300'
   const selectClass = inputClass
   function StepHeader({ number, title }) { return (
@@ -94,6 +95,11 @@ export default function SurveyForm() {
     organization_member:'', specific_organization:'', other_organization:'', wanttolearn:'', remarks:'', interviewed_by: validatorName, date_interviewed:''
   })
 
+  const spouseEnabled = useMemo(() => {
+    const s = data.marital_status
+    return s === 'Married' || s === 'Live-in' || s === 'Widow/Widower' || s === 'Separated' || s === 'Annulled'
+  }, [data.marital_status])
+
   const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
   async function logoutValidator() {
     try {
@@ -110,6 +116,16 @@ export default function SurveyForm() {
       setData(d => ({...d, purok: ''}))
     }
   }, [data.barangay])
+
+  useEffect(() => {
+    axios.get('/validator/api/profile')
+      .then(res => {
+        const p = res.data?.profile
+        if (p?.signature_data) setSignaturePath(p.signature_data)
+        if (p?.name) setData(d => ({...d, interviewed_by: p.name}))
+      })
+      .catch(() => {})
+  }, [])
 
   const subclassVisible = useMemo(() => ({
     displaced: data.classification === 'Displaced',
@@ -145,7 +161,7 @@ export default function SurveyForm() {
       if (housePhoto) fd.append('house_photo', housePhoto)
       fd.append('latitude', lat)
       fd.append('longitude', lon)
-      fd.append('validator_signature', vSigRef.current.toDataURL ? vSigRef.current.toDataURL() : '')
+      fd.append('validator_signature', signaturePath || (vSigRef.current?.toDataURL ? vSigRef.current.toDataURL() : ''))
       fd.append('respondent_signature', rSigRef.current.toDataURL ? rSigRef.current.toDataURL() : '')
       members.forEach(m => {
         fd.append('name[]', m.name ?? '')
@@ -310,7 +326,7 @@ export default function SurveyForm() {
                 <div><div className="text-sm text-gray-500">Age</div><input type="number" className={inputClass} value={data.person_age} onChange={e=>setData({...data, person_age:e.target.value})}/></div>
                 <div>
                   <div className="text-sm text-gray-500">Marital Status</div>
-                  <select className={selectClass} value={data.marital_status} onChange={e=>setData({...data, marital_status:e.target.value})}><option value="">- select here -</option><option value="Single">Single</option><option value="Married">Married</option><option value="Live-in">Live-in</option><option value="Widow/Widower">Widow/Widower</option><option value="Divorced">Divorced</option><option value="Annulled">Annulled</option><option value="Separated">Separated</option><option value="Unknown">Unknown</option></select>
+                  <select className={selectClass} value={data.marital_status} onChange={e=>setData({...data, marital_status:e.target.value})}><option value="">- select here -</option><option value="Single">Single</option><option value="Married">Married</option><option value="Live-in">Live-in</option><option value="Widow/Widower">Widow/Widower</option><option value="Annulled">Annulled</option><option value="Separated">Separated</option><option value="Unknown">Unknown</option></select>
                 </div>
                 <div><div className="text-sm text-gray-500">Contact Number</div><input className={inputClass} value={data.contact_number} onChange={e=>setData({...data, contact_number:e.target.value})}/></div>
                 <div>
@@ -331,21 +347,23 @@ export default function SurveyForm() {
                 <div><div className="text-sm text-gray-500">Year Graduated</div><input className={inputClass} value={data.year_graduated} onChange={e=>setData({...data, year_graduated:e.target.value})}/></div>
               </div>
 
-              <div className="mt-6">
-                <div className="text-lg font-semibold text-emerald-800">Spouse Information</div>
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-3">
-                  <input className={inputClass} placeholder="Spouse Name" value={data.spouse_name} onChange={e=>setData({...data, spouse_name:e.target.value})}/>
-                  <select className={selectClass} value={data.spouse_religion} onChange={e=>setData({...data, spouse_religion:e.target.value})}><option value="">- select here -</option><option value="Roman_Catholic">Roman Catholic</option><option value="Islam">Islam</option><option value="Iglesia_ni_Cristo">Iglesia ni Cristo</option><option value="Seventh-day_Adventist">Seventh-day Adventist</option><option value="Bible_Baptist_Church">Bible Baptist Church</option><option value="United_Church_of_Christ_in_the_Philippines">United Church of Christ in the Philippines</option><option value="Jehovah's_Witnesses">Jehovah's Witnesses</option><option value="Church_of_Christ">Church of Christ</option></select>
-                  <select className={selectClass} value={data.spouse_tribe} onChange={e=>setData({...data, spouse_tribe:e.target.value})}><option value="">- select here -</option><option value="Manobo">Manobo</option><option value="Bagobo">Bagobo</option><option value="B'laan">B'laan</option><option value="Kaolo">Kaolo</option><option value="Bisaya">Bisaya</option><option value="Muslim">Muslim</option></select>
-                  <input type="number" className={inputClass} placeholder="Age" value={data.spouse_age} onChange={e=>setData({...data, spouse_age:e.target.value})}/>
-                  <select className={selectClass} value={data.spouse_gender} onChange={e=>setData({...data, spouse_gender:e.target.value})}><option value="">- select here -</option><option value="Male">Male</option><option value="Female">Female</option></select>
+              {spouseEnabled && (
+                <div className="mt-6">
+                  <div className="text-lg font-semibold text-emerald-800">Spouse Information</div>
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-3">
+                    <input className={inputClass} placeholder="Spouse Name" value={data.spouse_name} onChange={e=>setData({...data, spouse_name:e.target.value})}/>
+                    <select className={selectClass} value={data.spouse_religion} onChange={e=>setData({...data, spouse_religion:e.target.value})}><option value="">- select here -</option><option value="Roman_Catholic">Roman Catholic</option><option value="Islam">Islam</option><option value="Iglesia_ni_Cristo">Iglesia ni Cristo</option><option value="Seventh-day_Adventist">Seventh-day Adventist</option><option value="Bible_Baptist_Church">Bible Baptist Church</option><option value="United_Church_of_Christ_in_the_Philippines">United Church of Christ in the Philippines</option><option value="Jehovah's_Witnesses">Jehovah's Witnesses</option><option value="Church_of_Christ">Church of Christ</option></select>
+                    <select className={selectClass} value={data.spouse_tribe} onChange={e=>setData({...data, spouse_tribe:e.target.value})}><option value="">- select here -</option><option value="Manobo">Manobo</option><option value="Bagobo">Bagobo</option><option value="B'laan">B'laan</option><option value="Kaolo">Kaolo</option><option value="Bisaya">Bisaya</option><option value="Muslim">Muslim</option></select>
+                    <input type="number" className={inputClass} placeholder="Age" value={data.spouse_age} onChange={e=>setData({...data, spouse_age:e.target.value})}/>
+                    <select className={selectClass} value={data.spouse_gender} onChange={e=>setData({...data, spouse_gender:e.target.value})}><option value="">- select here -</option><option value="Male">Male</option><option value="Female">Female</option></select>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="mt-6">
                 <div className="text-lg font-semibold text-emerald-800">Affiliation</div>
                 <select className={selectClass} value={data.affiliation} onChange={e=>setData({...data, affiliation:e.target.value})}>
-                  <option value="">- select here -</option><option value="SSS">SSS</option><option value="GSIS">GSIS</option><option value="PhilHealth">PhilHealth</option><option value="PagIbig">PagIbig</option><option value="PWD">PWD</option><option value="Senior_Citizen">Senior Citizen</option><option value="Solo_Parent">Solo Parent</option><option value="4Ps">4Ps</option>
+                  <option value="">- select here -</option><option value="None">None</option><option value="N/A">N/A</option><option value="SSS">SSS</option><option value="GSIS">GSIS</option><option value="PhilHealth">PhilHealth</option><option value="PagIbig">PagIbig</option><option value="PWD">PWD</option><option value="Senior_Citizen">Senior Citizen</option><option value="Solo_Parent">Solo Parent</option><option value="4Ps">4Ps</option>
                 </select>
               </div>
 
@@ -471,7 +489,7 @@ export default function SurveyForm() {
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Work Location</div>
-                  <select className={selectClass} value={data.work_location_head} onChange={e=>setData({...data, work_location_head:e.target.value})}><option value="">- select here -</option><option value="Within the Barangay">Within the Barangay</option><option value="Within the City/Municipality">Within the City/Municipality</option><option value="Within the Province">Within the Province</option><option value="Within the Country">Within the Country</option></select>
+                  <select className={selectClass} value={data.work_location_head} onChange={e=>setData({...data, work_location_head:e.target.value})}><option value="">- select here -</option><option value="None">None</option><option value="N/A">N/A</option><option value="Within the Barangay">Within the Barangay</option><option value="Within the City/Municipality">Within the City/Municipality</option><option value="Within the Province">Within the Province</option><option value="Within the Country">Within the Country</option></select>
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Monthly Salary</div>
@@ -561,7 +579,11 @@ export default function SurveyForm() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <div className="text-sm text-gray-500 mb-2">Validator Signature</div>
-                  <Signature canvasRef={vSigRef} onClear={()=>clearCanvas(vSigRef)} />
+                  {signaturePath ? (
+                    <div className="border rounded p-2 inline-block"><img src={`/storage/${signaturePath}`} alt="Validator Signature" className="h-24 object-contain"/></div>
+                  ) : (
+                    <Signature canvasRef={vSigRef} onClear={()=>clearCanvas(vSigRef)} />
+                  )}
                 </div>
                 <div>
                   <div className="text-sm text-gray-500 mb-2">Respondent Signature</div>

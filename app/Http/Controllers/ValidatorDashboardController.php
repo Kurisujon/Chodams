@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Schema;
 
 class ValidatorDashboardController extends Controller
 {
@@ -240,18 +241,39 @@ class ValidatorDashboardController extends Controller
             $house_type = $file->getMimeType();
         }
 
-        $saveSignature = function ($base64) {
-            if (!$base64) return null;
-            $parts = explode(',', $base64);
-            if (count($parts) !== 2) return null;
-            $data = base64_decode($parts[1]);
-            $path = 'signatures/'.uniqid().'.png';
-            Storage::disk('public')->put($path, $data);
-            return $path;
+        $saveSignature = function ($input) {
+            if (!$input) return null;
+            $s = is_string($input) ? trim($input) : '';
+            if ($s === '') return null;
+            if (strpos($s, ',') !== false) {
+                $parts = explode(',', $s);
+                if (count($parts) !== 2) return null;
+                $data = base64_decode($parts[1]);
+                $path = 'signatures/'.uniqid().'.png';
+                Storage::disk('public')->put($path, $data);
+                return $path;
+            }
+            return $s;
         };
 
         $validator_signature = $saveSignature($request->input('validator_signature'));
         $respondent_signature = $saveSignature($request->input('respondent_signature'));
+
+        $marital_status = $normalize($request->input('marital_status'));
+        $allowSpouse = in_array($marital_status, ['Married','Live-in','Widow/Widower','Separated','Annulled']);
+        $spouse_name = $allowSpouse ? $normalize($request->input('spouse_name')) : null;
+        $spouse_religion = $allowSpouse ? $normalize($request->input('spouse_religion')) : null;
+        $spouse_tribe = $allowSpouse ? $normalize($request->input('spouse_tribe')) : null;
+        $spouse_age = $allowSpouse ? $normalize($request->input('spouse_age')) : null;
+        $spouse_gender = $allowSpouse ? $normalize($request->input('spouse_gender')) : null;
+
+        $marital_status = $val('marital_status');
+        $allowSpouse = in_array($marital_status, ['Married','Live-in','Widow/Widower','Separated','Annulled']);
+        $spouse_name = $allowSpouse ? $val('spouse_name') : null;
+        $spouse_religion = $allowSpouse ? $val('spouse_religion') : null;
+        $spouse_tribe = $allowSpouse ? $val('spouse_tribe') : null;
+        $spouse_age = $allowSpouse ? $val('spouse_age') : null;
+        $spouse_gender = $allowSpouse ? $val('spouse_gender') : null;
 
         $survey_id = DB::table('survey_response')->insertGetId([
             'validator_id' => $validator_id,
@@ -274,18 +296,18 @@ class ValidatorDashboardController extends Controller
             'birth_place' => $normalize($request->input('birth_place')),
             'birth_date' => $normalize($request->input('birth_date')),
             'person_age' => $normalize($request->input('person_age')),
-            'marital_status' => $normalize($request->input('marital_status')),
+            'marital_status' => $marital_status,
             'contact_number' => $normalize($request->input('contact_number')),
             'language_spoken' => $normalize($request->input('language_spoken')),
             'tribe' => $normalize($request->input('tribe')),
             'highest_education' => $normalize($request->input('highest_education')),
             'last_school_name' => $normalize($request->input('last_school_attended')),
             'year_graduated' => $normalize($request->input('year_graduated')),
-            'spouse_name' => $normalize($request->input('spouse_name')),
-            'spouse_religion' => $normalize($request->input('spouse_religion')),
-            'spouse_tribe' => $normalize($request->input('spouse_tribe')),
-            'spouse_age' => $normalize($request->input('spouse_age')),
-            'spouse_gender' => $normalize($request->input('spouse_gender')),
+            'spouse_name' => $spouse_name,
+            'spouse_religion' => $spouse_religion,
+            'spouse_tribe' => $spouse_tribe,
+            'spouse_age' => $spouse_age,
+            'spouse_gender' => $spouse_gender,
             'affiliation' => $normalize($request->input('affiliation')),
             'lot_ownership' => $normalize($request->input('lot_ownership')),
             'house_ownership' => $normalize($request->input('house_ownership')),
@@ -350,6 +372,25 @@ class ValidatorDashboardController extends Controller
             }
         }
 
+        if ($allowSpouse && $spouse_name) {
+            $exists = DB::table('household_mem')
+                ->where('survey_id', $survey_id)
+                ->where('name', $spouse_name)
+                ->count();
+            if ($exists === 0) {
+                DB::table('household_mem')->insert([
+                    'survey_id' => $survey_id,
+                    'name' => $spouse_name,
+                    'relationship' => 'Spouse',
+                    'age' => is_numeric($spouse_age) ? (int)$spouse_age : null,
+                    'civil_status' => $marital_status,
+                    'educational_attainment' => null,
+                    'occupation' => null,
+                    'monthly_income' => null,
+                ]);
+            }
+        }
+
         return response()->json(['survey_id' => $survey_id]);
     }
 
@@ -360,7 +401,7 @@ class ValidatorDashboardController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
         $row = DB::table('validator')
-            ->select('validator_id','username','name','email')
+            ->select('validator_id','username','name','email','signature_data')
             ->where('validator_id', $validator_id)
             ->first();
         return response()->json(['profile' => $row]);
@@ -459,6 +500,8 @@ class ValidatorDashboardController extends Controller
         $perPage = (int) $request->get('per_page', 10);
         $page = (int) $request->get('page', 1);
         $search = trim((string)$request->get('search', ''));
+        $aff = trim((string)$request->get('affiliation', ''));
+        $class = trim((string)$request->get('classification', ''));
         $offset = ($page - 1) * $perPage;
         $pointsExpr = "(
             CASE WHEN classification = 'Displaced' THEN
@@ -547,6 +590,30 @@ class ValidatorDashboardController extends Controller
         )";
 
         $base = DB::table('survey_response')->where('is_submitted', 1);
+        if ($aff === '') {
+            $base->where(function($q) {
+                $q->whereNull('affiliation')->orWhere('affiliation','');
+            });
+        }
+        if ($aff !== '') {
+            $base->where('affiliation', $aff);
+        }
+        if ($class !== '') {
+            switch ($class) {
+                case 'Displaced':
+                    $base->where('classification', 'Displaced');
+                    break;
+                case 'Double-up':
+                    $base->whereIn('classification', ['Double-up','Double-Up','Doubled-up']);
+                    break;
+                case 'Homeless':
+                    $base->where('classification', 'Homeless');
+                    break;
+                case 'Upgrading of Land Tenure':
+                    $base->whereIn('classification', ['Upgrading_of_Land_Tenure','Upgrading of Land Tenure','upgrading']);
+                    break;
+            }
+        }
         if ($search !== '') {
             $base->where(function($q) use ($search) {
                 $q->where('last_name','like',"%$search%")
@@ -573,6 +640,8 @@ class ValidatorDashboardController extends Controller
         $perPage = (int) $request->get('per_page', 10);
         $page = (int) $request->get('page', 1);
         $search = trim((string)$request->get('search', ''));
+        $aff = trim((string)$request->get('affiliation', ''));
+        $class = trim((string)$request->get('classification', ''));
         $offset = ($page - 1) * $perPage;
         $pointsExpr = "(
             CASE WHEN classification = 'Displaced' THEN
@@ -661,6 +730,25 @@ class ValidatorDashboardController extends Controller
         )";
 
         $base = DB::table('survey_response')->where('is_submitted', 2);
+        if ($aff !== '') {
+            $base->where('affiliation', $aff);
+        }
+        if ($class !== '') {
+            switch ($class) {
+                case 'Displaced':
+                    $base->where('classification', 'Displaced');
+                    break;
+                case 'Double-up':
+                    $base->whereIn('classification', ['Double-up','Double-Up','Doubled-up']);
+                    break;
+                case 'Homeless':
+                    $base->where('classification', 'Homeless');
+                    break;
+                case 'Upgrading of Land Tenure':
+                    $base->whereIn('classification', ['Upgrading_of_Land_Tenure','Upgrading of Land Tenure','upgrading']);
+                    break;
+            }
+        }
         if ($search !== '') {
             $base->where(function($q) use ($search) {
                 $q->where('last_name','like',"%$search%")
@@ -671,6 +759,156 @@ class ValidatorDashboardController extends Controller
         $total = (clone $base)->count();
         $rows = $base->select(
                 'survey_id','date_interviewed','barangay','last_name','classification',
+                'subclass_displaced','subclass_doubleup','subclass_homeless',
+                DB::raw("$pointsExpr AS points")
+            )
+            ->orderByRaw("$pointsExpr DESC")
+            ->orderBy('survey_id','desc')
+            ->offset($offset)
+            ->limit($perPage)
+            ->get();
+        return response()->json(['data' => $rows, 'total' => $total, 'page' => $page, 'per_page' => $perPage]);
+    }
+
+    public function adminBeneficiariesAffiliated(Request $request)
+    {
+        $perPage = (int) $request->get('per_page', 10);
+        $page = (int) $request->get('page', 1);
+        $search = trim((string)$request->get('search', ''));
+        $status = strtolower(trim((string)$request->get('status', 'submitted')));
+        $aff = trim((string)$request->get('affiliation', ''));
+        $class = trim((string)$request->get('classification', ''));
+        $offset = ($page - 1) * $perPage;
+
+        $pointsExpr = "(
+            CASE WHEN classification = 'Displaced' THEN
+                CASE subclass_displaced
+                    WHEN 'Coastal Areas' THEN 1
+                    WHEN 'Sea Level Rise' THEN 1
+                    WHEN 'Drought' THEN 1
+                    WHEN 'Earthquake Affected' THEN 3
+                    WHEN 'Landslide Affected' THEN 3
+                    WHEN 'Flood Affected' THEN 3
+                    WHEN 'Threat of Eviction' THEN 1
+                    WHEN 'Eviction/Demolition Order' THEN 3
+                    WHEN 'Human Induced Disaster' THEN 4
+                    WHEN 'Infra Projects' THEN 4
+                    WHEN 'Near Waterways' THEN 1
+                    ELSE 0
+                END
+            WHEN classification IN ('Double-up','Double-Up','Doubled-up') THEN
+                CASE subclass_doubleup
+                    WHEN 'Renter/Tenant' THEN 6
+                    WHEN 'Rent-free/Sharer' THEN 7
+                    WHEN 'Caretaker' THEN 3
+                    ELSE 0
+                END
+            WHEN classification = 'Homeless' THEN
+                CASE subclass_homeless
+                    WHEN 'Public - living in tent' THEN 30
+                    WHEN 'Private - living in tent' THEN 20
+                    ELSE 30
+                END
+            WHEN classification IN ('Upgrading_of_Land_Tenure','Upgrading of Land Tenure','upgrading') THEN 10
+            ELSE 0
+            END
+        ) + (
+            CASE combine_monthly_income
+                WHEN '0 - 2,999 PHP' THEN 30
+                WHEN '3,000 - 5,999 PHP' THEN 25
+                WHEN '6,000 - 8,999 PHP' THEN 20
+                WHEN '9,000 - 12,999_PHP' THEN 15
+                WHEN '13,000 and above' THEN 10
+                ELSE 0
+            END
+        ) + (
+            CASE lot_ownership WHEN 'Yes' THEN 20 WHEN 'No' THEN 0 ELSE 0 END
+        ) + (
+            CASE house_ownership WHEN 'Yes' THEN 30 WHEN 'No' THEN 0 ELSE 0 END
+        ) + (
+            CASE temporary_living_area WHEN 'Yes' THEN 50 WHEN 'No' THEN 0 ELSE 0 END
+        ) + (
+            CASE housing_structure
+                WHEN 'Full_Concrete' THEN 3
+                WHEN 'Made_of_wood_and_metal_roof' THEN 15
+                WHEN 'Made_of_Amakan_and_Nipa' THEN 25
+                WHEN 'Combination_of_concrete_and_wood' THEN 10
+                WHEN 'Made_of_Amakan_and_metal_roof' THEN 15
+                WHEN 'Others' THEN 2
+                ELSE 0
+            END
+        ) + (
+            CASE type_of_toilet
+                WHEN 'Water_Sealed' THEN 20
+                WHEN 'Open_Pit/Antipolo' THEN 30
+                WHEN 'No_Toilet' THEN 40
+                WHEN 'Others' THEN 10
+                ELSE 0
+            END
+        ) + (
+            CASE source_of_water
+                WHEN 'NAWASA' THEN 4
+                WHEN 'Deep_Well' THEN 15
+                WHEN 'Spring' THEN 20
+                WHEN 'Rainwater' THEN 25
+                WHEN 'Surface_Water' THEN 30
+                WHEN 'Others' THEN 6
+                ELSE 0
+            END
+        ) + (
+            CASE source_of_electricity
+                WHEN 'With_own_meter' THEN 15
+                WHEN 'Tapping_to_the_neighbor' THEN 25
+                WHEN 'Solar_Panel' THEN 20
+                WHEN 'Candle/Lamp' THEN 30
+                WHEN 'Others' THEN 10
+                ELSE 0
+            END
+        )";
+
+        $base = DB::table('survey_response')
+            ->whereNotNull('affiliation')
+            ->where('affiliation','!=','');
+        if ($status === 'validated') {
+            $base->where('is_submitted', 1);
+        } elseif ($status === 'approved') {
+            $base->where('is_submitted', 2);
+        } elseif ($status === 'submitted') {
+            $base->whereIn('is_submitted', [1,2]);
+        }
+
+        if ($aff !== '') {
+            $base->where('affiliation', $aff);
+        }
+        if ($class !== '') {
+            switch ($class) {
+                case 'Displaced':
+                    $base->where('classification', 'Displaced');
+                    break;
+                case 'Double-up':
+                    $base->whereIn('classification', ['Double-up','Double-Up','Doubled-up']);
+                    break;
+                case 'Homeless':
+                    $base->where('classification', 'Homeless');
+                    break;
+                case 'Upgrading of Land Tenure':
+                    $base->whereIn('classification', ['Upgrading_of_Land_Tenure','Upgrading of Land Tenure','upgrading']);
+                    break;
+            }
+        }
+
+        if ($search !== '') {
+            $base->where(function($q) use ($search) {
+                $q->where('last_name','like',"%$search%")
+                  ->orWhere('barangay','like',"%$search%")
+                  ->orWhere('classification','like',"%$search%")
+                  ->orWhere('affiliation','like',"%$search%");
+            });
+        }
+
+        $total = (clone $base)->count();
+        $rows = $base->select(
+                'survey_id','date_interviewed','barangay','last_name','classification','affiliation',
                 'subclass_displaced','subclass_doubleup','subclass_homeless',
                 DB::raw("$pointsExpr AS points")
             )
@@ -962,6 +1200,157 @@ class ValidatorDashboardController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    public function adminProjectSitesList(Request $request)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        $search = trim((string)$request->get('search', ''));
+        $base = DB::table('siteproj');
+        if ($search !== '') {
+            $base->where(function($q) use ($search) {
+                $q->where('project_name','like',"%$search%")
+                  ->orWhere('barangay','like',"%$search%")
+                  ->orWhere('year_started','like',"%$search%")
+                  ->orWhere('description','like',"%$search%");
+            });
+        }
+        $rows = $base->orderBy('project_id','desc')->get();
+        $data = [];
+        foreach ($rows as $r) {
+            $img = is_string($r->proj_image ?? null) ? $r->proj_image : '';
+            $url = $img !== '' ? (Storage::disk('public')->exists($img) ? Storage::url($img) : (str_starts_with($img, '/') ? $img : "/storage/$img")) : null;
+            $data[] = [
+                'project_id' => (int)$r->project_id,
+                'project_name' => $r->project_name,
+                'land_area' => $r->land_area,
+                'total_blocks' => (int)($r->total_blocks ?? 0),
+                'total_lots' => (int)($r->total_lots ?? 0),
+                'barangay' => $r->barangay,
+                'year_started' => $r->year_started,
+                'description' => $r->description,
+                'proj_image' => $img,
+                'image_url' => $url,
+            ];
+        }
+        return response()->json(['data' => $data]);
+    }
+
+    public function adminProjectSitesCreate(Request $request)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        $validated = $request->validate([
+            'project_name' => ['required','string','max:255'],
+            'land_area' => ['nullable','numeric'],
+            'total_blocks' => ['nullable','integer','min:0'],
+            'total_lots' => ['nullable','integer','min:0'],
+            'barangay' => ['nullable','string','max:100'],
+            'year_started' => ['nullable','digits:4'],
+            'description' => ['nullable','string'],
+            'proj_image' => ['nullable','file','image','max:5120'],
+        ]);
+
+        $path = null;
+        if ($request->hasFile('proj_image')) {
+            $file = $request->file('proj_image');
+            $filename = uniqid('proj_').'.'.$file->getClientOriginalExtension();
+            Storage::disk('public')->putFileAs('projects', $file, $filename);
+            $path = 'projects/'.$filename;
+        }
+
+        DB::table('siteproj')->insert([
+            'project_name' => $validated['project_name'],
+            'land_area' => $validated['land_area'] ?? null,
+            'total_blocks' => $validated['total_blocks'] ?? null,
+            'total_lots' => $validated['total_lots'] ?? null,
+            'barangay' => $validated['barangay'] ?? null,
+            'year_started' => $validated['year_started'] ?? null,
+            'description' => $validated['description'] ?? null,
+            'proj_image' => $path,
+        ]);
+        return response()->json(['ok' => true]);
+    }
+
+    public function adminAssignmentsPending(Request $request)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        $search = trim((string)$request->get('search',''));
+        if (!Schema::hasTable('assignments')) {
+            $base = DB::table('survey_response as s')->where('s.is_submitted', 2);
+        } else {
+            $base = DB::table('survey_response as s')
+                ->leftJoin('assignments as a','a.survey_id','=','s.survey_id')
+                ->where('s.is_submitted', 2)
+                ->whereNull('a.assignment_id');
+        }
+        if ($search !== '') {
+            $base->where(function($q) use ($search) {
+                $q->where('s.last_name','like',"%$search%")
+                  ->orWhere('s.barangay','like',"%$search%")
+                  ->orWhere('s.classification','like',"%$search%");
+            });
+        }
+        $rows = $base->select('s.survey_id','s.date_interviewed','s.barangay','s.last_name','s.classification','s.subclass_displaced','s.subclass_doubleup','s.subclass_homeless')->orderBy('s.survey_id','desc')->get();
+        return response()->json(['data'=>$rows]);
+    }
+
+    public function adminAssignmentsList(Request $request)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        $search = trim((string)$request->get('search',''));
+        if (!Schema::hasTable('assignments')) {
+            return response()->json(['data' => []]);
+        }
+        $base = DB::table('assignments as a')
+            ->join('survey_response as s','s.survey_id','=','a.survey_id')
+            ->join('siteproj as p','p.project_id','=','a.project_id');
+        if ($search !== '') {
+            $base->where(function($q) use ($search) {
+                $q->where('s.last_name','like',"%$search%")
+                  ->orWhere('p.project_name','like',"%$search%")
+                  ->orWhere('s.barangay','like',"%$search%")
+                  ->orWhere('a.block_no','like',"%$search%")
+                  ->orWhere('a.lot_no','like',"%$search%");
+            });
+        }
+        $rows = $base->select('a.assignment_id','a.block_no','a.lot_no','a.date_assigned','p.project_id','p.project_name','s.survey_id','s.last_name','s.barangay','s.classification')->orderBy('a.assignment_id','desc')->get();
+        return response()->json(['data'=>$rows]);
+    }
+
+    public function adminAssignmentsCreate(Request $request)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        if (!Schema::hasTable('assignments')) {
+            return response()->json(['message' => 'Assignments table missing'], 422);
+        }
+        $validated = $request->validate([
+            'survey_id' => ['required','integer'],
+            'project_id' => ['required','integer'],
+            'block_no' => ['nullable'],
+            'lot_no' => ['nullable'],
+        ]);
+        $exists = DB::table('assignments')->where('survey_id', $validated['survey_id'])->first();
+        if ($exists) {
+            return response()->json(['message' => 'Already assigned'], 422);
+        }
+        DB::table('assignments')->insert([
+            'survey_id' => $validated['survey_id'],
+            'project_id' => $validated['project_id'],
+            'block_no' => $validated['block_no'] ?? null,
+            'lot_no' => $validated['lot_no'] ?? null,
+            'date_assigned' => now(),
+        ]);
+        return response()->json(['ok'=>true]);
+    }
+
     public function adminValidators(Request $request)
     {
         if (session('role') !== 'admin') {
@@ -1166,18 +1555,18 @@ class ValidatorDashboardController extends Controller
             'birth_place' => $val('birth_place'),
             'birth_date' => $val('birth_date'),
             'person_age' => $val('person_age'),
-            'marital_status' => $val('marital_status'),
+            'marital_status' => $marital_status,
             'contact_number' => $val('contact_number'),
             'language_spoken' => $val('language_spoken'),
             'tribe' => $val('tribe'),
             'highest_education' => $val('highest_education'),
             'last_school_name' => $val('last_school_name'),
             'year_graduated' => $val('year_graduated'),
-            'spouse_name' => $val('spouse_name'),
-            'spouse_religion' => $val('spouse_religion'),
-            'spouse_tribe' => $val('spouse_tribe'),
-            'spouse_age' => $val('spouse_age'),
-            'spouse_gender' => $val('spouse_gender'),
+            'spouse_name' => $spouse_name,
+            'spouse_religion' => $spouse_religion,
+            'spouse_tribe' => $spouse_tribe,
+            'spouse_age' => $spouse_age,
+            'spouse_gender' => $spouse_gender,
             'affiliation' => $val('affiliation'),
             'lot_ownership' => $val('lot_ownership'),
             'house_ownership' => $val('house_ownership'),
@@ -1224,6 +1613,26 @@ class ValidatorDashboardController extends Controller
                     'educational_attainment' => $m['educationalAttainment'] ?? ($m['educational_attainment'] ?? null),
                     'occupation' => $m['occupation'] ?? null,
                     'monthly_income' => $m['monthlyIncome'] ?? ($m['monthly_income'] ?? null),
+                ]);
+            }
+        }
+
+        if ($allowSpouse && $spouse_name) {
+            $exists = DB::table('household_mem')
+                ->where('survey_id', $survey_id)
+                ->where('name', $spouse_name)
+                ->count();
+            if ($exists === 0) {
+                DB::table('household_mem')->insert([
+                    'survey_id' => $survey_id,
+                    'name' => $spouse_name,
+                    'age' => isset($spouse_age) && is_numeric($spouse_age) ? (int)$spouse_age : null,
+                    'sex' => $spouse_gender,
+                    'relationship' => 'Spouse',
+                    'civil_status' => $marital_status,
+                    'educational_attainment' => null,
+                    'occupation' => null,
+                    'monthly_income' => null,
                 ]);
             }
         }
