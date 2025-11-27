@@ -146,6 +146,46 @@ class ValidatorDashboardController extends Controller
         ]);
     }
 
+    public function surveyPhoto(Request $request, $survey_id)
+    {
+        $validator_id = session('validator_id');
+        if (!$validator_id) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $row = DB::table('survey_response')
+            ->select('house_photo')
+            ->where('survey_id', $survey_id)
+            ->where('validator_id', $validator_id)
+            ->first();
+
+        if (!$row || empty($row->house_photo)) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
+
+        $pathStr = trim((string)$row->house_photo);
+        $ctype = 'image/jpeg';
+
+        if ($pathStr !== '') {
+            $p = ltrim($pathStr, '/');
+            if (str_starts_with($p, 'storage/')) {
+                $rel = substr($p, 8);
+                if (\Illuminate\Support\Facades\Storage::disk('public')->exists($rel)) {
+                    $abs = \Illuminate\Support\Facades\Storage::disk('public')->path($rel);
+                    $mime = \Illuminate\Support\Facades\Storage::disk('public')->mimeType($rel) ?: $ctype;
+                    return response()->file($abs, ['Content-Type' => $mime]);
+                }
+            }
+            $absPublic = public_path($p);
+            if (file_exists($absPublic)) {
+                $mime = function_exists('mime_content_type') ? mime_content_type($absPublic) : $ctype;
+                return response()->file($absPublic, ['Content-Type' => $mime]);
+            }
+        }
+
+        return response()->json(['message' => 'Not found'], 404);
+    }
+
     public function createSurvey(Request $request)
     {
         $validator_id = session('validator_id');
@@ -261,19 +301,12 @@ class ValidatorDashboardController extends Controller
 
         $marital_status = $normalize($request->input('marital_status'));
         $allowSpouse = in_array($marital_status, ['Married','Live-in','Widow/Widower','Separated','Annulled']);
+
         $spouse_name = $allowSpouse ? $normalize($request->input('spouse_name')) : null;
         $spouse_religion = $allowSpouse ? $normalize($request->input('spouse_religion')) : null;
         $spouse_tribe = $allowSpouse ? $normalize($request->input('spouse_tribe')) : null;
         $spouse_age = $allowSpouse ? $normalize($request->input('spouse_age')) : null;
         $spouse_gender = $allowSpouse ? $normalize($request->input('spouse_gender')) : null;
-
-        $marital_status = $val('marital_status');
-        $allowSpouse = in_array($marital_status, ['Married','Live-in','Widow/Widower','Separated','Annulled']);
-        $spouse_name = $allowSpouse ? $val('spouse_name') : null;
-        $spouse_religion = $allowSpouse ? $val('spouse_religion') : null;
-        $spouse_tribe = $allowSpouse ? $val('spouse_tribe') : null;
-        $spouse_age = $allowSpouse ? $val('spouse_age') : null;
-        $spouse_gender = $allowSpouse ? $val('spouse_gender') : null;
 
         $survey_id = DB::table('survey_response')->insertGetId([
             'validator_id' => $validator_id,
@@ -933,14 +966,27 @@ class ValidatorDashboardController extends Controller
     public function adminSurveyPhoto(Request $request, $survey_id)
     {
         $row = DB::table('survey_response')
-            ->select('house_photo','house_photo_type')
+            ->select('house_photo')
             ->where('survey_id', $survey_id)
             ->first();
         if (!$row || empty($row->house_photo)) {
             return response()->json(['message' => 'Not found'], 404);
         }
-        $type = $row->house_photo_type ?: 'image/jpeg';
-        return response($row->house_photo)->header('Content-Type', $type);
+        $p = ltrim(trim((string)$row->house_photo), '/');
+        if (str_starts_with($p, 'storage/')) {
+            $rel = substr($p, 8);
+            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($rel)) {
+                $abs = \Illuminate\Support\Facades\Storage::disk('public')->path($rel);
+                $mime = \Illuminate\Support\Facades\Storage::disk('public')->mimeType($rel) ?: 'image/jpeg';
+                return response()->file($abs, ['Content-Type' => $mime]);
+            }
+        }
+        $absPublic = public_path($p);
+        if (file_exists($absPublic)) {
+            $mime = function_exists('mime_content_type') ? mime_content_type($absPublic) : 'image/jpeg';
+            return response()->file($absPublic, ['Content-Type' => $mime]);
+        }
+        return response()->json(['message' => 'Not found'], 404);
     }
 
     public function adminMapPoints(Request $request)
@@ -950,7 +996,7 @@ class ValidatorDashboardController extends Controller
 
         if ($mode === 'survey') {
             $q = DB::table('survey_response')
-                ->select('survey_id','barangay','classification','first_name','last_name','middle_name','suffix','latitude','longitude','house_photo_type');
+                ->select('survey_id','barangay','classification','first_name','last_name','middle_name','suffix','latitude','longitude','house_photo');
             if ($scope !== 'all') {
                 $q->whereIn('is_submitted', [1,2]);
             }
@@ -978,7 +1024,7 @@ class ValidatorDashboardController extends Controller
                 if (!empty($r->last_name)) $nameParts[] = $r->last_name;
                 if (!empty($r->suffix)) $nameParts[] = $r->suffix;
                 $name = implode(' ', $nameParts);
-                $hasPhoto = !empty($r->house_photo_type);
+                $hasPhoto = !empty($r->house_photo);
                 $points[] = [
                     'survey_id' => $r->survey_id,
                     'barangay' => $r->barangay ?: 'Unknown',
@@ -1256,8 +1302,7 @@ class ValidatorDashboardController extends Controller
         if ($request->hasFile('proj_image')) {
             $file = $request->file('proj_image');
             $filename = uniqid('proj_').'.'.$file->getClientOriginalExtension();
-            Storage::disk('public')->putFileAs('projects', $file, $filename);
-            $path = 'projects/'.$filename;
+            $path = $file->storeAs('projects', $filename, 'public');
         }
 
         DB::table('siteproj')->insert([
@@ -1534,14 +1579,60 @@ class ValidatorDashboardController extends Controller
             }
         }
 
+        // Prepare variables and handle 'Others' logic
+        $classification = $val('classification');
+        $subclass_displaced = $val('subclass_displaced') ?: $val('sub_class_displaced');
+        $subclass_doubleup = $val('subclass_doubleup') ?: $val('sub_class_double_up');
+        $subclass_homeless = $val('subclass_homeless') ?: $val('sub_class_homeless');
+
+        $housing_structure = $val('housing_structure');
+        if ($housing_structure === 'Others') $housing_structure = $val('other_housing_structure');
+
+        $type_of_toilet = $val('type_of_toilet');
+        if ($type_of_toilet === 'Others') $type_of_toilet = $val('other_type_of_toilet');
+
+        $source_of_water = $val('source_of_water');
+        if ($source_of_water === 'Others') $source_of_water = $val('other_source_of_water');
+
+        $source_of_electricity = $val('source_of_electricity');
+        if ($source_of_electricity === 'Others') $source_of_electricity = $val('other_source_of_electricity');
+
+        $main_income_source = $val('main_income_source');
+        if (strtolower((string)$main_income_source) === 'others') $main_income_source = $val('other_main_income_source');
+
+        $work_status = $val('work_status');
+        if (strtolower((string)$work_status) === 'others') $work_status = $val('other_work_status');
+
+        $skills_for_living = $val('skills_for_living');
+        $specific_skill = null;
+        if ($skills_for_living === 'Yes') {
+            $specific_skill = $val('specific_skill');
+            if (strtolower((string)$specific_skill) === 'others') $specific_skill = $val('other_skill');
+        }
+
+        $organization_member = $val('organization_member');
+        $specific_organization = null;
+        if ($organization_member === 'Yes') {
+            $specific_organization = $val('specific_organization');
+            if (strtolower((string)$specific_organization) === 'others') $specific_organization = $val('other_organization');
+        }
+
+        $marital_status = $val('marital_status');
+        $allowSpouse = in_array($marital_status, ['Married','Live-in','Widow/Widower','Separated','Annulled']);
+        $spouse_name = $allowSpouse ? $val('spouse_name') : null;
+        $spouse_religion = $allowSpouse ? $val('spouse_religion') : null;
+        $spouse_tribe = $allowSpouse ? $val('spouse_tribe') : null;
+        $spouse_age = $allowSpouse ? $val('spouse_age') : null;
+        $spouse_gender = $allowSpouse ? $val('spouse_gender') : null;
+
         $survey_id = DB::table('survey_response')->insertGetId([
             'validator_id' => (int)($data['validator_id'] ?? 1),
             'previous_client' => $val('previous_client'),
             'year_inhabited' => $val('year_inhabited'),
-            'classification' => $val('classification'),
-            'subclass_displaced' => $val('subclass_displaced'),
-            'subclass_doubleup' => $val('subclass_doubleup'),
-            'subclass_homeless' => $val('subclass_homeless'),
+            'classification' => $classification,
+            'subclass_displaced' => $subclass_displaced,
+            'subclass_doubleup' => $subclass_doubleup,
+            'subclass_homeless' => $subclass_homeless,
             'interview_person' => $val('interview_person'),
             'last_name' => $val('last_name'),
             'first_name' => $val('first_name'),
@@ -1572,19 +1663,19 @@ class ValidatorDashboardController extends Controller
             'house_ownership' => $val('house_ownership'),
             'avail_socialized_housing' => $val('avail_socialized_housing'),
             'temporary_living_area' => $val('temporary_living_area'),
-            'housing_structure' => $val('housing_structure'),
-            'type_of_toilet' => $val('type_of_toilet'),
-            'source_of_water' => $val('source_of_water'),
-            'source_of_electricity' => $val('source_of_electricity'),
-            'main_income_source' => $val('main_income_source'),
-            'work_status' => $val('work_status'),
+            'housing_structure' => $housing_structure,
+            'type_of_toilet' => $type_of_toilet,
+            'source_of_water' => $source_of_water,
+            'source_of_electricity' => $source_of_electricity,
+            'main_income_source' => $main_income_source,
+            'work_status' => $work_status,
             'work_location_head' => $val('work_location_head'),
             'monthly_salary' => $val('monthly_salary'),
             'combine_monthly_income' => $val('combine_monthly_income'),
-            'skills_for_living' => $val('skills_for_living'),
-            'specific_skill' => $val('specific_skill'),
-            'organization_member' => $val('organization_member'),
-            'specific_organization' => $val('specific_organization'),
+            'skills_for_living' => $skills_for_living,
+            'specific_skill' => $specific_skill,
+            'organization_member' => $organization_member,
+            'specific_organization' => $specific_organization,
             'wanttolearn' => $val('wanttolearn'),
             'house_photo' => $house_photo_blob,
             'house_photo_filename' => $house_photo_filename,

@@ -131,6 +131,7 @@ Route::prefix('validator/api')->group(function () {
     Route::get('/surveys', [ValidatorDashboardController::class, 'surveys']);
     Route::get('/submitted', [ValidatorDashboardController::class, 'submitted']);
     Route::get('/survey/{survey_id}', [ValidatorDashboardController::class, 'surveyDetails']);
+    Route::get('/survey/{survey_id}/photo', [ValidatorDashboardController::class, 'surveyPhoto']);
     Route::get('/profile', [ValidatorDashboardController::class, 'profile']);
     Route::post('/profile/password', [ValidatorDashboardController::class, 'updatePassword']);
     Route::post('/survey', [ValidatorDashboardController::class, 'createSurvey']);
