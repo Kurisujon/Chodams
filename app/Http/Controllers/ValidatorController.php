@@ -67,12 +67,16 @@ class ValidatorController extends Controller
             // Flutter ValidatorModel expects: id, name, username, status
             // Our DB has: validator_id, name, username, status
             
+            $sig = is_string($validator->signature_data ?? null) ? trim($validator->signature_data) : null;
+            if ($sig !== null && $sig !== '' && str_starts_with($sig, 'signatures/')) {
+                $sig = 'storage/'.$sig;
+            }
             $validatorData = [
                 'id' => $validator->validator_id,
                 'name' => $validator->name,
                 'username' => $validator->username,
                 'status' => $validator->status,
-                'signature_data' => $validator->signature_data,
+                'signature_data' => $sig,
             ];
 
             return response()->json([
@@ -100,12 +104,16 @@ class ValidatorController extends Controller
             $validators = Validator::all();
 
             $validatorsData = $validators->map(function ($validator) {
+                $sig = is_string($validator->signature_data ?? null) ? trim($validator->signature_data) : null;
+                if ($sig !== null && $sig !== '' && str_starts_with($sig, 'signatures/')) {
+                    $sig = 'storage/'.$sig;
+                }
                 return [
                     'id' => $validator->validator_id,
                     'name' => $validator->name,
                     'username' => $validator->username,
                     'status' => $validator->status,
-                    'signature_data' => $validator->signature_data,
+                    'signature_data' => $sig,
                 ];
             });
 

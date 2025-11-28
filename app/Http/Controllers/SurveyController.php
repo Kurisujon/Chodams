@@ -23,20 +23,16 @@ class SurveyController extends Controller
             // Handle Photo Upload
             if ($request->hasFile('house_photo')) {
                 $file = $request->file('house_photo');
-                
-                // Use the provided filename or generate a unique one
                 $filename = $request->input('house_photo_filename');
                 if (!$filename) {
                     $filename = 'survey_' . time() . '_' . uniqid() . '.jpg';
                 }
-                
-                // Store in 'public/survey_photos'
-                // Ensure you have run `php artisan storage:link`
-                $path = $file->storeAs('survey_photos', $filename, 'public');
-                
-                // Save the relative path to the database column 'house_photo'
-                // Adjust this path format based on how you want to access it (e.g., full URL or relative)
-                $data['house_photo'] = 'storage/survey_photos/' . $filename; 
+                $path = $file->storeAs('images', $filename, 'public');
+                $data['house_photo'] = 'storage/images/' . $filename; 
+            }
+
+            if (!array_key_exists('house_photo', $data)) {
+                $data['house_photo'] = '';
             }
 
             if ($request->filled('validator_signature')) {
@@ -134,9 +130,8 @@ class SurveyController extends Controller
                 if (!$filename) {
                     $filename = 'survey_' . time() . '_' . uniqid() . '.jpg';
                 }
-                
-                $path = $file->storeAs('survey_photos', $filename, 'public');
-                $data['house_photo'] = 'storage/survey_photos/' . $filename; 
+                $path = $file->storeAs('images', $filename, 'public');
+                $data['house_photo'] = 'storage/images/' . $filename; 
             }
 
             if ($request->filled('validator_signature')) {

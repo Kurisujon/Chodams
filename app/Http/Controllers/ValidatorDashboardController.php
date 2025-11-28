@@ -437,6 +437,12 @@ class ValidatorDashboardController extends Controller
             ->select('validator_id','username','name','email','signature_data')
             ->where('validator_id', $validator_id)
             ->first();
+        if ($row && is_string($row->signature_data ?? null)) {
+            $sig = trim($row->signature_data);
+            if ($sig !== '' && str_starts_with($sig, 'signatures/')) {
+                $row->signature_data = 'storage/'.$sig;
+            }
+        }
         return response()->json(['profile' => $row]);
     }
 
@@ -1450,9 +1456,9 @@ class ValidatorDashboardController extends Controller
             $parts = explode(',', $sig);
             if (count($parts) === 2) {
                 $data = base64_decode($parts[1]);
-                $path = 'signatures/'.uniqid().'.png';
-                Storage::disk('public')->put($path, $data);
-                $signature_path = $path;
+                $relative = 'signatures/'.uniqid().'.png';
+                Storage::disk('public')->put($relative, $data);
+                $signature_path = 'storage/'.$relative;
             } else {
                 $signature_path = $sig;
             }
@@ -1480,7 +1486,16 @@ class ValidatorDashboardController extends Controller
                 'signature_data'
             )
             ->where('status', 'approved')
-            ->get();
+            ->get()
+            ->map(function($row) {
+                if (is_string($row->signature_data ?? null)) {
+                    $sig = trim($row->signature_data);
+                    if ($sig !== '' && str_starts_with($sig, 'signatures/')) {
+                        $row->signature_data = 'storage/'.$sig;
+                    }
+                }
+                return $row;
+            })->all();
         return response()->json([
             'success' => true,
             'validators' => $rows,
@@ -1517,6 +1532,12 @@ class ValidatorDashboardController extends Controller
             return response()->json(['success' => false, 'message' => 'Invalid password', 'debug' => ['username' => $username]], 401);
         }
 
+        if (is_string($row->signature_data ?? null)) {
+            $sig = trim($row->signature_data);
+            if ($sig !== '' && str_starts_with($sig, 'signatures/')) {
+                $row->signature_data = 'storage/'.$sig;
+            }
+        }
         return response()->json(['success' => true, 'validator' => $row]);
     }
 
@@ -1534,6 +1555,7 @@ class ValidatorDashboardController extends Controller
         $house_photo_blob = null;
         $house_photo_filename = null;
         $house_photo_type = null;
+        $house_photo_path = null;
         $hp = $data['house_photo'] ?? $request->input('house_photo');
         if ($hp) {
             $s = is_string($hp) ? $hp : '';
@@ -1577,6 +1599,18 @@ class ValidatorDashboardController extends Controller
                 $house_photo_filename = $file->getClientOriginalName();
                 $house_photo_type = $file->getMimeType();
             }
+        }
+
+        if ($house_photo_blob) {
+            $ext = 'jpg';
+            if ($house_photo_type === 'image/png') $ext = 'png';
+            elseif ($house_photo_type === 'image/gif') $ext = 'gif';
+            elseif ($house_photo_type === 'image/jpg' || $house_photo_type === 'image/jpeg') $ext = 'jpg';
+            if (!$house_photo_filename || strpos($house_photo_filename, '.') === false) {
+                $house_photo_filename = 'survey_' . time() . '_' . uniqid() . '.' . $ext;
+            }
+            Storage::disk('public')->put('survey_photos/' . $house_photo_filename, $house_photo_blob);
+            $house_photo_path = 'storage/survey_photos/' . $house_photo_filename;
         }
 
         // Prepare variables and handle 'Others' logic
@@ -1677,7 +1711,7 @@ class ValidatorDashboardController extends Controller
             'organization_member' => $organization_member,
             'specific_organization' => $specific_organization,
             'wanttolearn' => $val('wanttolearn'),
-            'house_photo' => $house_photo_blob,
+            'house_photo' => $house_photo_path ?: '',
             'house_photo_filename' => $house_photo_filename,
             'house_photo_type' => $house_photo_type,
             'remarks' => $val('remarks'),
