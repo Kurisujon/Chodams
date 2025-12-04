@@ -13,6 +13,16 @@ export default function SurveyDetails() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showHouseInfo, setShowHouseInfo] = useState(false)
+  const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+
+  async function handleApprove() {
+    try {
+      await axios.post('/admin/api/approve', { survey_id: surveyId }, { headers: { 'X-CSRF-TOKEN': csrf() } })
+      window.location.href = '/admin/assignments'
+    } catch (e) {
+      setError(e?.response?.data?.message || 'Approval failed')
+    }
+  }
 
   useEffect(() => {
     let mounted = true
@@ -39,6 +49,9 @@ export default function SurveyDetails() {
           <div className="flex gap-2">
             <Link href={isAdmin ? '/admin/beneficiaries' : '/validator/dashboard'} className="px-4 py-2 border rounded text-emerald-800">Back</Link>
             <button onClick={() => window.print()} className="px-4 py-2 bg-emerald-600 text-white rounded">Print</button>
+            {isAdmin && survey?.is_submitted !== 2 && (
+              <button onClick={handleApprove} className="px-4 py-2 bg-emerald-600 text-white rounded">Approve</button>
+            )}
           </div>
         </div>
 

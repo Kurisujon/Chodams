@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Schema;
+use Carbon\Carbon;
 
 class ValidatorDashboardController extends Controller
 {
@@ -18,11 +19,11 @@ class ValidatorDashboardController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
-        $total_surveyed = DB::table('survey_response')
+        $total_surveyed = DB::table('survey')
             ->where('validator_id', $validator_id)
             ->count();
 
-        $total_submitted = DB::table('survey_response')
+        $total_submitted = DB::table('survey')
             ->where('validator_id', $validator_id)
             ->whereIn('is_submitted', [1,2])
             ->count();
@@ -45,17 +46,31 @@ class ValidatorDashboardController extends Controller
         $page = (int) $request->get('page', 1);
         $offset = ($page - 1) * $perPage;
 
-        $total = DB::table('survey_response')
-            ->where('validator_id', $validator_id)
+        $total = DB::table('survey AS s')
+            ->where('s.validator_id', $validator_id)
             ->count();
 
-        $rows = DB::table('survey_response')
-            ->select('survey_id','date_interviewed','barangay','purok','last_name','classification','subclass_displaced','subclass_doubleup')
-            ->where('validator_id', $validator_id)
-            ->orderBy('survey_id','desc')
+        $rows = DB::table('survey AS s')
+            ->join('demographic AS d', 'd.survey_id', '=', 's.survey_id')
+            ->join('classification AS c', 'c.survey_id', '=', 's.survey_id')
+            ->select('s.survey_id','s.date_interviewed','d.barangay','d.purok','d.last_name','c.classification','c.subclass_displaced','c.subclass_doubleup')
+            ->where('s.validator_id', $validator_id)
+            ->orderBy('s.survey_id','desc')
             ->offset($offset)
             ->limit($perPage)
-            ->get();
+            ->get()
+            ->map(function($row){
+                $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
+                $displacedLabel = [
+                    1=>'Coastal Areas',2=>'Drought',3=>'Earthquake Affected',4=>'Flood Affected',5=>'Sea Level Rise',
+                    6=>'Threat of Eviction',7=>'Eviction/Demolition Order',8=>'Human Induced Disaster',9=>'Infra Projects',10=>'Landslide Affected',11=>'Near Waterways'
+                ];
+                $doubleupLabel = [1=>'Renter/Tenant',2=>'Rent-free/Sharer',3=>'Caretaker'];
+                $row->classification = $classLabel[$row->classification] ?? $row->classification;
+                $row->subclass_displaced = $displacedLabel[$row->subclass_displaced] ?? ($row->subclass_displaced ?: '');
+                $row->subclass_doubleup = $doubleupLabel[$row->subclass_doubleup] ?? ($row->subclass_doubleup ?: '');
+                return $row;
+            });
 
         return response()->json([
             'data' => $rows,
@@ -77,19 +92,33 @@ class ValidatorDashboardController extends Controller
         $page = (int) $request->get('page', 1);
         $offset = ($page - 1) * $perPage;
 
-        $total = DB::table('survey_response')
-            ->where('validator_id', $validator_id)
-            ->whereIn('is_submitted', [1,2])
+        $total = DB::table('survey AS s')
+            ->where('s.validator_id', $validator_id)
+            ->whereIn('s.is_submitted', [1,2])
             ->count();
 
-        $rows = DB::table('survey_response')
-            ->select('survey_id','date_interviewed','barangay','purok','last_name','classification','subclass_displaced','subclass_doubleup')
-            ->where('validator_id', $validator_id)
-            ->whereIn('is_submitted', [1,2])
-            ->orderBy('survey_id','desc')
+        $rows = DB::table('survey AS s')
+            ->join('demographic AS d', 'd.survey_id', '=', 's.survey_id')
+            ->join('classification AS c', 'c.survey_id', '=', 's.survey_id')
+            ->select('s.survey_id','s.date_interviewed','d.barangay','d.purok','d.last_name','c.classification','c.subclass_displaced','c.subclass_doubleup')
+            ->where('s.validator_id', $validator_id)
+            ->whereIn('s.is_submitted', [1,2])
+            ->orderBy('s.survey_id','desc')
             ->offset($offset)
             ->limit($perPage)
-            ->get();
+            ->get()
+            ->map(function($row){
+                $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
+                $displacedLabel = [
+                    1=>'Coastal Areas',2=>'Drought',3=>'Earthquake Affected',4=>'Flood Affected',5=>'Sea Level Rise',
+                    6=>'Threat of Eviction',7=>'Eviction/Demolition Order',8=>'Human Induced Disaster',9=>'Infra Projects',10=>'Landslide Affected',11=>'Near Waterways'
+                ];
+                $doubleupLabel = [1=>'Renter/Tenant',2=>'Rent-free/Sharer',3=>'Caretaker'];
+                $row->classification = $classLabel[$row->classification] ?? $row->classification;
+                $row->subclass_displaced = $displacedLabel[$row->subclass_displaced] ?? ($row->subclass_displaced ?: '');
+                $row->subclass_doubleup = $doubleupLabel[$row->subclass_doubleup] ?? ($row->subclass_doubleup ?: '');
+                return $row;
+            });
 
         return response()->json([
             'data' => $rows,
@@ -112,7 +141,7 @@ class ValidatorDashboardController extends Controller
             return response()->json(['message' => 'Missing survey_id'], 400);
         }
 
-        $updated = DB::table('survey_response')
+        $updated = DB::table('survey')
             ->where('survey_id', $survey_id)
             ->where('validator_id', $validator_id)
             ->update(['is_submitted' => 1]);
@@ -127,13 +156,105 @@ class ValidatorDashboardController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
-        $survey = DB::table('survey_response')
-            ->where('survey_id', $survey_id)
-            ->where('validator_id', $validator_id)
+        $s = DB::table('survey as s')
+            ->where('s.survey_id', $survey_id)
+            ->where('s.validator_id', $validator_id)
             ->first();
-
-        if (!$survey) {
+        if (!$s) {
             return response()->json(['message' => 'Not found'], 404);
+        }
+
+        $c = DB::table('classification')->where('survey_id', $survey_id)->first();
+        $d = DB::table('demographic')->where('survey_id', $survey_id)->first();
+        $h = DB::table('household')->where('survey_id', $survey_id)->first();
+        $e = DB::table('economic')->where('survey_id', $survey_id)->first();
+        $t = DB::table('training')->where('survey_id', $survey_id)->first();
+
+        $surveyArr = [];
+        $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
+        $displacedLabel = [
+            1=>'Coastal Areas',2=>'Drought',3=>'Earthquake Affected',4=>'Flood Affected',5=>'Sea Level Rise',
+            6=>'Threat of Eviction',7=>'Eviction/Demolition Order',8=>'Human Induced Disaster',9=>'Infra Projects',10=>'Landslide Affected',11=>'Near Waterways'
+        ];
+        $doubleupLabel = [1=>'Renter/Tenant',2=>'Rent-free/Sharer',3=>'Caretaker'];
+        $homelessLabel = [1=>'Public - living in tent',2=>'Private - living in tent'];
+        $ynLabel = [0=>'No',1=>'Yes'];
+        $genderLabel = [1=>'Male',2=>'Female'];
+        $affLabel = [0=>'None',1=>'SSS',2=>'GSIS',3=>'PhilHealth',4=>'PagIbig',5=>'PWD',6=>'Senior_Citizen',7=>'Solo_Parent',8=>'4Ps'];
+        $surveyArr['survey_id'] = $survey_id;
+        $surveyArr['interviewed_by'] = $s->interviewed_by ?? null;
+        $surveyArr['date_interviewed'] = $s->date_interviewed ?? null;
+        $surveyArr['is_submitted'] = $s->is_submitted ?? null;
+        $surveyArr['validator_signature'] = $s->validator_signature ?? null;
+
+        if ($c) {
+            $surveyArr['previous_client'] = array_key_exists($c->previous_client, $ynLabel) ? $ynLabel[$c->previous_client] : $c->previous_client;
+            $surveyArr['year_inhabited'] = $c->year_inhabited ?? null;
+            $surveyArr['classification'] = array_key_exists($c->classification, $classLabel) ? $classLabel[$c->classification] : $c->classification;
+            $surveyArr['subclass_displaced'] = array_key_exists($c->subclass_displaced, $displacedLabel) ? $displacedLabel[$c->subclass_displaced] : $c->subclass_displaced;
+            $surveyArr['subclass_doubleup'] = array_key_exists($c->subclass_doubleup, $doubleupLabel) ? $doubleupLabel[$c->subclass_doubleup] : $c->subclass_doubleup;
+            $surveyArr['subclass_homeless'] = array_key_exists($c->subclass_homeless, $homelessLabel) ? $homelessLabel[$c->subclass_homeless] : $c->subclass_homeless;
+        }
+
+        if ($d) {
+            $surveyArr['interview_person'] = $d->interview_person ?? null;
+            $surveyArr['last_name'] = $d->last_name ?? null;
+            $surveyArr['first_name'] = $d->first_name ?? null;
+            $surveyArr['middle_name'] = $d->middle_name ?? null;
+            $surveyArr['suffix'] = $d->suffix ?? null;
+            $surveyArr['barangay'] = $d->barangay ?? null;
+            $surveyArr['purok'] = $d->purok ?? null;
+            $surveyArr['street'] = $d->street ?? null;
+            $surveyArr['gender'] = $d->gender ?? null;
+            $surveyArr['religion'] = $d->religion ?? null;
+            $surveyArr['birth_place'] = $d->birth_place ?? null;
+            $surveyArr['birth_date'] = $d->birth_date ?? null;
+            $surveyArr['person_age'] = $d->person_age ?? null;
+            $surveyArr['marital_status'] = $d->marital_status ?? null;
+            $surveyArr['contact_number'] = $d->contact_number ?? null;
+            $surveyArr['language_spoken'] = $d->language_spoken ?? null;
+            $surveyArr['tribe'] = $d->tribe ?? null;
+            $surveyArr['highest_education'] = $d->highest_education ?? null;
+            $surveyArr['last_school_name'] = $d->last_school_name ?? null;
+            $surveyArr['year_graduated'] = $d->year_graduated ?? null;
+            $surveyArr['spouse_name'] = $d->spouse_name ?? null;
+            $surveyArr['spouse_religion'] = $d->spouse_religion ?? null;
+            $surveyArr['spouse_tribe'] = $d->spouse_tribe ?? null;
+            $surveyArr['spouse_age'] = $d->spouse_age ?? null;
+            $surveyArr['spouse_gender'] = array_key_exists($d->spouse_gender, $genderLabel) ? $genderLabel[$d->spouse_gender] : $d->spouse_gender;
+            $surveyArr['affiliation'] = array_key_exists($d->affiliation, $affLabel) ? $affLabel[$d->affiliation] : $d->affiliation;
+        }
+
+        if ($h) {
+            $surveyArr['lot_ownership'] = $h->lot_ownership ?? null;
+            $surveyArr['house_ownership'] = $h->house_ownership ?? null;
+            $surveyArr['avail_socialized_housing'] = $h->avail_socialized_housing ?? null;
+            $surveyArr['temporary_living_area'] = $h->temporary_living_area ?? null;
+            $surveyArr['housing_structure'] = $h->housing_structure ?? null;
+            $surveyArr['type_of_toilet'] = $h->type_of_toilet ?? null;
+            $surveyArr['source_of_water'] = $h->source_of_water ?? null;
+            $surveyArr['source_of_electricity'] = $h->source_of_electricity ?? null;
+        }
+
+        if ($e) {
+            $surveyArr['main_income_source'] = $e->main_income_source ?? null;
+            $surveyArr['work_status'] = $e->work_status ?? null;
+            $surveyArr['work_location_head'] = $e->work_location_head ?? null;
+            $surveyArr['monthly_salary'] = $e->monthly_salary ?? null;
+            $surveyArr['combine_monthly_income'] = $e->combine_monthly_income ?? null;
+        }
+
+        if ($t) {
+            $surveyArr['skills_for_living'] = $t->skills_for_living ?? null;
+            $surveyArr['specific_skill'] = $t->specific_skill ?? null;
+            $surveyArr['organization_member'] = $t->organization_member ?? null;
+            $surveyArr['specific_organization'] = $t->specific_organization ?? null;
+            $surveyArr['wanttolearn'] = $t->wanttolearn ?? null;
+            $surveyArr['remarks'] = $t->remarks ?? null;
+            $surveyArr['house_photo'] = $t->house_photo ?? null;
+            $surveyArr['latitude'] = $t->latitude ?? null;
+            $surveyArr['longitude'] = $t->longitude ?? null;
+            $surveyArr['respondent_signature'] = $t->respondent_signature ?? null;
         }
 
         $members = DB::table('household_mem')
@@ -141,7 +262,7 @@ class ValidatorDashboardController extends Controller
             ->get();
 
         return response()->json([
-            'survey' => $survey,
+            'survey' => $surveyArr,
             'members' => $members,
         ]);
     }
@@ -153,10 +274,11 @@ class ValidatorDashboardController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
-        $row = DB::table('survey_response')
-            ->select('house_photo')
-            ->where('survey_id', $survey_id)
-            ->where('validator_id', $validator_id)
+        $row = DB::table('training as t')
+            ->join('survey as s', 's.survey_id', '=', 't.survey_id')
+            ->select('t.house_photo')
+            ->where('t.survey_id', $survey_id)
+            ->where('s.validator_id', $validator_id)
             ->first();
 
         if (!$row || empty($row->house_photo)) {
@@ -219,6 +341,9 @@ class ValidatorDashboardController extends Controller
             $subclass_displaced = null;
             $subclass_homeless = null;
         }
+        $subclass_displaced = $subclass_displaced ?? null;
+        $subclass_doubleup = $subclass_doubleup ?? null;
+        $subclass_homeless = $subclass_homeless ?? null;
 
         $skills_for_living = $normalize($request->input('skills_for_living'));
         $specific_skill = null;
@@ -228,6 +353,9 @@ class ValidatorDashboardController extends Controller
                 $specific_skill = $normalize($request->input('other_skill'));
             }
         }
+        if ($skills_for_living !== 'Yes') {
+            $specific_skill = '';
+        }
 
         $organization_member = $normalize($request->input('organization_member'));
         $specific_organization = null;
@@ -236,6 +364,9 @@ class ValidatorDashboardController extends Controller
             if ($specific_organization === 'others') {
                 $specific_organization = $normalize($request->input('other_organization'));
             }
+        }
+        if ($organization_member !== 'Yes') {
+            $specific_organization = '';
         }
 
         $housing_structure = $normalize($request->input('housing_structure'));
@@ -265,9 +396,7 @@ class ValidatorDashboardController extends Controller
         }
 
         $file = $request->file('house_photo');
-        $house_blob = null;
-        $house_filename = null;
-        $house_type = null;
+        $house_photo_path = '';
         if ($file) {
             if ($file->getSize() > 5 * 1024 * 1024) {
                 return response()->json(['message' => 'File too large'], 422);
@@ -276,9 +405,10 @@ class ValidatorDashboardController extends Controller
             if (!in_array($file->getMimeType(), $allowed)) {
                 return response()->json(['message' => 'Invalid file type'], 422);
             }
-            $house_blob = file_get_contents($file->getRealPath());
-            $house_filename = $file->getClientOriginalName();
-            $house_type = $file->getMimeType();
+            $ext = $file->getClientOriginalExtension() ?: 'jpg';
+            $filename = uniqid('house_').'.'.$ext;
+            \Illuminate\Support\Facades\Storage::disk('public')->putFileAs('house_photos', $file, $filename);
+            $house_photo_path = 'storage/house_photos/'.$filename;
         }
 
         $saveSignature = function ($input) {
@@ -308,71 +438,144 @@ class ValidatorDashboardController extends Controller
         $spouse_age = $allowSpouse ? $normalize($request->input('spouse_age')) : null;
         $spouse_gender = $allowSpouse ? $normalize($request->input('spouse_gender')) : null;
 
-        $survey_id = DB::table('survey_response')->insertGetId([
-            'validator_id' => $validator_id,
-            'previous_client' => $normalize($request->input('previous_client')),
-            'year_inhabited' => $normalize($request->input('year_inhabited')),
-            'classification' => $classification,
-            'subclass_displaced' => $subclass_displaced,
-            'subclass_doubleup' => $subclass_doubleup,
-            'subclass_homeless' => $subclass_homeless,
-            'interview_person' => $normalize($request->input('interview_person')),
-            'last_name' => $normalize($request->input('last_name')),
-            'first_name' => $normalize($request->input('first_name')),
-            'middle_name' => $normalize($request->input('middle_name')),
-            'suffix' => $normalize($request->input('suffix')),
-            'barangay' => $normalize($request->input('barangay')),
-            'purok' => $normalize($request->input('purok')),
-            'street' => $normalize($request->input('street')),
-            'gender' => $normalize($request->input('gender')),
-            'religion' => $normalize($request->input('religion')),
-            'birth_place' => $normalize($request->input('birth_place')),
-            'birth_date' => $normalize($request->input('birth_date')),
-            'person_age' => $normalize($request->input('person_age')),
-            'marital_status' => $marital_status,
-            'contact_number' => $normalize($request->input('contact_number')),
-            'language_spoken' => $normalize($request->input('language_spoken')),
-            'tribe' => $normalize($request->input('tribe')),
-            'highest_education' => $normalize($request->input('highest_education')),
-            'last_school_name' => $normalize($request->input('last_school_attended')),
-            'year_graduated' => $normalize($request->input('year_graduated')),
-            'spouse_name' => $spouse_name,
-            'spouse_religion' => $spouse_religion,
-            'spouse_tribe' => $spouse_tribe,
-            'spouse_age' => $spouse_age,
-            'spouse_gender' => $spouse_gender,
-            'affiliation' => $normalize($request->input('affiliation')),
-            'lot_ownership' => $normalize($request->input('lot_ownership')),
-            'house_ownership' => $normalize($request->input('house_ownership')),
-            'avail_socialized_housing' => $normalize($request->input('avail_socialized_housing')),
-            'temporary_living_area' => $normalize($request->input('temporary_living_area')),
-            'housing_structure' => $housing_structure,
-            'type_of_toilet' => $type_of_toilet,
-            'source_of_water' => $source_of_water,
-            'source_of_electricity' => $source_of_electricity,
-            'main_income_source' => $main_income_source,
-            'work_status' => $work_status,
-            'work_location_head' => $normalize($request->input('work_location_head')),
-            'monthly_salary' => $normalize($request->input('monthly_salary')),
-            'combine_monthly_income' => $normalize($request->input('combine_monthly_income')),
-            'skills_for_living' => $skills_for_living,
-            'specific_skill' => $specific_skill,
-            'organization_member' => $organization_member,
-            'specific_organization' => $specific_organization,
-            'wanttolearn' => $normalize($request->input('wanttolearn')),
-            'house_photo' => $house_blob,
-            'house_photo_filename' => $house_filename,
-            'house_photo_type' => $house_type,
-            'remarks' => $normalize($request->input('remarks')),
-            'interviewed_by' => $interviewed_by,
-            'date_interviewed' => $normalize($request->input('date_interviewed')),
-            'latitude' => $normalize($request->input('latitude')),
-            'longitude' => $normalize($request->input('longitude')),
-            'validator_signature' => $validator_signature,
-            'respondent_signature' => $respondent_signature,
-        ]);
+        $survey_id = DB::transaction(function() use ($validator_id, $interviewed_by, $request, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $house_photo_path, $validator_signature, $respondent_signature, $marital_status, $spouse_name, $spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender) {
+            $toInt = function($v) { return is_numeric($v) ? (int)$v : null; };
+            $yn = function($v) { $s = is_string($v) ? strtolower(trim($v)) : $v; return ($s === 'yes' || $s === 1 || $s === '1') ? 1 : (($s === 'no' || $s === 0 || $s === '0') ? 0 : null); };
+            $classMap = [
+                'displaced' => 1,
+                'double-up' => 2,
+                'homeless' => 3,
+                'upgrading of land tenure' => 4,
+                'upgrading_of_land_tenure' => 4,
+            ];
+            $displacedMap = [
+                'coastal areas' => 1,
+                'drought' => 2,
+                'earthquake affected' => 3,
+                'flood affected' => 4,
+                'sea level rise' => 5,
+                'threat of eviction' => 6,
+                'eviction/demolition order' => 7,
+                'human induced disaster' => 8,
+                'infra projects' => 9,
+                'landslide affected' => 10,
+                'near waterways' => 11,
+            ];
+            $doubleupMap = [
+                'renter/tenant' => 1,
+                'rent-free/sharer' => 2,
+                'caretaker' => 3,
+            ];
+            $homelessMap = [
+                'public - living in tent' => 1,
+                'private - living in tent' => 2,
+            ];
+            $genderMap = ['male'=>1,'female'=>2];
+            $affMap = [
+                'none'=>0,'n/a'=>0,
+                'sss'=>1,'gsis'=>2,'philhealth'=>3,'pagibig'=>4,
+                'pwd'=>5,'senior_citizen'=>6,'solo_parent'=>7,'4ps'=>8,
+            ];
+
+            $classificationCode = $classMap[strtolower((string)$classification)] ?? null;
+            $subDisplacedCode = $subclass_displaced ? ($displacedMap[strtolower((string)$subclass_displaced)] ?? null) : null;
+            $subDoubleupCode = $subclass_doubleup ? ($doubleupMap[strtolower((string)$subclass_doubleup)] ?? null) : null;
+            $subHomelessCode = $subclass_homeless ? ($homelessMap[strtolower((string)$subclass_homeless)] ?? null) : null;
+            $prevClientCode = $yn($request->input('previous_client'));
+            $spouseGenderCode = $genderMap[strtolower((string)$spouse_gender)] ?? null;
+            $affRaw = strtolower(str_replace(' ', '_', (string)$request->input('affiliation')));
+            $affCode = $affMap[$affRaw] ?? 0;
+            $sid = DB::table('survey')->insertGetId([
+                'validator_id' => $validator_id,
+                'interviewed_by' => $interviewed_by,
+                'date_interviewed' => trim((string)$request->input('date_interviewed')),
+                'is_submitted' => 0,
+                'validator_signature' => $validator_signature,
+            ]);
+
+            DB::table('classification')->insert([
+                'survey_id' => $sid,
+                'previous_client' => $prevClientCode,
+                'year_inhabited' => $toInt($request->input('year_inhabited')),
+                'classification' => $classificationCode,
+                'subclass_displaced' => $subDisplacedCode,
+                'subclass_doubleup' => $subDoubleupCode,
+                'subclass_homeless' => $subHomelessCode,
+            ]);
+
+            DB::table('demographic')->insert([
+                'survey_id' => $sid,
+                'interview_person' => trim((string)$request->input('interview_person')),
+                'last_name' => trim((string)$request->input('last_name')),
+                'first_name' => trim((string)$request->input('first_name')),
+                'middle_name' => trim((string)$request->input('middle_name')),
+                'suffix' => trim((string)$request->input('suffix')),
+                'barangay' => trim((string)$request->input('barangay')),
+                'purok' => trim((string)$request->input('purok')),
+                'street' => trim((string)$request->input('street')),
+                'gender' => trim((string)$request->input('gender')),
+                'religion' => trim((string)$request->input('religion')),
+                'birth_place' => trim((string)$request->input('birth_place')),
+                'birth_date' => trim((string)$request->input('birth_date')),
+                'person_age' => $toInt($request->input('person_age')),
+                'marital_status' => $marital_status,
+                'contact_number' => trim((string)$request->input('contact_number')),
+                'language_spoken' => trim((string)$request->input('language_spoken')),
+                'tribe' => trim((string)$request->input('tribe')),
+                'highest_education' => trim((string)$request->input('highest_education')),
+                'last_school_name' => trim((string)$request->input('last_school_attended')),
+                'year_graduated' => $toInt($request->input('year_graduated')),
+                'spouse_name' => $spouse_name,
+                'spouse_religion' => $spouse_religion,
+                'spouse_tribe' => $spouse_tribe,
+                'spouse_age' => $toInt($spouse_age),
+                'spouse_gender' => $spouseGenderCode,
+                'affiliation' => $affCode,
+            ]);
+
+            DB::table('household')->insert([
+                'survey_id' => $sid,
+                'lot_ownership' => trim((string)$request->input('lot_ownership')),
+                'house_ownership' => trim((string)$request->input('house_ownership')),
+                'avail_socialized_housing' => trim((string)$request->input('avail_socialized_housing')),
+                'temporary_living_area' => trim((string)$request->input('temporary_living_area')),
+                'housing_structure' => $housing_structure,
+                'type_of_toilet' => $type_of_toilet,
+                'source_of_water' => $source_of_water,
+                'source_of_electricity' => $source_of_electricity,
+            ]);
+
+            DB::table('economic')->insert([
+                'survey_id' => $sid,
+                'main_income_source' => $main_income_source,
+                'work_status' => $work_status,
+                'work_location_head' => trim((string)$request->input('work_location_head')),
+                'monthly_salary' => trim((string)$request->input('monthly_salary')),
+                'combine_monthly_income' => trim((string)$request->input('combine_monthly_income')),
+            ]);
+
+            DB::table('training')->insert([
+                'survey_id' => $sid,
+                'skills_for_living' => $skills_for_living,
+                'specific_skill' => $specific_skill,
+                'organization_member' => $organization_member,
+                'specific_organization' => $specific_organization,
+                'house_photo' => $house_photo_path,
+                'wanttolearn' => trim((string)$request->input('wanttolearn')),
+                'remarks' => trim((string)$request->input('remarks')),
+                'latitude' => trim((string)$request->input('latitude')),
+                'longitude' => trim((string)$request->input('longitude')),
+                'respondent_signature' => $respondent_signature,
+            ]);
+
+            return $sid;
+        });
 
         $names = $request->input('name');
+        $hmCols = Schema::getColumnListing('household_mem');
+        $colCivil = in_array('civilStatus', $hmCols) ? 'civilStatus' : 'civil_status';
+        $colEdu = in_array('educationalAttainment', $hmCols) ? 'educationalAttainment' : 'educational_attainment';
+        $colIncome = in_array('monthlyIncome', $hmCols) ? 'monthlyIncome' : 'monthly_income';
         if (is_array($names)) {
             $relationships = $request->input('relationship', []);
             $ages = $request->input('age', []);
@@ -392,16 +595,17 @@ class ValidatorDashboardController extends Controller
 
                 if (empty($n) && empty($rel) && empty($age)) continue;
 
-                DB::table('household_mem')->insert([
+                $payload = [
                     'survey_id' => $survey_id,
                     'name' => $n,
                     'relationship' => $rel,
                     'age' => $age,
-                    'civil_status' => $civ,
-                    'educational_attainment' => $edu,
-                    'occupation' => $occ,
-                    'monthly_income' => $inc,
-                ]);
+                    'occupation' => $occ ?? '',
+                ];
+                $payload[$colCivil] = $civ ?? '';
+                $payload[$colEdu] = $edu ?? '';
+                $payload[$colIncome] = $inc ?? '';
+                DB::table('household_mem')->insert($payload);
             }
         }
 
@@ -411,16 +615,17 @@ class ValidatorDashboardController extends Controller
                 ->where('name', $spouse_name)
                 ->count();
             if ($exists === 0) {
-                DB::table('household_mem')->insert([
+                $payload = [
                     'survey_id' => $survey_id,
                     'name' => $spouse_name,
                     'relationship' => 'Spouse',
                     'age' => is_numeric($spouse_age) ? (int)$spouse_age : null,
-                    'civil_status' => $marital_status,
-                    'educational_attainment' => null,
                     'occupation' => null,
-                    'monthly_income' => null,
-                ]);
+                ];
+                $payload[$colCivil] = $marital_status;
+                $payload[$colEdu] = null;
+                $payload[$colIncome] = null;
+                DB::table('household_mem')->insert($payload);
             }
         }
 
@@ -478,31 +683,47 @@ class ValidatorDashboardController extends Controller
 
     public function adminTotals(Request $request)
     {
-        $total_validated = DB::table('survey_response')->where('is_submitted', 1)->count();
-        $total_approved = DB::table('survey_response')->where('is_submitted', 2)->count();
+        $total_validated = DB::table('survey')->where('is_submitted', 1)->count();
+        $total_approved = DB::table('survey')->where('is_submitted', 2)->count();
         return response()->json(['total_validated' => $total_validated, 'total_approved' => $total_approved]);
     }
 
     public function adminBarangay(Request $request)
     {
-        $rows = DB::table('survey_response')
-            ->select('barangay', DB::raw('COUNT(*) AS count'))
-            ->whereIn('is_submitted', [1,2])
-            ->groupBy('barangay')
+        $rows = DB::table('survey as s')
+            ->join('demographic as d','d.survey_id','=','s.survey_id')
+            ->select('d.barangay', DB::raw('COUNT(*) AS count'))
+            ->whereIn('s.is_submitted', [1,2])
+            ->groupBy('d.barangay')
             ->get();
         return response()->json(['data' => $rows]);
     }
 
     public function adminClassification(Request $request)
     {
-        $rows = DB::table('survey_response')
-            ->select('classification','barangay', DB::raw('COUNT(*) AS count'))
-            ->whereIn('is_submitted', [1,2])
-            ->groupBy('classification','barangay')
+        $years = (int) $request->get('years', 0);
+        $startYear = $request->get('start_year');
+        $endYear = $request->get('end_year');
+        $rows = DB::table('survey as s')
+            ->join('classification as c','c.survey_id','=','s.survey_id')
+            ->join('demographic as d','d.survey_id','=','s.survey_id')
+            ->select('c.classification','d.barangay', DB::raw('COUNT(*) AS count'))
+            ->whereIn('s.is_submitted', [1,2])
+            ->when($startYear && $endYear, function($q) use ($startYear, $endYear) {
+                $start = Carbon::createMidnightDate((int)$startYear, 1, 1)->toDateString();
+                $end = Carbon::createMidnightDate((int)$endYear, 12, 31)->toDateString();
+                $q->whereNotNull('s.date_interviewed')->whereDate('s.date_interviewed','>=',$start)->whereDate('s.date_interviewed','<=',$end);
+            })
+            ->when($years > 0, function($q) use ($years) {
+                $start = Carbon::now()->subYears($years)->startOfDay()->toDateString();
+                $q->whereNotNull('s.date_interviewed')->whereDate('s.date_interviewed','>=',$start);
+            })
+            ->groupBy('c.classification','d.barangay')
             ->get();
         $data = [];
+        $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
         foreach ($rows as $r) {
-            $c = $r->classification ?: 'Unknown';
+            $c = array_key_exists($r->classification, $classLabel) ? $classLabel[$r->classification] : ($r->classification ?: 'Unknown');
             $b = $r->barangay ?: 'Unknown';
             if (!isset($data[$c])) $data[$c] = [];
             $data[$c][$b] = (int) $r->count;
@@ -512,25 +733,58 @@ class ValidatorDashboardController extends Controller
 
     public function adminSubclassDisplaced(Request $request)
     {
-        $rows = DB::table('survey_response')
-            ->select('barangay','subclass_displaced', DB::raw('COUNT(*) AS count'))
-            ->whereIn('is_submitted', [1,2])
-            ->whereNotNull('subclass_displaced')
-            ->where('subclass_displaced','!=','')
-            ->groupBy('barangay','subclass_displaced')
-            ->get();
+        $rows = DB::table('survey as s')
+            ->join('classification as c','c.survey_id','=','s.survey_id')
+            ->join('demographic as d','d.survey_id','=','s.survey_id')
+            ->select('d.barangay','c.subclass_displaced', DB::raw('COUNT(*) AS count'))
+            ->whereIn('s.is_submitted', [1,2])
+            ->whereNotNull('c.subclass_displaced')
+            ->groupBy('d.barangay','c.subclass_displaced')
+            ->get()
+            ->map(function($row){
+                $displacedLabel = [
+                    1=>'Coastal Areas',2=>'Drought',3=>'Earthquake Affected',4=>'Flood Affected',5=>'Sea Level Rise',
+                    6=>'Threat of Eviction',7=>'Eviction/Demolition Order',8=>'Human Induced Disaster',9=>'Infra Projects',10=>'Landslide Affected',11=>'Near Waterways'
+                ];
+                $row->subclass_displaced = $displacedLabel[$row->subclass_displaced] ?? $row->subclass_displaced;
+                return $row;
+            });
         return response()->json(['data' => $rows]);
     }
 
     public function adminSubclassDoubleUp(Request $request)
     {
-        $rows = DB::table('survey_response')
-            ->select('barangay','subclass_doubleup', DB::raw('COUNT(*) AS count'))
-            ->whereIn('is_submitted', [1,2])
-            ->whereNotNull('subclass_doubleup')
-            ->where('subclass_doubleup','!=','')
-            ->groupBy('barangay','subclass_doubleup')
-            ->get();
+        $rows = DB::table('survey as s')
+            ->join('classification as c','c.survey_id','=','s.survey_id')
+            ->join('demographic as d','d.survey_id','=','s.survey_id')
+            ->select('d.barangay','c.subclass_doubleup', DB::raw('COUNT(*) AS count'))
+            ->whereIn('s.is_submitted', [1,2])
+            ->whereNotNull('c.subclass_doubleup')
+            ->groupBy('d.barangay','c.subclass_doubleup')
+            ->get()
+            ->map(function($row){
+                $doubleupLabel = [1=>'Renter/Tenant',2=>'Rent-free/Sharer',3=>'Caretaker'];
+                $row->subclass_doubleup = $doubleupLabel[$row->subclass_doubleup] ?? $row->subclass_doubleup;
+                return $row;
+            });
+        return response()->json(['data' => $rows]);
+    }
+
+    public function adminSubclassHomeless(Request $request)
+    {
+        $rows = DB::table('survey as s')
+            ->join('classification as c','c.survey_id','=','s.survey_id')
+            ->join('demographic as d','d.survey_id','=','s.survey_id')
+            ->select('d.barangay','c.subclass_homeless', DB::raw('COUNT(*) AS count'))
+            ->whereIn('s.is_submitted', [1,2])
+            ->whereNotNull('c.subclass_homeless')
+            ->groupBy('d.barangay','c.subclass_homeless')
+            ->get()
+            ->map(function($row){
+                $homelessLabel = [1=>'Public - living in tent',2=>'Private - living in tent'];
+                $row->subclass_homeless = $homelessLabel[$row->subclass_homeless] ?? $row->subclass_homeless;
+                return $row;
+            });
         return response()->json(['data' => $rows]);
     }
 
@@ -628,50 +882,81 @@ class ValidatorDashboardController extends Controller
             END
         )";
 
-        $base = DB::table('survey_response')->where('is_submitted', 1);
+        $affMap = [
+            'none'=>0,'n/a'=>0,
+            'sss'=>1,'gsis'=>2,'philhealth'=>3,'pagibig'=>4,
+            'pwd'=>5,'senior_citizen'=>6,'solo_parent'=>7,'4ps'=>8,
+        ];
+        $classMap = [
+            'displaced' => 1,
+            'double-up' => 2,
+            'homeless' => 3,
+            'upgrading of land tenure' => 4,
+        ];
+        $base = DB::table('survey as s')
+            ->join('demographic as d','d.survey_id','=','s.survey_id')
+            ->join('classification as c','c.survey_id','=','s.survey_id')
+            ->leftJoin('household as h','h.survey_id','=','s.survey_id')
+            ->leftJoin('economic as e','e.survey_id','=','s.survey_id')
+            ->where('s.is_submitted', 1);
         if ($aff === '') {
-            $base->where(function($q) {
-                $q->whereNull('affiliation')->orWhere('affiliation','');
-            });
-        }
-        if ($aff !== '') {
-            $base->where('affiliation', $aff);
+            $base->where(function($q){ $q->whereNull('d.affiliation')->orWhere('d.affiliation',0); });
+        } elseif ($aff !== '') {
+            $code = $affMap[strtolower(str_replace(' ', '_', $aff))] ?? null;
+            if ($code !== null) { $base->where('d.affiliation', $code); }
         }
         if ($class !== '') {
-            switch ($class) {
-                case 'Displaced':
-                    $base->where('classification', 'Displaced');
-                    break;
-                case 'Double-up':
-                    $base->whereIn('classification', ['Double-up','Double-Up','Doubled-up']);
-                    break;
-                case 'Homeless':
-                    $base->where('classification', 'Homeless');
-                    break;
-                case 'Upgrading of Land Tenure':
-                    $base->whereIn('classification', ['Upgrading_of_Land_Tenure','Upgrading of Land Tenure','upgrading']);
-                    break;
-            }
+            $lc = strtolower($class);
+            $code = $classMap[$lc] ?? null;
+            if ($code !== null) { $base->where('c.classification', $code); }
         }
         if ($search !== '') {
             $base->where(function($q) use ($search) {
-                $q->where('last_name','like',"%$search%")
-                  ->orWhere('barangay','like',"%$search%")
-                  ->orWhere('classification','like',"%$search%");
+                $q->where('d.last_name','like',"%$search%")
+                  ->orWhere('d.barangay','like',"%$search%");
             });
         }
         $total = (clone $base)->count();
         $rows = $base->select(
-                'survey_id','date_interviewed','barangay','last_name','classification',
-                'subclass_displaced','subclass_doubleup','subclass_homeless',
-                DB::raw("$pointsExpr AS points")
+                's.survey_id','s.date_interviewed','d.barangay','d.last_name',
+                'c.classification','c.subclass_displaced','c.subclass_doubleup','c.subclass_homeless',
+                'e.combine_monthly_income',
+                'h.lot_ownership','h.house_ownership','h.temporary_living_area','h.housing_structure','h.type_of_toilet','h.source_of_water','h.source_of_electricity'
             )
-            ->orderByRaw("$pointsExpr DESC")
-            ->orderBy('survey_id','desc')
-            ->offset($offset)
-            ->limit($perPage)
-            ->get();
-        return response()->json(['data' => $rows, 'total' => $total, 'page' => $page, 'per_page' => $perPage]);
+            ->get()
+            ->map(function($row){
+                $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
+                $displacedLabel = [
+                    1=>'Coastal Areas',2=>'Drought',3=>'Earthquake Affected',4=>'Flood Affected',5=>'Sea Level Rise',
+                    6=>'Threat of Eviction',7=>'Eviction/Demolition Order',8=>'Human Induced Disaster',9=>'Infra Projects',10=>'Landslide Affected',11=>'Near Waterways'
+                ];
+                $doubleupLabel = [1=>'Renter/Tenant',2=>'Rent-free/Sharer',3=>'Caretaker'];
+                $homelessLabel = [1=>'Public - living in tent',2=>'Private - living in tent'];
+                $row->classification = $classLabel[$row->classification] ?? $row->classification;
+                $row->subclass_displaced = $displacedLabel[$row->subclass_displaced] ?? ($row->subclass_displaced ?? '');
+                $row->subclass_doubleup = $doubleupLabel[$row->subclass_doubleup] ?? ($row->subclass_doubleup ?? '');
+                $row->subclass_homeless = $homelessLabel[$row->subclass_homeless] ?? ($row->subclass_homeless ?? '');
+                $arr = [
+                    'classification' => $row->classification,
+                    'subclass_displaced' => $row->subclass_displaced,
+                    'subclass_doubleup' => $row->subclass_doubleup,
+                    'subclass_homeless' => $row->subclass_homeless,
+                    'combine_monthly_income' => $row->combine_monthly_income,
+                    'lot_ownership' => $row->lot_ownership,
+                    'house_ownership' => $row->house_ownership,
+                    'temporary_living_area' => $row->temporary_living_area,
+                    'housing_structure' => $row->housing_structure,
+                    'type_of_toilet' => $row->type_of_toilet,
+                    'source_of_water' => $row->source_of_water,
+                    'source_of_electricity' => $row->source_of_electricity,
+                ];
+                $row->points = $this->computePoints($arr);
+                return $row;
+            })
+            ->all();
+        usort($rows, function($a,$b){ if ($a->points === $b->points) return $b->survey_id <=> $a->survey_id; return $b->points <=> $a->points; });
+        $paged = array_slice($rows, $offset, $perPage);
+        return response()->json(['data' => $paged, 'total' => count($rows), 'page' => $page, 'per_page' => $perPage]);
     }
 
     public function adminBeneficiariesApproved(Request $request)
@@ -768,45 +1053,79 @@ class ValidatorDashboardController extends Controller
             END
         )";
 
-        $base = DB::table('survey_response')->where('is_submitted', 2);
+        $affMap = [
+            'none'=>0,'n/a'=>0,
+            'sss'=>1,'gsis'=>2,'philhealth'=>3,'pagibig'=>4,
+            'pwd'=>5,'senior_citizen'=>6,'solo_parent'=>7,'4ps'=>8,
+        ];
+        $classMap = [
+            'displaced' => 1,
+            'double-up' => 2,
+            'homeless' => 3,
+            'upgrading of land tenure' => 4,
+        ];
+        $base = DB::table('survey as s')
+            ->join('demographic as d','d.survey_id','=','s.survey_id')
+            ->join('classification as c','c.survey_id','=','s.survey_id')
+            ->leftJoin('household as h','h.survey_id','=','s.survey_id')
+            ->leftJoin('economic as e','e.survey_id','=','s.survey_id')
+            ->where('s.is_submitted', 2);
         if ($aff !== '') {
-            $base->where('affiliation', $aff);
+            $code = $affMap[strtolower(str_replace(' ', '_', $aff))] ?? null;
+            if ($code !== null) { $base->where('d.affiliation', $code); }
         }
         if ($class !== '') {
-            switch ($class) {
-                case 'Displaced':
-                    $base->where('classification', 'Displaced');
-                    break;
-                case 'Double-up':
-                    $base->whereIn('classification', ['Double-up','Double-Up','Doubled-up']);
-                    break;
-                case 'Homeless':
-                    $base->where('classification', 'Homeless');
-                    break;
-                case 'Upgrading of Land Tenure':
-                    $base->whereIn('classification', ['Upgrading_of_Land_Tenure','Upgrading of Land Tenure','upgrading']);
-                    break;
-            }
+            $lc = strtolower($class);
+            $code = $classMap[$lc] ?? null;
+            if ($code !== null) { $base->where('c.classification', $code); }
         }
         if ($search !== '') {
             $base->where(function($q) use ($search) {
-                $q->where('last_name','like',"%$search%")
-                  ->orWhere('barangay','like',"%$search%")
-                  ->orWhere('classification','like',"%$search%");
+                $q->where('d.last_name','like',"%$search%")
+                  ->orWhere('d.barangay','like',"%$search%");
             });
         }
         $total = (clone $base)->count();
         $rows = $base->select(
-                'survey_id','date_interviewed','barangay','last_name','classification',
-                'subclass_displaced','subclass_doubleup','subclass_homeless',
-                DB::raw("$pointsExpr AS points")
+                's.survey_id','s.date_interviewed','d.barangay','d.last_name',
+                'c.classification','c.subclass_displaced','c.subclass_doubleup','c.subclass_homeless',
+                'e.combine_monthly_income',
+                'h.lot_ownership','h.house_ownership','h.temporary_living_area','h.housing_structure','h.type_of_toilet','h.source_of_water','h.source_of_electricity'
             )
-            ->orderByRaw("$pointsExpr DESC")
-            ->orderBy('survey_id','desc')
-            ->offset($offset)
-            ->limit($perPage)
-            ->get();
-        return response()->json(['data' => $rows, 'total' => $total, 'page' => $page, 'per_page' => $perPage]);
+            ->get()
+            ->map(function($row){
+                $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
+                $displacedLabel = [
+                    1=>'Coastal Areas',2=>'Drought',3=>'Earthquake Affected',4=>'Flood Affected',5=>'Sea Level Rise',
+                    6=>'Threat of Eviction',7=>'Eviction/Demolition Order',8=>'Human Induced Disaster',9=>'Infra Projects',10=>'Landslide Affected',11=>'Near Waterways'
+                ];
+                $doubleupLabel = [1=>'Renter/Tenant',2=>'Rent-free/Sharer',3=>'Caretaker'];
+                $homelessLabel = [1=>'Public - living in tent',2=>'Private - living in tent'];
+                $row->classification = $classLabel[$row->classification] ?? $row->classification;
+                $row->subclass_displaced = $displacedLabel[$row->subclass_displaced] ?? ($row->subclass_displaced ?? '');
+                $row->subclass_doubleup = $doubleupLabel[$row->subclass_doubleup] ?? ($row->subclass_doubleup ?? '');
+                $row->subclass_homeless = $homelessLabel[$row->subclass_homeless] ?? ($row->subclass_homeless ?? '');
+                $arr = [
+                    'classification' => $row->classification,
+                    'subclass_displaced' => $row->subclass_displaced,
+                    'subclass_doubleup' => $row->subclass_doubleup,
+                    'subclass_homeless' => $row->subclass_homeless,
+                    'combine_monthly_income' => $row->combine_monthly_income,
+                    'lot_ownership' => $row->lot_ownership,
+                    'house_ownership' => $row->house_ownership,
+                    'temporary_living_area' => $row->temporary_living_area,
+                    'housing_structure' => $row->housing_structure,
+                    'type_of_toilet' => $row->type_of_toilet,
+                    'source_of_water' => $row->source_of_water,
+                    'source_of_electricity' => $row->source_of_electricity,
+                ];
+                $row->points = $this->computePoints($arr);
+                return $row;
+            })
+            ->all();
+        usort($rows, function($a,$b){ if ($a->points === $b->points) return $b->survey_id <=> $a->survey_id; return $b->points <=> $a->points; });
+        $paged = array_slice($rows, $offset, $perPage);
+        return response()->json(['data' => $paged, 'total' => count($rows), 'page' => $page, 'per_page' => $perPage]);
     }
 
     public function adminBeneficiariesAffiliated(Request $request)
@@ -905,75 +1224,193 @@ class ValidatorDashboardController extends Controller
             END
         )";
 
-        $base = DB::table('survey_response')
-            ->whereNotNull('affiliation')
-            ->where('affiliation','!=','');
+        $affMap = [
+            'none'=>0,'n/a'=>0,
+            'sss'=>1,'gsis'=>2,'philhealth'=>3,'pagibig'=>4,
+            'pwd'=>5,'senior_citizen'=>6,'solo_parent'=>7,'4ps'=>8,
+        ];
+        $classMap = [
+            'displaced' => 1,
+            'double-up' => 2,
+            'homeless' => 3,
+            'upgrading of land tenure' => 4,
+        ];
+        $base = DB::table('survey as s')
+            ->join('demographic as d','d.survey_id','=','s.survey_id')
+            ->join('classification as c','c.survey_id','=','s.survey_id')
+            ->leftJoin('household as h','h.survey_id','=','s.survey_id')
+            ->leftJoin('economic as e','e.survey_id','=','s.survey_id')
+            ->whereNotNull('d.affiliation')
+            ->where('d.affiliation','>',0);
         if ($status === 'validated') {
-            $base->where('is_submitted', 1);
+            $base->where('s.is_submitted', 1);
         } elseif ($status === 'approved') {
-            $base->where('is_submitted', 2);
+            $base->where('s.is_submitted', 2);
         } elseif ($status === 'submitted') {
-            $base->whereIn('is_submitted', [1,2]);
+            $base->whereIn('s.is_submitted', [1,2]);
         }
-
         if ($aff !== '') {
-            $base->where('affiliation', $aff);
+            $code = $affMap[strtolower(str_replace(' ', '_', $aff))] ?? null;
+            if ($code !== null) { $base->where('d.affiliation', $code); }
         }
         if ($class !== '') {
-            switch ($class) {
-                case 'Displaced':
-                    $base->where('classification', 'Displaced');
-                    break;
-                case 'Double-up':
-                    $base->whereIn('classification', ['Double-up','Double-Up','Doubled-up']);
-                    break;
-                case 'Homeless':
-                    $base->where('classification', 'Homeless');
-                    break;
-                case 'Upgrading of Land Tenure':
-                    $base->whereIn('classification', ['Upgrading_of_Land_Tenure','Upgrading of Land Tenure','upgrading']);
-                    break;
-            }
+            $lc = strtolower($class);
+            $code = $classMap[$lc] ?? null;
+            if ($code !== null) { $base->where('c.classification', $code); }
         }
-
         if ($search !== '') {
             $base->where(function($q) use ($search) {
-                $q->where('last_name','like',"%$search%")
-                  ->orWhere('barangay','like',"%$search%")
-                  ->orWhere('classification','like',"%$search%")
-                  ->orWhere('affiliation','like',"%$search%");
+                $q->where('d.last_name','like',"%$search%")
+                  ->orWhere('d.barangay','like',"%$search%")
+                  ->orWhere('d.affiliation','like',"%$search%");
             });
         }
-
         $total = (clone $base)->count();
         $rows = $base->select(
-                'survey_id','date_interviewed','barangay','last_name','classification','affiliation',
-                'subclass_displaced','subclass_doubleup','subclass_homeless',
-                DB::raw("$pointsExpr AS points")
+                's.survey_id','s.date_interviewed','d.barangay','d.last_name',
+                'c.classification','c.subclass_displaced','c.subclass_doubleup','c.subclass_homeless',
+                'd.affiliation',
+                'e.combine_monthly_income',
+                'h.lot_ownership','h.house_ownership','h.temporary_living_area','h.housing_structure','h.type_of_toilet','h.source_of_water','h.source_of_electricity'
             )
-            ->orderByRaw("$pointsExpr DESC")
-            ->orderBy('survey_id','desc')
-            ->offset($offset)
-            ->limit($perPage)
-            ->get();
-        return response()->json(['data' => $rows, 'total' => $total, 'page' => $page, 'per_page' => $perPage]);
+            ->get()
+            ->map(function($row){
+                $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
+                $displacedLabel = [
+                    1=>'Coastal Areas',2=>'Drought',3=>'Earthquake Affected',4=>'Flood Affected',5=>'Sea Level Rise',
+                    6=>'Threat of Eviction',7=>'Eviction/Demolition Order',8=>'Human Induced Disaster',9=>'Infra Projects',10=>'Landslide Affected',11=>'Near Waterways'
+                ];
+                $doubleupLabel = [1=>'Renter/Tenant',2=>'Rent-free/Sharer',3=>'Caretaker'];
+                $homelessLabel = [1=>'Public - living in tent',2=>'Private - living in tent'];
+                $affLabel = [0=>'None',1=>'SSS',2=>'GSIS',3=>'PhilHealth',4=>'PagIbig',5=>'PWD',6=>'Senior_Citizen',7=>'Solo_Parent',8=>'4Ps'];
+                $row->classification = $classLabel[$row->classification] ?? $row->classification;
+                $row->subclass_displaced = $displacedLabel[$row->subclass_displaced] ?? ($row->subclass_displaced ?? '');
+                $row->subclass_doubleup = $doubleupLabel[$row->subclass_doubleup] ?? ($row->subclass_doubleup ?? '');
+                $row->subclass_homeless = $homelessLabel[$row->subclass_homeless] ?? ($row->subclass_homeless ?? '');
+                $row->affiliation = array_key_exists($row->affiliation, $affLabel) ? $affLabel[$row->affiliation] : $row->affiliation;
+                $arr = [
+                    'classification' => $row->classification,
+                    'subclass_displaced' => $row->subclass_displaced,
+                    'subclass_doubleup' => $row->subclass_doubleup,
+                    'subclass_homeless' => $row->subclass_homeless,
+                    'combine_monthly_income' => $row->combine_monthly_income,
+                    'lot_ownership' => $row->lot_ownership,
+                    'house_ownership' => $row->house_ownership,
+                    'temporary_living_area' => $row->temporary_living_area,
+                    'housing_structure' => $row->housing_structure,
+                    'type_of_toilet' => $row->type_of_toilet,
+                    'source_of_water' => $row->source_of_water,
+                    'source_of_electricity' => $row->source_of_electricity,
+                ];
+                $row->points = $this->computePoints($arr);
+                return $row;
+            })
+            ->all();
+        usort($rows, function($a,$b){ if ($a->points === $b->points) return $b->survey_id <=> $a->survey_id; return $b->points <=> $a->points; });
+        $paged = array_slice($rows, $offset, $perPage);
+        return response()->json(['data' => $paged, 'total' => count($rows), 'page' => $page, 'per_page' => $perPage]);
     }
 
     public function adminSurveyDetails(Request $request, $survey_id)
     {
-        $survey = DB::table('survey_response')->where('survey_id', $survey_id)->first();
-        if (!$survey) {
-            return response()->json(['message' => 'Not found'], 404);
+        $s = DB::table('survey as s')->where('s.survey_id', $survey_id)->first();
+        if (!$s) { return response()->json(['message' => 'Not found'], 404); }
+        $c = DB::table('classification')->where('survey_id', $survey_id)->first();
+        $d = DB::table('demographic')->where('survey_id', $survey_id)->first();
+        $h = DB::table('household')->where('survey_id', $survey_id)->first();
+        $e = DB::table('economic')->where('survey_id', $survey_id)->first();
+        $t = DB::table('training')->where('survey_id', $survey_id)->first();
+        $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
+        $displacedLabel = [
+            1=>'Coastal Areas',2=>'Drought',3=>'Earthquake Affected',4=>'Flood Affected',5=>'Sea Level Rise',
+            6=>'Threat of Eviction',7=>'Eviction/Demolition Order',8=>'Human Induced Disaster',9=>'Infra Projects',10=>'Landslide Affected',11=>'Near Waterways'
+        ];
+        $doubleupLabel = [1=>'Renter/Tenant',2=>'Rent-free/Sharer',3=>'Caretaker'];
+        $homelessLabel = [1=>'Public - living in tent',2=>'Private - living in tent'];
+        $ynLabel = [0=>'No',1=>'Yes'];
+        $genderLabel = [1=>'Male',2=>'Female'];
+        $affLabel = [0=>'None',1=>'SSS',2=>'GSIS',3=>'PhilHealth',4=>'PagIbig',5=>'PWD',6=>'Senior_Citizen',7=>'Solo_Parent',8=>'4Ps'];
+        $surveyArr = [];
+        $surveyArr['survey_id'] = $survey_id;
+        $surveyArr['interviewed_by'] = $s->interviewed_by ?? null;
+        $surveyArr['date_interviewed'] = $s->date_interviewed ?? null;
+        $surveyArr['is_submitted'] = $s->is_submitted ?? null;
+        $surveyArr['validator_signature'] = $s->validator_signature ?? null;
+        if ($c) {
+            $surveyArr['previous_client'] = array_key_exists($c->previous_client, $ynLabel) ? $ynLabel[$c->previous_client] : $c->previous_client;
+            $surveyArr['year_inhabited'] = $c->year_inhabited ?? null;
+            $surveyArr['classification'] = array_key_exists($c->classification, $classLabel) ? $classLabel[$c->classification] : $c->classification;
+            $surveyArr['subclass_displaced'] = array_key_exists($c->subclass_displaced, $displacedLabel) ? $displacedLabel[$c->subclass_displaced] : $c->subclass_displaced;
+            $surveyArr['subclass_doubleup'] = array_key_exists($c->subclass_doubleup, $doubleupLabel) ? $doubleupLabel[$c->subclass_doubleup] : $c->subclass_doubleup;
+            $surveyArr['subclass_homeless'] = array_key_exists($c->subclass_homeless, $homelessLabel) ? $homelessLabel[$c->subclass_homeless] : $c->subclass_homeless;
+        }
+        if ($d) {
+            $surveyArr['interview_person'] = $d->interview_person ?? null;
+            $surveyArr['last_name'] = $d->last_name ?? null;
+            $surveyArr['first_name'] = $d->first_name ?? null;
+            $surveyArr['middle_name'] = $d->middle_name ?? null;
+            $surveyArr['suffix'] = $d->suffix ?? null;
+            $surveyArr['barangay'] = $d->barangay ?? null;
+            $surveyArr['purok'] = $d->purok ?? null;
+            $surveyArr['street'] = $d->street ?? null;
+            $surveyArr['gender'] = $d->gender ?? null;
+            $surveyArr['religion'] = $d->religion ?? null;
+            $surveyArr['birth_place'] = $d->birth_place ?? null;
+            $surveyArr['birth_date'] = $d->birth_date ?? null;
+            $surveyArr['person_age'] = $d->person_age ?? null;
+            $surveyArr['marital_status'] = $d->marital_status ?? null;
+            $surveyArr['contact_number'] = $d->contact_number ?? null;
+            $surveyArr['language_spoken'] = $d->language_spoken ?? null;
+            $surveyArr['tribe'] = $d->tribe ?? null;
+            $surveyArr['highest_education'] = $d->highest_education ?? null;
+            $surveyArr['last_school_name'] = $d->last_school_name ?? null;
+            $surveyArr['year_graduated'] = $d->year_graduated ?? null;
+            $surveyArr['spouse_name'] = $d->spouse_name ?? null;
+            $surveyArr['spouse_religion'] = $d->spouse_religion ?? null;
+            $surveyArr['spouse_tribe'] = $d->spouse_tribe ?? null;
+            $surveyArr['spouse_age'] = $d->spouse_age ?? null;
+            $surveyArr['spouse_gender'] = array_key_exists($d->spouse_gender, $genderLabel) ? $genderLabel[$d->spouse_gender] : $d->spouse_gender;
+            $surveyArr['affiliation'] = array_key_exists($d->affiliation, $affLabel) ? $affLabel[$d->affiliation] : $d->affiliation;
+        }
+        if ($h) {
+            $surveyArr['lot_ownership'] = $h->lot_ownership ?? null;
+            $surveyArr['house_ownership'] = $h->house_ownership ?? null;
+            $surveyArr['avail_socialized_housing'] = $h->avail_socialized_housing ?? null;
+            $surveyArr['temporary_living_area'] = $h->temporary_living_area ?? null;
+            $surveyArr['housing_structure'] = $h->housing_structure ?? null;
+            $surveyArr['type_of_toilet'] = $h->type_of_toilet ?? null;
+            $surveyArr['source_of_water'] = $h->source_of_water ?? null;
+            $surveyArr['source_of_electricity'] = $h->source_of_electricity ?? null;
+        }
+        if ($e) {
+            $surveyArr['main_income_source'] = $e->main_income_source ?? null;
+            $surveyArr['work_status'] = $e->work_status ?? null;
+            $surveyArr['work_location_head'] = $e->work_location_head ?? null;
+            $surveyArr['monthly_salary'] = $e->monthly_salary ?? null;
+            $surveyArr['combine_monthly_income'] = $e->combine_monthly_income ?? null;
+        }
+        if ($t) {
+            $surveyArr['skills_for_living'] = $t->skills_for_living ?? null;
+            $surveyArr['specific_skill'] = $t->specific_skill ?? null;
+            $surveyArr['organization_member'] = $t->organization_member ?? null;
+            $surveyArr['specific_organization'] = $t->specific_organization ?? null;
+            $surveyArr['wanttolearn'] = $t->wanttolearn ?? null;
+            $surveyArr['remarks'] = $t->remarks ?? null;
+            $surveyArr['house_photo'] = $t->house_photo ?? null;
+            $surveyArr['latitude'] = $t->latitude ?? null;
+            $surveyArr['longitude'] = $t->longitude ?? null;
+            $surveyArr['respondent_signature'] = $t->respondent_signature ?? null;
         }
         $members = DB::table('household_mem')->where('survey_id', $survey_id)->get();
-        return response()->json(['survey' => $survey, 'members' => $members]);
+        return response()->json(['survey' => $surveyArr, 'members' => $members]);
     }
 
     public function adminSurveyPhoto(Request $request, $survey_id)
     {
-        $row = DB::table('survey_response')
-            ->select('house_photo')
-            ->where('survey_id', $survey_id)
+        $row = DB::table('training as t')
+            ->join('survey as s','s.survey_id','=','t.survey_id')
+            ->select('t.house_photo')
+            ->where('t.survey_id', $survey_id)
             ->first();
         if (!$row || empty($row->house_photo)) {
             return response()->json(['message' => 'Not found'], 404);
@@ -1001,24 +1438,18 @@ class ValidatorDashboardController extends Controller
         $mode = strtolower(trim((string)$request->get('mode', 'barangay')));
 
         if ($mode === 'survey') {
-            $q = DB::table('survey_response')
-                ->select('survey_id','barangay','classification','first_name','last_name','middle_name','suffix','latitude','longitude','house_photo');
+            $rows = DB::table('survey as s')
+                ->join('demographic as d','d.survey_id','=','s.survey_id')
+                ->join('classification as c','c.survey_id','=','s.survey_id')
+                ->leftJoin('training as t','t.survey_id','=','s.survey_id')
+                ->select('s.survey_id','d.barangay','c.classification','d.first_name','d.last_name','d.middle_name','d.suffix','t.latitude','t.longitude','t.house_photo');
             if ($scope !== 'all') {
-                $q->whereIn('is_submitted', [1,2]);
+                $rows->whereIn('s.is_submitted', [1,2]);
             }
-            $q->whereNotNull('latitude')->whereNotNull('longitude')->where('latitude','!=','')->where('longitude','!=','');
-            $rows = $q->get();
+            $rows->whereNotNull('t.latitude')->whereNotNull('t.longitude');
+            $rows = $rows->get();
 
-            $normalizeClass = function($c) {
-                $c = trim((string)$c);
-                $lc = strtolower($c);
-                if ($lc === 'double-up' || $lc === 'double up' || $lc === 'doubled-up' || $lc === 'double-up') return 'Double-up';
-                if ($lc === 'upgrading_of_land_tenure' || $lc === 'upgrading of land tenure' || $lc === 'upgrading') return 'Upgrading of Land Tenure';
-                if ($lc === 'displaced') return 'Displaced';
-                if ($lc === 'homeless') return 'Homeless';
-                return $c ?: 'Unknown';
-            };
-
+            $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
             $points = [];
             foreach ($rows as $r) {
                 $lat = is_numeric($r->latitude ?? null) ? (float)$r->latitude : null;
@@ -1034,7 +1465,7 @@ class ValidatorDashboardController extends Controller
                 $points[] = [
                     'survey_id' => $r->survey_id,
                     'barangay' => $r->barangay ?: 'Unknown',
-                    'classification' => $normalizeClass($r->classification ?: 'Unknown'),
+                    'classification' => $classLabel[$r->classification] ?? ($r->classification ?: 'Unknown'),
                     'lat' => $lat,
                     'lng' => $lng,
                     'name' => $name,
@@ -1045,22 +1476,26 @@ class ValidatorDashboardController extends Controller
             return response()->json(['points' => $points]);
         }
 
-        $countsQuery = DB::table('survey_response')
-            ->select('barangay','classification', DB::raw('COUNT(*) AS count'));
-        $coordsQuery = DB::table('survey_response')
+        $countsQuery = DB::table('survey as s')
+            ->join('classification as c','c.survey_id','=','s.survey_id')
+            ->join('demographic as d','d.survey_id','=','s.survey_id')
+            ->select('d.barangay','c.classification', DB::raw('COUNT(*) AS count'));
+        $coordsQuery = DB::table('survey as s')
+            ->join('demographic as d','d.survey_id','=','s.survey_id')
+            ->leftJoin('training as t','t.survey_id','=','s.survey_id')
             ->select(
-                'barangay',
-                DB::raw('MAX(NULLIF(latitude, "")) AS latitude'),
-                DB::raw('MAX(NULLIF(longitude, "")) AS longitude')
+                'd.barangay',
+                DB::raw('MAX(t.latitude) AS latitude'),
+                DB::raw('MAX(t.longitude) AS longitude')
             );
 
         if ($scope !== 'all') {
-            $countsQuery->whereIn('is_submitted', [1,2]);
-            $coordsQuery->whereIn('is_submitted', [1,2]);
+            $countsQuery->whereIn('s.is_submitted', [1,2]);
+            $coordsQuery->whereIn('s.is_submitted', [1,2]);
         }
 
-        $counts = $countsQuery->groupBy('barangay','classification')->get();
-        $coords = $coordsQuery->groupBy('barangay')->get();
+        $counts = $countsQuery->groupBy('d.barangay','c.classification')->get();
+        $coords = $coordsQuery->groupBy('d.barangay')->get();
 
         $coordMap = [];
         foreach ($coords as $c) {
@@ -1069,21 +1504,12 @@ class ValidatorDashboardController extends Controller
                 'lng' => is_numeric($c->longitude ?? null) ? (float)$c->longitude : null,
             ];
         }
-
-        $normalizeClass = function($c) {
-            $c = trim((string)$c);
-            $lc = strtolower($c);
-            if ($lc === 'double-up' || $lc === 'double up' || $lc === 'doubled-up' || $lc === 'double-up') return 'Double-up';
-            if ($lc === 'upgrading_of_land_tenure' || $lc === 'upgrading of land tenure' || $lc === 'upgrading') return 'Upgrading of Land Tenure';
-            if ($lc === 'displaced') return 'Displaced';
-            if ($lc === 'homeless') return 'Homeless';
-            return $c ?: 'Unknown';
-        };
+        $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
 
         $points = [];
         foreach ($counts as $row) {
             $b = $row->barangay ?: 'Unknown';
-            $cls = $normalizeClass($row->classification ?: 'Unknown');
+            $cls = $classLabel[$row->classification] ?? ($row->classification ?: 'Unknown');
             if (!isset($points[$b])) {
                 $points[$b] = [
                     'barangay' => $b,
@@ -1271,7 +1697,16 @@ class ValidatorDashboardController extends Controller
         $data = [];
         foreach ($rows as $r) {
             $img = is_string($r->proj_image ?? null) ? $r->proj_image : '';
-            $url = $img !== '' ? (Storage::disk('public')->exists($img) ? Storage::url($img) : (str_starts_with($img, '/') ? $img : "/storage/$img")) : null;
+            $url = null;
+            if ($img !== '') {
+                $rel = ltrim($img, '/');
+                if (str_starts_with($rel, 'storage/')) {
+                    $rel2 = substr($rel, 8);
+                    $url = Storage::disk('public')->exists($rel2) ? Storage::url($rel2) : "/storage/$rel2";
+                } else {
+                    $url = Storage::disk('public')->exists($rel) ? Storage::url($rel) : (str_starts_with($img, '/') ? $img : "/storage/$rel");
+                }
+            }
             $data[] = [
                 'project_id' => (int)$r->project_id,
                 'project_name' => $r->project_name,
@@ -1293,6 +1728,9 @@ class ValidatorDashboardController extends Controller
         if (session('role') !== 'admin') {
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
+        if (!Schema::hasTable('siteproj')) {
+            return response()->json(['message' => 'Project sites table missing'], 422);
+        }
         $validated = $request->validate([
             'project_name' => ['required','string','max:255'],
             'land_area' => ['nullable','numeric'],
@@ -1308,20 +1746,40 @@ class ValidatorDashboardController extends Controller
         if ($request->hasFile('proj_image')) {
             $file = $request->file('proj_image');
             $filename = uniqid('proj_').'.'.$file->getClientOriginalExtension();
-            $path = $file->storeAs('projects', $filename, 'public');
+            $stored = $file->storeAs('projects', $filename, 'public');
+            $srcAbs = Storage::disk('public')->path('projects/'.$filename);
+            $pubDir = public_path('storage/projects');
+            if (!is_dir($pubDir)) { @mkdir($pubDir, 0775, true); }
+            $dstAbs = $pubDir.'/'.$filename;
+            @copy($srcAbs, $dstAbs);
+            $path = 'storage/projects/'.$filename;
         }
-
-        DB::table('siteproj')->insert([
+        $columns = Schema::getColumnListing('siteproj');
+        $payload = [
             'project_name' => $validated['project_name'],
-            'land_area' => $validated['land_area'] ?? null,
-            'total_blocks' => $validated['total_blocks'] ?? null,
-            'total_lots' => $validated['total_lots'] ?? null,
-            'barangay' => $validated['barangay'] ?? null,
-            'year_started' => $validated['year_started'] ?? null,
-            'description' => $validated['description'] ?? null,
-            'proj_image' => $path,
-        ]);
-        return response()->json(['ok' => true]);
+            'land_area' => $validated['land_area'] ?? 0,
+            'total_blocks' => $validated['total_blocks'] ?? 0,
+            'total_lots' => $validated['total_lots'] ?? 0,
+            'barangay' => $validated['barangay'] ?? '',
+            'year_started' => $validated['year_started'] ?? date('Y'),
+            'description' => $validated['description'] ?? '',
+            'proj_image' => $path ?? '',
+        ];
+        $filtered = array_intersect_key($payload, array_flip($columns));
+        try {
+            $newId = DB::table('siteproj')->insertGetId($filtered, 'project_id');
+            return response()->json(['ok' => true, 'project_id' => $newId]);
+        } catch (\Throwable $e) {
+            $msg = $e->getMessage();
+            if (str_contains($msg, 'project_id') && str_contains($msg, 'default')) {
+                $maxId = DB::table('siteproj')->max('project_id');
+                $nextId = is_numeric($maxId) ? ((int)$maxId + 1) : 1;
+                $filtered['project_id'] = $nextId;
+                DB::table('siteproj')->insert($filtered);
+                return response()->json(['ok' => true, 'project_id' => $nextId]);
+            }
+            return response()->json(['message' => 'Failed to save project', 'error' => $msg], 500);
+        }
     }
 
     public function adminAssignmentsPending(Request $request)
@@ -1331,21 +1789,41 @@ class ValidatorDashboardController extends Controller
         }
         $search = trim((string)$request->get('search',''));
         if (!Schema::hasTable('assignments')) {
-            $base = DB::table('survey_response as s')->where('s.is_submitted', 2);
+            $base = DB::table('survey as s')
+                ->join('demographic as d','d.survey_id','=','s.survey_id')
+                ->join('classification as c','c.survey_id','=','s.survey_id')
+                ->where('s.is_submitted', 2);
         } else {
-            $base = DB::table('survey_response as s')
+            $base = DB::table('survey as s')
                 ->leftJoin('assignments as a','a.survey_id','=','s.survey_id')
+                ->join('demographic as d','d.survey_id','=','s.survey_id')
+                ->join('classification as c','c.survey_id','=','s.survey_id')
                 ->where('s.is_submitted', 2)
                 ->whereNull('a.assignment_id');
         }
         if ($search !== '') {
             $base->where(function($q) use ($search) {
-                $q->where('s.last_name','like',"%$search%")
-                  ->orWhere('s.barangay','like',"%$search%")
-                  ->orWhere('s.classification','like',"%$search%");
+                $q->where('d.last_name','like',"%$search%")
+                  ->orWhere('d.barangay','like',"%$search%");
             });
         }
-        $rows = $base->select('s.survey_id','s.date_interviewed','s.barangay','s.last_name','s.classification','s.subclass_displaced','s.subclass_doubleup','s.subclass_homeless')->orderBy('s.survey_id','desc')->get();
+        $rows = $base->select('s.survey_id','s.date_interviewed','d.barangay','d.last_name','c.classification','c.subclass_displaced','c.subclass_doubleup','c.subclass_homeless')
+            ->orderBy('s.survey_id','desc')
+            ->get()
+            ->map(function($row){
+                $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
+                $displacedLabel = [
+                    1=>'Coastal Areas',2=>'Drought',3=>'Earthquake Affected',4=>'Flood Affected',5=>'Sea Level Rise',
+                    6=>'Threat of Eviction',7=>'Eviction/Demolition Order',8=>'Human Induced Disaster',9=>'Infra Projects',10=>'Landslide Affected',11=>'Near Waterways'
+                ];
+                $doubleupLabel = [1=>'Renter/Tenant',2=>'Rent-free/Sharer',3=>'Caretaker'];
+                $homelessLabel = [1=>'Public - living in tent',2=>'Private - living in tent'];
+                $row->classification = $classLabel[$row->classification] ?? $row->classification;
+                $row->subclass_displaced = $displacedLabel[$row->subclass_displaced] ?? ($row->subclass_displaced ?? '');
+                $row->subclass_doubleup = $doubleupLabel[$row->subclass_doubleup] ?? ($row->subclass_doubleup ?? '');
+                $row->subclass_homeless = $homelessLabel[$row->subclass_homeless] ?? ($row->subclass_homeless ?? '');
+                return $row;
+            });
         return response()->json(['data'=>$rows]);
     }
 
@@ -1359,18 +1837,27 @@ class ValidatorDashboardController extends Controller
             return response()->json(['data' => []]);
         }
         $base = DB::table('assignments as a')
-            ->join('survey_response as s','s.survey_id','=','a.survey_id')
+            ->join('survey as s','s.survey_id','=','a.survey_id')
+            ->join('demographic as d','d.survey_id','=','s.survey_id')
+            ->join('classification as c','c.survey_id','=','s.survey_id')
             ->join('siteproj as p','p.project_id','=','a.project_id');
         if ($search !== '') {
             $base->where(function($q) use ($search) {
-                $q->where('s.last_name','like',"%$search%")
+                $q->where('d.last_name','like',"%$search%")
                   ->orWhere('p.project_name','like',"%$search%")
-                  ->orWhere('s.barangay','like',"%$search%")
+                  ->orWhere('d.barangay','like',"%$search%")
                   ->orWhere('a.block_no','like',"%$search%")
                   ->orWhere('a.lot_no','like',"%$search%");
             });
         }
-        $rows = $base->select('a.assignment_id','a.block_no','a.lot_no','a.date_assigned','p.project_id','p.project_name','s.survey_id','s.last_name','s.barangay','s.classification')->orderBy('a.assignment_id','desc')->get();
+        $rows = $base->select('a.assignment_id','a.block_no','a.lot_no','a.date_assigned','p.project_id','p.project_name','s.survey_id','d.last_name','d.barangay','c.classification')
+            ->orderBy('a.assignment_id','desc')
+            ->get()
+            ->map(function($row){
+                $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
+                $row->classification = $classLabel[$row->classification] ?? $row->classification;
+                return $row;
+            });
         return response()->json(['data'=>$rows]);
     }
 
@@ -1400,6 +1887,45 @@ class ValidatorDashboardController extends Controller
             'date_assigned' => now(),
         ]);
         return response()->json(['ok'=>true]);
+    }
+
+    public function adminApproveSurvey(Request $request)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        $survey_id = (int) $request->input('survey_id');
+        if (!$survey_id) {
+            return response()->json(['message' => 'Missing survey_id'], 400);
+        }
+        $exists = DB::table('survey')->where('survey_id', $survey_id)->first();
+        if (!$exists) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
+        $updated = DB::table('survey')->where('survey_id', $survey_id)->update(['is_submitted' => 2]);
+        return response()->json(['ok' => true, 'updated' => (bool)$updated]);
+    }
+
+    public function adminDbInfo(Request $request)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        $dbNameRow = DB::select('SELECT DATABASE() AS db');
+        $dbName = isset($dbNameRow[0]) ? ($dbNameRow[0]->db ?? null) : null;
+        $versionRow = DB::select('SELECT @@version AS v');
+        $version = isset($versionRow[0]) ? ($versionRow[0]->v ?? null) : null;
+        $validatorCount = Schema::hasTable('validator') ? DB::table('validator')->count() : null;
+        $sample = Schema::hasTable('validator') ? DB::table('validator')->select('validator_id','username','name','status')->limit(5)->get() : [];
+        return response()->json([
+            'db' => $dbName,
+            'version' => $version,
+            'host' => env('DB_HOST'),
+            'port' => env('DB_PORT'),
+            'user' => env('DB_USERNAME'),
+            'validator_count' => $validatorCount,
+            'validator_sample' => $sample,
+        ]);
     }
 
     public function adminValidators(Request $request)
@@ -1659,70 +2185,139 @@ class ValidatorDashboardController extends Controller
         $spouse_age = $allowSpouse ? $val('spouse_age') : null;
         $spouse_gender = $allowSpouse ? $val('spouse_gender') : null;
 
-        $survey_id = DB::table('survey_response')->insertGetId([
-            'validator_id' => (int)($data['validator_id'] ?? 1),
-            'previous_client' => $val('previous_client'),
-            'year_inhabited' => $val('year_inhabited'),
-            'classification' => $classification,
-            'subclass_displaced' => $subclass_displaced,
-            'subclass_doubleup' => $subclass_doubleup,
-            'subclass_homeless' => $subclass_homeless,
-            'interview_person' => $val('interview_person'),
-            'last_name' => $val('last_name'),
-            'first_name' => $val('first_name'),
-            'middle_name' => $val('middle_name'),
-            'suffix' => $val('suffix'),
-            'barangay' => $val('barangay'),
-            'purok' => $val('purok'),
-            'street' => $val('street'),
-            'gender' => $val('gender'),
-            'religion' => $val('religion'),
-            'birth_place' => $val('birth_place'),
-            'birth_date' => $val('birth_date'),
-            'person_age' => $val('person_age'),
-            'marital_status' => $marital_status,
-            'contact_number' => $val('contact_number'),
-            'language_spoken' => $val('language_spoken'),
-            'tribe' => $val('tribe'),
-            'highest_education' => $val('highest_education'),
-            'last_school_name' => $val('last_school_name'),
-            'year_graduated' => $val('year_graduated'),
-            'spouse_name' => $spouse_name,
-            'spouse_religion' => $spouse_religion,
-            'spouse_tribe' => $spouse_tribe,
-            'spouse_age' => $spouse_age,
-            'spouse_gender' => $spouse_gender,
-            'affiliation' => $val('affiliation'),
-            'lot_ownership' => $val('lot_ownership'),
-            'house_ownership' => $val('house_ownership'),
-            'avail_socialized_housing' => $val('avail_socialized_housing'),
-            'temporary_living_area' => $val('temporary_living_area'),
-            'housing_structure' => $housing_structure,
-            'type_of_toilet' => $type_of_toilet,
-            'source_of_water' => $source_of_water,
-            'source_of_electricity' => $source_of_electricity,
-            'main_income_source' => $main_income_source,
-            'work_status' => $work_status,
-            'work_location_head' => $val('work_location_head'),
-            'monthly_salary' => $val('monthly_salary'),
-            'combine_monthly_income' => $val('combine_monthly_income'),
-            'skills_for_living' => $skills_for_living,
-            'specific_skill' => $specific_skill,
-            'organization_member' => $organization_member,
-            'specific_organization' => $specific_organization,
-            'wanttolearn' => $val('wanttolearn'),
-            'house_photo' => $house_photo_path ?: '',
-            'house_photo_filename' => $house_photo_filename,
-            'house_photo_type' => $house_photo_type,
-            'remarks' => $val('remarks'),
-            'interviewed_by' => $val('interviewed_by'),
-            'date_interviewed' => $val('date_interviewed'),
-            'is_submitted' => (int)($data['is_submitted'] ?? 1),
-            'latitude' => $val('latitude'),
-            'longitude' => $val('longitude'),
-            'validator_signature' => $val('validator_signature'),
-            'respondent_signature' => $val('respondent_signature'),
-        ]);
+        $survey_id = DB::transaction(function() use ($data, $val, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $house_photo_path, $marital_status, $spouse_name, $spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender) {
+            $toInt = function($v) { return is_numeric($v) ? (int)$v : null; };
+            $yn = function($v) { $s = is_string($v) ? strtolower(trim($v)) : $v; return ($s === 'yes' || $s === 1 || $s === '1') ? 1 : (($s === 'no' || $s === 0 || $s === '0') ? 0 : null); };
+            $classMap = [
+                'displaced' => 1,
+                'double-up' => 2,
+                'homeless' => 3,
+                'upgrading of land tenure' => 4,
+                'upgrading_of_land_tenure' => 4,
+            ];
+            $displacedMap = [
+                'coastal areas' => 1,
+                'drought' => 2,
+                'earthquake affected' => 3,
+                'flood affected' => 4,
+                'sea level rise' => 5,
+                'threat of eviction' => 6,
+                'eviction/demolition order' => 7,
+                'human induced disaster' => 8,
+                'infra projects' => 9,
+                'landslide affected' => 10,
+                'near waterways' => 11,
+            ];
+            $doubleupMap = [
+                'renter/tenant' => 1,
+                'rent-free/sharer' => 2,
+                'caretaker' => 3,
+            ];
+            $homelessMap = [
+                'public - living in tent' => 1,
+                'private - living in tent' => 2,
+            ];
+            $genderMap = ['male'=>1,'female'=>2];
+            $affMap = [
+                'none'=>0,'n/a'=>0,
+                'sss'=>1,'gsis'=>2,'philhealth'=>3,'pagibig'=>4,
+                'pwd'=>5,'senior_citizen'=>6,'solo_parent'=>7,'4ps'=>8,
+            ];
+
+            $classificationCode = $classMap[strtolower((string)$classification)] ?? null;
+            $subDisplacedCode = $subclass_displaced ? ($displacedMap[strtolower((string)$subclass_displaced)] ?? null) : null;
+            $subDoubleupCode = $subclass_doubleup ? ($doubleupMap[strtolower((string)$subclass_doubleup)] ?? null) : null;
+            $subHomelessCode = $subclass_homeless ? ($homelessMap[strtolower((string)$subclass_homeless)] ?? null) : null;
+            $prevClientCode = $yn($val('previous_client'));
+            $spouseGenderCode = $genderMap[strtolower((string)$spouse_gender)] ?? null;
+            $affRaw = strtolower(str_replace(' ', '_', (string)$val('affiliation')));
+            $affCode = $affMap[$affRaw] ?? 0;
+
+            $sid = DB::table('survey')->insertGetId([
+                'validator_id' => (int)($data['validator_id'] ?? 1),
+                'interviewed_by' => $val('interviewed_by'),
+                'date_interviewed' => $val('date_interviewed'),
+                'is_submitted' => (int)($data['is_submitted'] ?? 0),
+                'validator_signature' => $val('validator_signature'),
+            ]);
+
+            DB::table('classification')->insert([
+                'survey_id' => $sid,
+                'previous_client' => $prevClientCode,
+                'year_inhabited' => $toInt($val('year_inhabited')),
+                'classification' => $classificationCode,
+                'subclass_displaced' => $subDisplacedCode,
+                'subclass_doubleup' => $subDoubleupCode,
+                'subclass_homeless' => $subHomelessCode,
+            ]);
+
+            DB::table('demographic')->insert([
+                'survey_id' => $sid,
+                'interview_person' => $val('interview_person'),
+                'last_name' => $val('last_name'),
+                'first_name' => $val('first_name'),
+                'middle_name' => $val('middle_name'),
+                'suffix' => $val('suffix'),
+                'barangay' => $val('barangay'),
+                'purok' => $val('purok'),
+                'street' => $val('street'),
+                'gender' => $val('gender'),
+                'religion' => $val('religion'),
+                'birth_place' => $val('birth_place'),
+                'birth_date' => $val('birth_date'),
+                'person_age' => $toInt($val('person_age')),
+                'marital_status' => $marital_status,
+                'contact_number' => $val('contact_number'),
+                'language_spoken' => $val('language_spoken'),
+                'tribe' => $val('tribe'),
+                'highest_education' => $val('highest_education'),
+                'last_school_name' => $val('last_school_name'),
+                'year_graduated' => $toInt($val('year_graduated')),
+                'spouse_name' => $spouse_name,
+                'spouse_religion' => $spouse_religion,
+                'spouse_tribe' => $spouse_tribe,
+                'spouse_age' => $toInt($spouse_age),
+                'spouse_gender' => $spouseGenderCode,
+                'affiliation' => $affCode,
+            ]);
+
+            DB::table('household')->insert([
+                'survey_id' => $sid,
+                'lot_ownership' => $val('lot_ownership'),
+                'house_ownership' => $val('house_ownership'),
+                'avail_socialized_housing' => $val('avail_socialized_housing'),
+                'temporary_living_area' => $val('temporary_living_area'),
+                'housing_structure' => $housing_structure,
+                'type_of_toilet' => $type_of_toilet,
+                'source_of_water' => $source_of_water,
+                'source_of_electricity' => $source_of_electricity,
+            ]);
+
+            DB::table('economic')->insert([
+                'survey_id' => $sid,
+                'main_income_source' => $main_income_source,
+                'work_status' => $work_status,
+                'work_location_head' => $val('work_location_head'),
+                'monthly_salary' => $val('monthly_salary'),
+                'combine_monthly_income' => $val('combine_monthly_income'),
+            ]);
+
+            DB::table('training')->insert([
+                'survey_id' => $sid,
+                'skills_for_living' => $skills_for_living,
+                'specific_skill' => $specific_skill,
+                'organization_member' => $organization_member,
+                'specific_organization' => $specific_organization,
+                'house_photo' => $house_photo_path ?: '',
+                'wanttolearn' => $val('wanttolearn'),
+                'remarks' => $val('remarks'),
+                'latitude' => $val('latitude'),
+                'longitude' => $val('longitude'),
+                'respondent_signature' => $val('respondent_signature'),
+            ]);
+
+            return $sid;
+        });
 
         // Household members
         $members = $data['household_members'] ?? $data['members'] ?? [];

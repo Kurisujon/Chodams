@@ -101,7 +101,7 @@ class ValidatorController extends Controller
     public function syncValidators()
     {
         try {
-            $validators = Validator::all();
+            $validators = Validator::where('status','approved')->get();
 
             $validatorsData = $validators->map(function ($validator) {
                 $sig = is_string($validator->signature_data ?? null) ? trim($validator->signature_data) : null;

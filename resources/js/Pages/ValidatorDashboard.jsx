@@ -102,7 +102,7 @@ export default function ValidatorDashboard() {
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-50 text-emerald-600">
                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 11c0 2.761-2.239 5-5 5s-5-2.239-5-5 2.239-5 5-5 5 2.239 5 5z"/><path d="M20 21a8 8 0 10-16 0"/></svg>
               </div>
-              <div className="mt-4 text-3xl font-mono text-gray-900">{totals.total_surveyed}</div>
+              <div className="mt-4 text-3xl font-semibold text-gray-900">{totals.total_surveyed}</div>
               <div className="mt-1 text-sm text-gray-600">Total Surveyed</div>
               <div className="mt-1 text-xs text-gray-500">Tap to view list</div>
             </button>
@@ -111,7 +111,7 @@ export default function ValidatorDashboard() {
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-50 text-emerald-600">
                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
               </div>
-              <div className="mt-4 text-3xl font-mono text-gray-900">{totals.total_submitted}</div>
+              <div className="mt-4 text-3xl font-semibold text-gray-900">{totals.total_submitted}</div>
               <div className="mt-1 text-sm text-gray-600">Submitted</div>
               <div className="mt-1 text-xs text-gray-500">Tap to view list</div>
             </button>
@@ -120,7 +120,7 @@ export default function ValidatorDashboard() {
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-50 text-emerald-600">
                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 6v12"/><path d="M6 12h12"/></svg>
               </div>
-              <div className="mt-4 text-3xl font-mono text-gray-900">{pending}</div>
+              <div className="mt-4 text-3xl font-semibold text-gray-900">{pending}</div>
               <div className="mt-1 text-sm text-gray-600">Pending to Submit</div>
               <div className="mt-1 text-xs text-gray-500">Surveys not yet submitted</div>
             </div>

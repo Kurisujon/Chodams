@@ -172,7 +172,7 @@ export default function SurveyForm() {
         fd.append('occupation[]', m.occupation ?? '')
         fd.append('monthly_income[]', m.monthly_income ?? '')
       })
-      await axios.post('/validator/api/survey', fd)
+      await axios.post('/validator/api/survey', fd, { headers: { 'X-CSRF-TOKEN': csrf() } })
       window.location.href = '/validator/dashboard'
     } catch (e) {
       setError(e.response?.data?.message || 'Submission failed')

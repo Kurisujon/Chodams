@@ -72,6 +72,7 @@ Route::prefix('admin/api')->group(function () {
     Route::get('/classification', [ValidatorDashboardController::class, 'adminClassification']);
     Route::get('/subclass-displaced', [ValidatorDashboardController::class, 'adminSubclassDisplaced']);
     Route::get('/subclass-doubleup', [ValidatorDashboardController::class, 'adminSubclassDoubleUp']);
+    Route::get('/subclass-homeless', [ValidatorDashboardController::class, 'adminSubclassHomeless']);
     Route::get('/beneficiaries/validated', [ValidatorDashboardController::class, 'adminBeneficiariesValidated']);
     Route::get('/beneficiaries/approved', [ValidatorDashboardController::class, 'adminBeneficiariesApproved']);
     Route::get('/beneficiaries/affiliated', [ValidatorDashboardController::class, 'adminBeneficiariesAffiliated']);
@@ -86,6 +87,8 @@ Route::prefix('admin/api')->group(function () {
     Route::get('/survey/{survey_id}', [ValidatorDashboardController::class, 'adminSurveyDetails']);
     Route::get('/survey/{survey_id}/photo', [ValidatorDashboardController::class, 'adminSurveyPhoto']);
     Route::get('/map-points', [ValidatorDashboardController::class, 'adminMapPoints']);
+    Route::post('/approve', [ValidatorDashboardController::class, 'adminApproveSurvey']);
+    Route::get('/db-info', [ValidatorDashboardController::class, 'adminDbInfo']);
 
     // Project Sites API
     Route::get('/project-sites', [ValidatorDashboardController::class, 'adminProjectSitesList']);

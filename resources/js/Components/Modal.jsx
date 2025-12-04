@@ -14,6 +14,12 @@ export default function Modal({ children, show = false, maxWidth = '2xl', closea
         lg: 'sm:max-w-lg',
         xl: 'sm:max-w-xl',
         '2xl': 'sm:max-w-2xl',
+        '3xl': 'sm:max-w-3xl',
+        '4xl': 'sm:max-w-4xl',
+        '5xl': 'sm:max-w-5xl',
+        '6xl': 'sm:max-w-6xl',
+        '7xl': 'sm:max-w-7xl',
+        full: 'sm:max-w-full',
     }[maxWidth];
 
     return (
@@ -21,7 +27,7 @@ export default function Modal({ children, show = false, maxWidth = '2xl', closea
             <Dialog
                 as="div"
                 id="modal"
-                className="fixed inset-0 flex overflow-y-auto px-4 py-6 sm:px-0 items-center z-50 transform transition-all"
+                className={`fixed inset-0 flex ${maxWidth === 'full' ? 'p-0' : 'overflow-y-auto px-4 py-6 sm:px-0'} ${maxWidth === 'full' ? '' : 'items-center'} z-50 transform transition-all`}
                 onClose={close}
             >
                 <Transition.Child
@@ -46,7 +52,7 @@ export default function Modal({ children, show = false, maxWidth = '2xl', closea
                     leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                 >
                     <Dialog.Panel
-                        className={`mb-6 bg-white rounded-lg overflow-hidden shadow-xl transform transition-all sm:w-full sm:mx-auto ${maxWidthClass}`}
+                        className={`${maxWidth === 'full' ? 'w-full h-full m-0 rounded-none max-h-full' : `mb-6 rounded-lg ${maxWidthClass}`} bg-white overflow-hidden shadow-xl transform transition-all sm:w-full ${maxWidth === 'full' ? '' : 'sm:mx-auto'}`}
                     >
                         {children}
                     </Dialog.Panel>
