@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\ValidatorDashboardController;
+use App\Http\Controllers\ValidatorPasswordController;
 
 /*
 |--------------------------------------------------------------------------
@@ -90,6 +91,9 @@ Route::prefix('admin/api')->group(function () {
     Route::post('/approve', [ValidatorDashboardController::class, 'adminApproveSurvey']);
     Route::get('/db-info', [ValidatorDashboardController::class, 'adminDbInfo']);
 
+    Route::get('/notifications', [ValidatorDashboardController::class, 'adminNotifications']);
+    Route::post('/notifications/read', [ValidatorDashboardController::class, 'adminNotificationRead']);
+
     // Project Sites API
     Route::get('/project-sites', [ValidatorDashboardController::class, 'adminProjectSitesList']);
     Route::post('/project-sites', [ValidatorDashboardController::class, 'adminProjectSitesCreate']);
@@ -140,6 +144,9 @@ Route::prefix('validator/api')->group(function () {
     Route::post('/survey', [ValidatorDashboardController::class, 'createSurvey']);
     Route::post('/submit', [ValidatorDashboardController::class, 'submitSurvey']);
 });
+
+Route::get('/validator/reset-password', [ValidatorPasswordController::class, 'showResetForm']);
+Route::post('/validator/reset-password', [ValidatorPasswordController::class, 'submitResetForm']);
 
 // Mobile App API (backward-compatible paths for existing Flutter app)
 Route::get('/sync_validators_api.php', [ValidatorDashboardController::class, 'mobileSyncValidators']);

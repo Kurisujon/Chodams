@@ -15,6 +15,9 @@ export default function AdminDashboard() {
   const [assignedCount, setAssignedCount] = useState(0)
 
   const [profile, setProfile] = useState(null)
+  const [notifications, setNotifications] = useState([])
+  const [showAllNotifs, setShowAllNotifs] = useState(false)
+  const [notifModal, setNotifModal] = useState({ open: false, item: null })
 
   const [showBarangay, setShowBarangay] = useState(false)
   const [showClassification, setShowClassification] = useState(true)
@@ -83,6 +86,7 @@ export default function AdminDashboard() {
     fetchSubclassHomeless()
     fetchMapPoints()
     fetchAssignedCount()
+    fetchNotifications()
   }, [])
 
   useEffect(() => {
@@ -132,6 +136,16 @@ export default function AdminDashboard() {
   async function fetchAssignedCount() {
     const res = await axios.get('/admin/api/assignments')
     setAssignedCount((res.data.data || []).length)
+  }
+
+  async function fetchNotifications(limit = 10) {
+    const res = await axios.get('/admin/api/notifications', { params: { limit } })
+    setNotifications(res.data.data || [])
+  }
+
+  async function markNotificationRead(id) {
+    try { await axios.post('/admin/api/notifications/read', { id }) } catch (e) {}
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
   }
 
   async function fetchProfile() {
@@ -649,7 +663,7 @@ export default function AdminDashboard() {
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51l6.83 3.98"/><path d="M15.41 6.51L8.59 10.49"/></svg>
             </button>
           </div>
-          <div className="relative flex flex-col items-center text-center">
+          <div className="relative flex flex-col items-center text-center hidden">
             <div className="relative">
               <img src={profile?.avatar_url || '/image/greenlogo1.jpg'} alt="avatar" className="w-24 h-24 rounded-full object-cover border"/>
               <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full grid place-items-center bg-emerald-600 text-white ring-2 ring-white">
@@ -662,7 +676,7 @@ export default function AdminDashboard() {
               {profile?.email && <div className="text-xs text-gray-500 mt-1">{profile.email}</div>}
             </div>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-3 hidden">
             <div className="flex items-center justify-between bg-emerald-50 rounded-2xl p-4">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-white text-emerald-600 ring-1 ring-emerald-100 grid place-items-center">
@@ -690,42 +704,32 @@ export default function AdminDashboard() {
           </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-emerald-800">Latest Alerts</div>
+              <div className="text-sm font-semibold text-emerald-800">Latest</div>
               <button className="p-2 rounded-full hover:bg-emerald-50 text-emerald-700" aria-label="Notifications">
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
               </button>
             </div>
             <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <img src={'/image/office.jpg'} alt="alert" className="w-11 h-11 rounded-xl object-cover"/>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-gray-900 truncate">Upcoming Elections...</div>
-                  <div className="text-xs text-gray-500">3 October, 2023 - 07:33 AM</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <img src={'/image/greenlogo1.jpg'} alt="alert" className="w-11 h-11 rounded-xl object-cover"/>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-gray-900 truncate">New Releases...</div>
-                  <div className="text-xs text-gray-500">3 October, 2023 - 05:47 AM</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <img src={'/image/office.jpg'} alt="alert" className="w-11 h-11 rounded-xl object-cover"/>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-gray-900 truncate">Forest Inferno Cont...</div>
-                  <div className="text-xs text-gray-500">2 October, 2023 - 10:29 PM</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <img src={'/image/greenlogo1.jpg'} alt="alert" className="w-11 h-11 rounded-xl object-cover"/>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-gray-900 truncate">Flood Damage in...</div>
-                  <div className="text-xs text-gray-500">2 October, 2023 - 07:20 PM</div>
-                </div>
-              </div>
+              {(showAllNotifs ? notifications : notifications.slice(0,5)).map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => { setNotifModal({ open: true, item }); markNotificationRead(item.id) }}
+                  className={`w-full flex items-center gap-3 text-left rounded-xl p-2 ${item.read ? 'bg-white' : 'bg-gray-100'}`}
+                >
+                  <img src={'/image/greenlogo1.jpg'} alt="alert" className="w-11 h-11 rounded-xl object-cover"/>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-gray-900 truncate">{item.title}</div>
+                    <div className="text-xs text-gray-500">{new Date(item.created_at).toLocaleString()}</div>
+                  </div>
+                </button>
+              ))}
             </div>
-            <button className="w-full mt-3 px-4 py-2 bg-emerald-600 text-white rounded-2xl font-semibold">64 MORE ALERTS</button>
+            <button
+              onClick={() => { const next = !showAllNotifs; setShowAllNotifs(next); if (next) fetchNotifications(50); }}
+              className="w-full mt-3 px-4 py-2 bg-emerald-600 text-white rounded-2xl font-normal"
+            >
+              {showAllNotifs ? 'Show fewer' : 'Show more'}
+            </button>
           </div>
         </div>
       </aside>
@@ -766,6 +770,17 @@ export default function AdminDashboard() {
             >
               Close Map
             </button>
+          </div>
+        </div>
+      </Modal>
+      <Modal show={notifModal.open} onClose={() => setNotifModal({ open: false, item: null })} maxWidth="sm" closeable={true}>
+        <div className="p-6 bg-white">
+          <div className="text-lg font-semibold text-emerald-800">Notification</div>
+          <div className="mt-2 text-sm text-gray-700">
+            {notifModal.item ? `${notifModal.item.name || 'Validator'} changed password on ${new Date(notifModal.item.created_at).toLocaleString()}.` : ''}
+          </div>
+          <div className="mt-4 flex justify-end">
+            <button onClick={() => setNotifModal({ open: false, item: null })} className="px-4 py-2 bg-emerald-600 text-white rounded-lg">Close</button>
           </div>
         </div>
       </Modal>
