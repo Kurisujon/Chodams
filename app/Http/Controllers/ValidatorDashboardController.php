@@ -1941,6 +1941,43 @@ class ValidatorDashboardController extends Controller
         ]);
     }
 
+    public function adminNotifications(Request $request)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        $limit = (int)($request->get('limit') ?? 10);
+        $rows = DB::table('notifications')
+            ->whereIn('type', ['validator_password_reset'])
+            ->orderBy('id','desc')
+            ->limit(max(1, $limit))
+            ->get()
+            ->map(function($r){
+                $p = is_string($r->payload ?? null) ? json_decode($r->payload, true) : [];
+                return [
+                    'id' => $r->id,
+                    'type' => $r->type,
+                    'title' => $r->title,
+                    'name' => $p['name'] ?? null,
+                    'email' => $p['email'] ?? null,
+                    'created_at' => $r->created_at,
+                    'read' => !is_null($r->read_at),
+                ];
+            });
+        return response()->json(['data' => $rows]);
+    }
+
+    public function adminNotificationRead(Request $request)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        $id = (int)$request->input('id');
+        if (!$id) { return response()->json(['message' => 'Missing id'], 400); }
+        DB::table('notifications')->where('id',$id)->update(['read_at' => now()]);
+        return response()->json(['ok' => true]);
+    }
+
     public function adminValidators(Request $request)
     {
         if (session('role') !== 'admin') {

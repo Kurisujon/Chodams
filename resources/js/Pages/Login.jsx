@@ -13,10 +13,12 @@ export default function Login() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="min-h-screen relative flex items-center justify-center">
+            <img src="/pics/digos-cityhall.jpg" alt="Digos City Hall" className="absolute inset-0 w-full h-full object-cover"/>
+            <div className="absolute inset-0 bg-black/20"/>
             <form
                 onSubmit={submit}
-                className="bg-white p-8 rounded-xl shadow-lg w-96"
+                className="relative bg-white/95 backdrop-blur p-8 rounded-xl shadow-lg w-96"
             >
                 <h1 className="text-2xl font-bold mb-6 text-center">
                     Login
@@ -48,7 +50,7 @@ export default function Login() {
 
                 <button
                     type="submit"
-                    className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+                    className="w-full bg-emerald-600 text-white py-2 rounded hover:bg-emerald-700"
                 >
                     Login
                 </button>

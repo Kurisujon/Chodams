@@ -15,6 +15,9 @@ export default function AdminDashboard() {
   const [assignedCount, setAssignedCount] = useState(0)
 
   const [profile, setProfile] = useState(null)
+  const [notifications, setNotifications] = useState([])
+  const [showAllNotifs, setShowAllNotifs] = useState(false)
+  const [notifModal, setNotifModal] = useState({ open: false, item: null })
 
   const [showBarangay, setShowBarangay] = useState(false)
   const [showClassification, setShowClassification] = useState(true)
@@ -83,6 +86,7 @@ export default function AdminDashboard() {
     fetchSubclassHomeless()
     fetchMapPoints()
     fetchAssignedCount()
+    fetchNotifications()
   }, [])
 
   useEffect(() => {
@@ -96,8 +100,6 @@ export default function AdminDashboard() {
     window.addEventListener('focus', onFocus)
     return () => { clearInterval(id); window.removeEventListener('focus', onFocus) }
   }, [])
-
-  
 
   async function fetchTotals() {
     const res = await axios.get('/admin/api/totals')
@@ -136,6 +138,16 @@ export default function AdminDashboard() {
     setAssignedCount((res.data.data || []).length)
   }
 
+  async function fetchNotifications(limit = 10) {
+    const res = await axios.get('/admin/api/notifications', { params: { limit } })
+    setNotifications(res.data.data || [])
+  }
+
+  async function markNotificationRead(id) {
+    try { await axios.post('/admin/api/notifications/read', { id }) } catch (e) {}
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
+  }
+
   async function fetchProfile() {
     try {
       const res = await axios.get('/admin/api/profile')
@@ -147,9 +159,9 @@ export default function AdminDashboard() {
     if (!window.Chart) return
     if (barangayChart.current) barangayChart.current.destroy()
     if (!barangayRef.current) return
-    const sorted = [...barangayData].sort((a, b) => (Number(b.count || 0) - Number(a.count || 0)))
-    const labels = sorted.map(i => i.barangay || 'Unknown')
-    const values = sorted.map(i => Number(i.count) || 0)
+    const top = [...barangayData].sort((a, b) => (Number(b.count || 0) - Number(a.count || 0))).slice(0, 10)
+    const labels = top.map(i => i.barangay || 'Unknown')
+    const values = top.map(i => Number(i.count) || 0)
     const colors = emeraldColors(labels.length)
     barangayChart.current = new window.Chart(barangayRef.current, {
       type: 'doughnut',
@@ -523,7 +535,7 @@ export default function AdminDashboard() {
 
         <section className={`mt-6 bg-white rounded-2xl border border-gray-200 p-6 ${!showBarangay && 'hidden'}`}>
           <div className="max-w-4xl mx-auto">
-            <h3 className="text-lg font-semibold text-emerald-800 mb-4">Barangay Overview (All Years)</h3>
+            <h3 className="text-lg font-semibold text-emerald-800 mb-4">Barangay Overview</h3>
             <canvas ref={barangayRef} style={{ height: 200 }} />
             <div className="mt-3 text-center">
               <button
@@ -542,9 +554,8 @@ export default function AdminDashboard() {
           </div>
         </section>
 
-        <section className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className={`bg-white rounded-2xl border border-gray-200 p-6 min-h-[380px] ${!showClassification && 'hidden'}`}>
+        <section className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className={`bg-white rounded-2xl border border-gray-200 p-6 min-h-[340px] ${!showClassification && 'hidden'} md:col-span-2`}>
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-lg font-semibold text-emerald-800">Overall Summary ({classificationPeriod.start} - {classificationPeriod.end})</h3>
               <div className="flex items-center gap-2">
@@ -563,7 +574,7 @@ export default function AdminDashboard() {
                 </select>
               </div>
             </div>
-            <canvas ref={classificationRef} style={{ height: 240 }} />
+            <canvas ref={classificationRef} style={{ height: 200 }} />
             <div className="mt-3">
               <button
                 onClick={() => setShowClassificationDesc(v => !v)}
@@ -577,18 +588,17 @@ export default function AdminDashboard() {
               )}
             </div>
           </div>
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 min-h-[380px]">
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 min-h-[340px]">
             <h3 className="text-lg font-semibold text-gray-900">Distribution Map</h3>
             <p className="text-xs text-gray-500">All surveys</p>
             <div 
               ref={mapRef} 
-              className="mt-4 h-[240px] rounded-xl overflow-hidden border cursor-pointer hover:ring-2 hover:ring-emerald-500 transition-all"
+              className="mt-4 h-64 rounded-xl overflow-hidden border cursor-pointer hover:ring-2 hover:ring-emerald-500 transition-all"
               onClick={() => setShowMapModal(true)}
               style={{ display: showMapModal ? 'none' : 'block' }}
               title="Click to view full map"
             />
             <p className="mt-2 text-xs text-emerald-600 text-center">Click map to view full Digos City</p>
-          </div>
           </div>
         </section>
 
@@ -645,6 +655,85 @@ export default function AdminDashboard() {
         </section>
       </main>
 
+      <aside className="w-80 flex-shrink-0 bg-white text-gray-700 p-6 border-l border-gray-200 h-screen sticky top-0 overflow-hidden">
+        <div className="bg-white rounded-3xl border border-emerald-100 shadow-sm p-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <button onClick={logoutAdmin} className="text-emerald-700 font-medium">Logout</button>
+            <button className="p-2 rounded-full hover:bg-emerald-50 text-emerald-700" aria-label="Share">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51l6.83 3.98"/><path d="M15.41 6.51L8.59 10.49"/></svg>
+            </button>
+          </div>
+          <div className="relative flex flex-col items-center text-center hidden">
+            <div className="relative">
+              <img src={profile?.avatar_url || '/image/greenlogo1.jpg'} alt="avatar" className="w-24 h-24 rounded-full object-cover border"/>
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full grid place-items-center bg-emerald-600 text-white ring-2 ring-white">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06A2 2 0 116.04 3.7l.06.06a1.65 1.65 0 001.82.33H8a1.65 1.65 0 001-1.51V2a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V8a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+              </div>
+            </div>
+            <div className="mt-3">
+              <div className="text-xl font-semibold text-gray-900">{profile?.username || 'Admin'}</div>
+              <div className="text-sm text-emerald-700">Admin</div>
+              {profile?.email && <div className="text-xs text-gray-500 mt-1">{profile.email}</div>}
+            </div>
+          </div>
+          <div className="space-y-3 hidden">
+            <div className="flex items-center justify-between bg-emerald-50 rounded-2xl p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-white text-emerald-600 ring-1 ring-emerald-100 grid place-items-center">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h18"/><path d="M7 3v4"/><path d="M17 3v4"/><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M7 13h6"/></svg>
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-900">Articles</div>
+                  <div className="text-xs text-gray-500">Total published pieces</div>
+                </div>
+              </div>
+              <div className="text-2xl font-semibold text-emerald-700">126</div>
+            </div>
+            <div className="flex items-center justify-between bg-emerald-50 rounded-2xl p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-white text-emerald-600 ring-1 ring-emerald-100 grid place-items-center">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a4 4 0 01-4 4H7l-4 4V5a4 4 0 014-4h10a4 4 0 014 4v10z"/></svg>
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-900">Reviews</div>
+                  <div className="text-xs text-gray-500">Total product reviews</div>
+                </div>
+              </div>
+              <div className="text-2xl font-semibold text-emerald-700">1.37K</div>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold text-emerald-800">Latest</div>
+              <button className="p-2 rounded-full hover:bg-emerald-50 text-emerald-700" aria-label="Notifications">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+              </button>
+            </div>
+            <div className="space-y-3">
+              {(showAllNotifs ? notifications : notifications.slice(0,5)).map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => { setNotifModal({ open: true, item }); markNotificationRead(item.id) }}
+                  className={`w-full flex items-center gap-3 text-left rounded-xl p-2 ${item.read ? 'bg-white' : 'bg-gray-100'}`}
+                >
+                  <img src={'/image/greenlogo1.jpg'} alt="alert" className="w-11 h-11 rounded-xl object-cover"/>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-gray-900 truncate">{item.title}</div>
+                    <div className="text-xs text-gray-500">{new Date(item.created_at).toLocaleString()}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => { const next = !showAllNotifs; setShowAllNotifs(next); if (next) fetchNotifications(50); }}
+              className="w-full mt-3 px-4 py-2 bg-emerald-600 text-white rounded-2xl font-normal"
+            >
+              {showAllNotifs ? 'Show fewer' : 'Show more'}
+            </button>
+          </div>
+        </div>
+      </aside>
+
       {/* Full Map Modal */}
       <Modal show={showMapModal} onClose={() => setShowMapModal(false)} maxWidth="7xl" closeable={true}>
         <div className="p-0 m-0 flex flex-col" style={{ height: '85vh', maxHeight: '85vh' }}>
@@ -681,6 +770,17 @@ export default function AdminDashboard() {
             >
               Close Map
             </button>
+          </div>
+        </div>
+      </Modal>
+      <Modal show={notifModal.open} onClose={() => setNotifModal({ open: false, item: null })} maxWidth="sm" closeable={true}>
+        <div className="p-6 bg-white">
+          <div className="text-lg font-semibold text-emerald-800">Notification</div>
+          <div className="mt-2 text-sm text-gray-700">
+            {notifModal.item ? `${notifModal.item.name || 'Validator'} changed password on ${new Date(notifModal.item.created_at).toLocaleString()}.` : ''}
+          </div>
+          <div className="mt-4 flex justify-end">
+            <button onClick={() => setNotifModal({ open: false, item: null })} className="px-4 py-2 bg-emerald-600 text-white rounded-lg">Close</button>
           </div>
         </div>
       </Modal>
