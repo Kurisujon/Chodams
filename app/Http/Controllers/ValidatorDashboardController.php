@@ -1436,6 +1436,8 @@ class ValidatorDashboardController extends Controller
     {
         $scope = strtolower(trim((string)$request->get('scope', 'submitted')));
         $mode = strtolower(trim((string)$request->get('mode', 'barangay')));
+        $startYear = $request->get('start_year');
+        $endYear = $request->get('end_year');
 
         if ($mode === 'survey') {
             $rows = DB::table('survey as s')
@@ -1445,6 +1447,11 @@ class ValidatorDashboardController extends Controller
                 ->select('s.survey_id','d.barangay','c.classification','d.first_name','d.last_name','d.middle_name','d.suffix','t.latitude','t.longitude','t.house_photo');
             if ($scope !== 'all') {
                 $rows->whereIn('s.is_submitted', [1,2]);
+            }
+            if ($startYear && $endYear) {
+                $start = Carbon::createMidnightDate((int)$startYear, 1, 1)->toDateString();
+                $end = Carbon::createMidnightDate((int)$endYear, 12, 31)->toDateString();
+                $rows->whereNotNull('s.date_interviewed')->whereDate('s.date_interviewed','>=',$start)->whereDate('s.date_interviewed','<=',$end);
             }
             $rows->whereNotNull('t.latitude')->whereNotNull('t.longitude');
             $rows = $rows->get();
@@ -1492,6 +1499,12 @@ class ValidatorDashboardController extends Controller
         if ($scope !== 'all') {
             $countsQuery->whereIn('s.is_submitted', [1,2]);
             $coordsQuery->whereIn('s.is_submitted', [1,2]);
+        }
+        if ($startYear && $endYear) {
+            $start = Carbon::createMidnightDate((int)$startYear, 1, 1)->toDateString();
+            $end = Carbon::createMidnightDate((int)$endYear, 12, 31)->toDateString();
+            $countsQuery->whereNotNull('s.date_interviewed')->whereDate('s.date_interviewed','>=',$start)->whereDate('s.date_interviewed','<=',$end);
+            $coordsQuery->whereNotNull('s.date_interviewed')->whereDate('s.date_interviewed','>=',$start)->whereDate('s.date_interviewed','<=',$end);
         }
 
         $counts = $countsQuery->groupBy('d.barangay','c.classification')->get();
