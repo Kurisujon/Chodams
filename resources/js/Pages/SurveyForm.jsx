@@ -95,6 +95,12 @@ export default function SurveyForm() {
     organization_member:'', specific_organization:'', other_organization:'', wanttolearn:'', remarks:'', interviewed_by: validatorName, date_interviewed:''
   })
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const b = params.get('barangay')
+    if (b) setData(d => ({ ...d, barangay: b }))
+  }, [])
+
   const spouseEnabled = useMemo(() => {
     const s = data.marital_status
     return s === 'Married' || s === 'Live-in' || s === 'Widow/Widower' || s === 'Separated' || s === 'Annulled'
@@ -183,23 +189,45 @@ export default function SurveyForm() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-60 flex-shrink-0 bg-white text-gray-700 p-4 border-r border-gray-200">
+      <aside className="w-60 flex-shrink-0 bg-white text-gray-700 p-4 border-r border-gray-200 flex flex-col h-screen sticky top-0 overflow-hidden">
         <div className="flex items-center gap-2 mb-6">
-          <div className="w-7 h-7 rounded-full bg-emerald-600 text-white grid place-items-center font-bold">C</div>
+          <img src="/icons/appicon1.png" alt="logo" className="w-7 h-7 rounded-xl object-cover"/>
           <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
         </div>
-        <ul className="space-y-1">
-          <li className="px-2 py-3 rounded hover:bg-gray-100 hover:text-emerald-700 cursor-pointer"><Link href="/validator/dashboard" className="block">Dashboard</Link></li>
-          <li className="px-2 py-3 rounded bg-emerald-50 text-emerald-800 cursor-pointer"><Link href="/validator/survey-form" className="block">Survey Form</Link></li>
-          <li className="px-2 py-3 rounded hover:bg-gray-100 hover:text-emerald-700 cursor-pointer"><Link href="/validator/profile" className="block">Profile</Link></li>
-          <li className="px-2 py-3 rounded hover:bg-red-50 text-red-700 cursor-pointer mt-20"><button onClick={logoutValidator} className="w-full text-left">Log out</button></li>
-        </ul>
+        <nav className="space-y-2 flex flex-col flex-1">
+          <Link href="/validator/dashboard" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/validator/dashboard') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+            <img src="/icons/dashboardicon.png" alt="Dashboard" className="w-5 h-5"/>
+            <span className="tracking-wider uppercase text-xs">Dashboard</span>
+          </Link>
+          <Link href="/validator/survey-form" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/validator/survey-form') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+            <img src="/icons/assignmenticon.png" alt="Survey Form" className="w-5 h-5"/>
+            <span className="tracking-wider uppercase text-xs">Survey Form</span>
+          </Link>
+          <Link href="/validator/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/validator/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+            <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
+            <span className="tracking-wider uppercase text-xs">Profile</span>
+          </Link>
+          <div className="mt-auto">
+            <button onClick={logoutValidator} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
+              <img src="/icons/logouticon.png" alt="Log out" className="w-5 h-5"/>
+              <span className="tracking-wider uppercase text-xs">Log out</span>
+            </button>
+          </div>
+        </nav>
       </aside>
       <main className="flex-1 p-6 bg-gray-100">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex justify-between items-center bg-white p-4 rounded shadow">
-            <h1 className="text-2xl font-semibold text-emerald-800">Survey Form</h1>
-            <img src="/image/greenlogo1.jpg" alt="logo" className="h-14 object-contain"/>
+        <div className="max-w-none w-full">
+          <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-200">
+            <div className="flex items-center gap-2">
+              <img src="/icons/assignmenticon.png" alt="Survey" className="w-5 h-5"/>
+              <h1 className="text-2xl font-semibold text-emerald-800">Survey Form</h1>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link href="/validator/dashboard" className="px-3 py-2 rounded-2xl ring-2 ring-emerald-300 text-emerald-700 inline-flex items-center gap-2 hover:bg-emerald-50">
+                <img src="/icons/dashboardicon.png" alt="Dashboard" className="w-5 h-5"/>
+                <span className="text-sm font-medium">Dashboard</span>
+              </Link>
+            </div>
           </div>
 
           <div className="mt-6">

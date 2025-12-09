@@ -8,6 +8,7 @@ export default function AdminDashboard() {
   const [totals, setTotals] = useState({ total_validated: 0, total_approved: 0 })
   const [barangayData, setBarangayData] = useState([])
   const [classificationData, setClassificationData] = useState({})
+  const [overallClassificationData, setOverallClassificationData] = useState({})
   const [subclassDisplacedData, setSubclassDisplacedData] = useState([])
   const [subclassDoubleUpData, setSubclassDoubleUpData] = useState([])
   const [subclassHomelessData, setSubclassHomelessData] = useState([])
@@ -18,28 +19,26 @@ export default function AdminDashboard() {
   const [notifications, setNotifications] = useState([])
   const [showAllNotifs, setShowAllNotifs] = useState(false)
   const [notifModal, setNotifModal] = useState({ open: false, item: null })
+  const [showNotifPanel, setShowNotifPanel] = useState(false)
 
   const [showBarangay, setShowBarangay] = useState(false)
   const [showClassification, setShowClassification] = useState(true)
-  const [showMapModal, setShowMapModal] = useState(false)
   const [showBarangayDesc, setShowBarangayDesc] = useState(false)
   const [showClassificationDesc, setShowClassificationDesc] = useState(false)
   const [showDisplacedDesc, setShowDisplacedDesc] = useState(false)
   const [showDoubleUpDesc, setShowDoubleUpDesc] = useState(false)
   const [showHomelessDesc, setShowHomelessDesc] = useState(false)
   const [classificationPeriod, setClassificationPeriod] = useState({ start: 2023, end: 2024 })
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   const barangayRef = useRef(null)
   const classificationRef = useRef(null)
+  const overallClassificationRef = useRef(null)
   const displacedRef = useRef(null)
   const doubleUpRef = useRef(null)
   const homelessRef = useRef(null)
   const mapRef = useRef(null)
   const leafletMap = useRef(null)
-  const modalMapRef = useRef(null)
-  const modalLeafletMap = useRef(null)
-  const modalMarkersLayer = useRef(null)
-  const modalBatchHandle = useRef(null)
   const ensureLeaflet = () => new Promise((resolve) => {
     if (window.L) { resolve(); return }
     const onReady = () => resolve()
@@ -63,6 +62,7 @@ export default function AdminDashboard() {
 
   const barangayChart = useRef(null)
   const classificationChart = useRef(null)
+  const overallClassificationChart = useRef(null)
   const displacedChart = useRef(null)
   const doubleUpChart = useRef(null)
   const homelessChart = useRef(null)
@@ -81,6 +81,7 @@ export default function AdminDashboard() {
     fetchTotals()
     fetchBarangay()
     fetchClassification(classificationPeriod)
+    fetchClassificationOverall()
     fetchSubclassDisplaced()
     fetchSubclassDoubleUp()
     fetchSubclassHomeless()
@@ -114,6 +115,11 @@ export default function AdminDashboard() {
     setClassificationData(res.data.classificationData || {})
   }
 
+  async function fetchClassificationOverall() {
+    const res = await axios.get('/admin/api/classification')
+    setOverallClassificationData(res.data.classificationData || {})
+  }
+
   useEffect(() => {
     fetchClassification(classificationPeriod)
   }, [classificationPeriod])
@@ -137,6 +143,7 @@ export default function AdminDashboard() {
     const res = await axios.get('/admin/api/assignments')
     setAssignedCount((res.data.data || []).length)
   }
+
 
   async function fetchNotifications(limit = 10) {
     const res = await axios.get('/admin/api/notifications', { params: { limit } })
@@ -183,6 +190,20 @@ export default function AdminDashboard() {
       options: { responsive: true, cutout: '68%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle' } } }, animation: { duration: 800 } }
     })
   }, [classificationData])
+
+  useEffect(() => {
+    if (!window.Chart) return
+    if (overallClassificationChart.current) overallClassificationChart.current.destroy()
+    if (!overallClassificationRef.current) return
+    const classKeys = Object.keys(overallClassificationData)
+    const values = classKeys.map(k => Object.values(overallClassificationData[k] || {}).reduce((s,v) => s + Number(v||0), 0))
+    const colors = emeraldColors(classKeys.length)
+    overallClassificationChart.current = new window.Chart(overallClassificationRef.current, {
+      type: 'doughnut',
+      data: { labels: classKeys, datasets: [{ data: values, backgroundColor: colors, borderColor: '#fff', borderWidth: 2, hoverOffset: 6 }] },
+      options: { responsive: true, cutout: '78%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle' } } }, animation: { duration: 800 } }
+    })
+  }, [overallClassificationData])
 
   useEffect(() => {
     if (!window.Chart) return
@@ -317,7 +338,6 @@ export default function AdminDashboard() {
   }, [subclassHomelessData])
 
   useEffect(() => {
-    if (showMapModal) return
     if (!mapRef.current) return
     if (!mapPoints || mapPoints.length === 0) return
     ensureLeaflet().then(() => {
@@ -326,9 +346,19 @@ export default function AdminDashboard() {
         leafletMap.current = null
       }
       const valid = mapPoints.filter(p => typeof p.lat === 'number' && typeof p.lng === 'number')
-      const center = valid.length ? [valid[0].lat, valid[0].lng] : [6.8, 125.4]
-      const map = window.L.map(mapRef.current, { preferCanvas: true }).setView(center, 12)
+      const digosBounds = [[6.75, 125.35], [6.85, 125.45]]
+      const map = window.L.map(mapRef.current, { preferCanvas: true })
       window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map)
+      if (valid.length > 0) {
+        const bounds = window.L.latLngBounds(valid.map(p => [p.lat, p.lng]))
+        const pad = 0.05
+        const sw = bounds.getSouthWest()
+        const ne = bounds.getNorthEast()
+        const paddedBounds = window.L.latLngBounds([sw.lat - pad, sw.lng - pad],[ne.lat + pad, ne.lng + pad])
+        map.fitBounds(paddedBounds)
+      } else {
+        map.fitBounds(window.L.latLngBounds(digosBounds))
+      }
       valid.forEach(p => {
         const marker = window.L.circleMarker([p.lat, p.lng], { radius: 8, color: '#10B981', fillColor: '#10B981', fillOpacity: 0.6 })
         marker.on('click', () => {
@@ -352,92 +382,20 @@ export default function AdminDashboard() {
       setTimeout(() => { map.invalidateSize() }, 400)
       leafletMap.current = map
     })
-  }, [mapPoints, showMapModal])
+  }, [mapPoints])
 
-  useEffect(() => {
-    if (showMapModal && leafletMap.current) {
-      leafletMap.current.remove()
-      leafletMap.current = null
-    }
-  }, [showMapModal])
+  
 
-  // Initialize modal map when modal opens
-  useEffect(() => {
-    if (!showMapModal) return
-    if (!modalMapRef.current) return
-    ensureLeaflet().then(() => {
-      const initMap = () => {
-        if (modalBatchHandle.current) { clearTimeout(modalBatchHandle.current); modalBatchHandle.current = null }
-        if (modalLeafletMap.current) { modalLeafletMap.current.remove(); modalLeafletMap.current = null }
-        if (!modalMapRef.current || modalMapRef.current.offsetWidth === 0) { setTimeout(initMap, 50); return }
-        const digosCenter = [6.8, 125.4]
-        const digosBounds = [[6.75, 125.35], [6.85, 125.45]]
-        const map = window.L.map(modalMapRef.current, { zoomControl: true, attributionControl: true, preferCanvas: true }).setView(digosCenter, 11)
-        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap contributors' }).addTo(map)
-        const valid = mapPoints.filter(p => typeof p.lat === 'number' && typeof p.lng === 'number')
-        modalMarkersLayer.current = window.L.layerGroup().addTo(map)
-        if (valid.length > 0) {
-          const bounds = window.L.latLngBounds(valid.map(p => [p.lat, p.lng]))
-          const pad = 0.05
-          const sw = bounds.getSouthWest()
-          const ne = bounds.getNorthEast()
-          const paddedBounds = window.L.latLngBounds([sw.lat - pad, sw.lng - pad],[ne.lat + pad, ne.lng + pad])
-          map.fitBounds(paddedBounds)
-        } else {
-          map.fitBounds(window.L.latLngBounds(digosBounds))
-        }
-        const chunkSize = 300
-        let index = 0
-        const addBatch = () => {
-          const end = Math.min(index + chunkSize, valid.length)
-          for (let i = index; i < end; i++) {
-            const p = valid[i]
-            const marker = window.L.circleMarker([p.lat, p.lng], { radius: 12, color: '#10B981', fillColor: '#10B981', fillOpacity: 0.8, weight: 2 })
-            marker.on('click', () => {
-              const name = p.name || 'Unknown'
-              const cls = p.classification || 'Unknown'
-              const img = p.photo_url ? `<div style="margin-top:10px;"><img src="${p.photo_url}" alt="House Photo" loading="lazy" style="width:100%;max-width:300px;border-radius:8px;border:2px solid #e5e7eb;display:block;"/></div>` : `<div style="font-size:12px;color:#9ca3af;margin-top:10px;padding:20px;background:#f3f4f6;border-radius:8px;text-align:center;">No house photo available</div>`
-              const html = `
-                <div style="min-width:280px;max-width:380px;padding:4px;">
-                  <div style="border-bottom:2px solid #10B981;padding-bottom:6px;margin-bottom:10px;">
-                    <div style="font-weight:700;color:#065f46;font-size:16px;">${name}</div>
-                  </div>
-                  <div style="margin-bottom:8px;">
-                    <div style="font-weight:600;color:#374151;font-size:13px;margin-bottom:4px;">Classification of ISF</div>
-                    <div style="background:#ecfdf5;color:#065f46;padding:6px 10px;border-radius:6px;font-size:13px;font-weight:500;display:inline-block;">${cls}</div>
-                  </div>
-                  ${img}
-                </div>
-              `
-              marker.bindPopup(html, { maxWidth: 420, className: 'custom-popup' }).openPopup()
-            })
-            marker.addTo(modalMarkersLayer.current)
-          }
-          index = end
-          if (index < valid.length) { modalBatchHandle.current = setTimeout(addBatch, 0) }
-        }
-        addBatch()
-        setTimeout(() => { map.invalidateSize() }, 100)
-        setTimeout(() => { map.invalidateSize() }, 400)
-        modalLeafletMap.current = map
-      }
-      setTimeout(initMap, 200)
-    })
-    return () => {
-      if (modalBatchHandle.current) { clearTimeout(modalBatchHandle.current); modalBatchHandle.current = null }
-      if (modalLeafletMap.current) { modalLeafletMap.current.remove(); modalLeafletMap.current = null }
-      if (modalMarkersLayer.current) { modalMarkersLayer.current.clearLayers(); modalMarkersLayer.current = null }
-    }
-  }, [showMapModal, mapPoints])
+  
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <aside className="w-64 flex-shrink-0 bg-white text-gray-700 p-6 border-r border-gray-200 h-screen sticky top-0 overflow-hidden">
+      <aside className="hidden md:block w-64 flex flex-col flex-shrink-0 bg-white text-gray-700 p-6 border-r border-gray-200 h-screen sticky top-0 overflow-hidden">
         <div className="flex items-center gap-3 mb-8">
           <img src="/icons/appicon1.png" alt="App" className="w-9 h-9 rounded-xl ring-1 ring-emerald-200"/>
           <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
         </div>
-        <nav className="space-y-2">
+        <nav className="space-y-2 flex flex-col flex-1">
           <Link href="/admin/dashboard" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/dashboard') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
             <img src="/icons/dashboardicon.png" alt="Dashboard" className="w-5 h-5"/>
             <span className="tracking-wider uppercase text-xs">Dashboard</span>
@@ -462,29 +420,110 @@ export default function AdminDashboard() {
             <img src="/icons/abouticon.png" alt="About" className="w-5 h-5"/>
             <span className="tracking-wider uppercase text-xs">About</span>
           </a>
-          <div className="pt-10">
-            <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl bg-red-50 text-red-700 hover:bg-red-100">
+          <div className="mt-auto">
+            <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
+              <img src="/icons/logouticon.png" alt="Log out" className="w-5 h-5"/>
               <span className="tracking-wider uppercase text-xs">Log out</span>
             </button>
           </div>
         </nav>
       </aside>
 
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setMobileNavOpen(false)}></div>
+          <div className="absolute inset-y-0 left-0 w-72 bg-white p-6 shadow-xl flex flex-col h-full">
+            <div className="flex items-center gap-3 mb-8">
+              <img src="/icons/appicon1.png" alt="App" className="w-9 h-9 rounded-xl ring-1 ring-emerald-200"/>
+              <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
+            </div>
+            <nav className="space-y-2 flex flex-col flex-1">
+              <Link href="/admin/dashboard" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/dashboard') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+                <img src="/icons/dashboardicon.png" alt="Dashboard" className="w-5 h-5"/>
+                <span className="tracking-wider uppercase text-xs">Dashboard</span>
+              </Link>
+              <Link href="/admin/beneficiaries" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/beneficiaries') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+                <img src="/icons/beneficiariesicon.png" alt="Beneficiaries" className="w-5 h-5"/>
+                <span className="tracking-wider uppercase text-xs">Beneficiaries</span>
+              </Link>
+              <Link href="/admin/project-sites" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/project-sites') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+                <img src="/icons/projectsiteicon.png" alt="Project Sites" className="w-5 h-5"/>
+                <span className="tracking-wider uppercase text-xs">Project Sites</span>
+              </Link>
+              <Link href="/admin/assignments" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/assignments') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+                <img src="/icons/assignmenticon.png" alt="Assignments" className="w-5 h-5"/>
+                <span className="tracking-wider uppercase text-xs">Assignments</span>
+              </Link>
+              <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+                <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
+                <span className="tracking-wider uppercase text-xs">My Profile</span>
+              </Link>
+              <Link href="/admin/about" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/about') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+                <img src="/icons/abouticon.png" alt="About" className="w-5 h-5"/>
+                <span className="tracking-wider uppercase text-xs">About</span>
+              </Link>
+              <div className="mt-auto">
+                <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
+                  <img src="/icons/logouticon.png" alt="Log out" className="w-5 h-5"/>
+                  <span className="tracking-wider uppercase text-xs">Log out</span>
+                </button>
+              </div>
+            </nav>
+          </div>
+        </div>
+      )}
+
       <main className="flex-1 h-screen overflow-y-auto p-6 bg-gray-50">
-        
+        <div className="md:hidden mb-4 flex items-center justify-between">
+          <button onClick={() => setMobileNavOpen(true)} className="px-3 py-2 rounded-2xl bg-white ring-2 ring-emerald-300 text-emerald-700" aria-label="Open Menu">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <span className="text-sm font-semibold text-emerald-800">Menu</span>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
           <div className="md:col-span-9 relative">
             <input type="text" placeholder="Search" className="w-full rounded-2xl bg-white text-gray-900 px-4 py-3 pl-12 ring-2 ring-emerald-300 focus:ring-2 focus:ring-emerald-400 outline-none shadow-sm" />
             <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
           </div>
           <div className="md:col-span-3 flex md:justify-end">
-            <button className="px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-3 shadow-sm">
-              <span className="tracking-wide text-xs sm:text-sm font-semibold">NEW ARTICLE</span>
-              <span className="flex items-center gap-1">
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21v-3l12-12 3 3-12 12H3"/><path d="M14 4l3 3"/></svg>
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 3h10v18H7z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg>
-              </span>
-            </button>
+            <div className="relative">
+              <button onClick={() => setShowNotifPanel(v => !v)} className="px-3 py-3 rounded-2xl bg-white ring-2 ring-emerald-300 text-emerald-700 hover:ring-emerald-400 flex items-center gap-2 shadow-sm relative" aria-label="Notifications">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+                {notifications.some(n => !n.read) && (<span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>)}
+              </button>
+              {showNotifPanel && (
+                <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-2xl shadow-lg p-3 z-10">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-semibold text-emerald-800">Notifications</div>
+                    <button className="p-2 rounded-full hover:bg-emerald-50 text-emerald-700" onClick={() => setShowNotifPanel(false)} aria-label="Close">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                  </div>
+                  <div className="space-y-2 mt-2">
+                    {(showAllNotifs ? notifications : notifications.slice(0,5)).map(item => (
+                      <button
+                        key={item.id}
+                        onClick={() => { setNotifModal({ open: true, item }); markNotificationRead(item.id) }}
+                        className={`w-full flex items-center gap-3 text-left rounded-xl p-2 ${item.read ? 'bg-white' : 'bg-gray-100'}`}
+                      >
+                        <img src={'/icons/appicon1.png'} alt="alert" className="w-9 h-9 rounded-xl object-cover"/>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-gray-900 truncate">{item.title}</div>
+                          <div className="text-xs text-gray-500">{new Date(item.created_at).toLocaleString()}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => { const next = !showAllNotifs; setShowAllNotifs(next); if (next) fetchNotifications(50); }}
+                    className="w-full mt-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-normal"
+                  >
+                    {showAllNotifs ? 'Show fewer' : 'Show more'}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         <div className="mt-4 relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 p-6 text-white">
@@ -503,13 +542,13 @@ export default function AdminDashboard() {
 
         <section className="mt-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button onClick={() => setShowBarangay(v => !v)} className="text-left bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition min-h-[160px]">
+            <button type="button" onClick={() => setShowBarangay(v => !v)} className="text-left bg-white rounded-2xl border border-gray-200 shadow-sm p-6 min-h-[160px] w-full">
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
-                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21v-6a4 4 0 014-4h10a4 4 0 014 4v6"/><path d="M7 7a4 4 0 118 0"/></svg>
+                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="14" rx="3"/><path d="M7 8h10M7 12h6"/></svg>
               </div>
-              <div className="mt-4 text-3xl font-semibold text-gray-900">{barangayData.length}</div>
-              <div className="mt-1 text-sm text-gray-600">Barangays</div>
-              <div className="mt-1 text-xs text-gray-500">Tap to view chart</div>
+              <div className="mt-4 text-3xl font-semibold text-gray-900">{totals.total_overall || 0}</div>
+              <div className="mt-1 text-sm text-gray-600">Overall Data</div>
+              <div className="mt-1 text-xs text-emerald-600">Tap to view chart</div>
             </button>
 
             <div className="text-left bg-white rounded-2xl border border-gray-200 shadow-sm p-6 min-h-[160px]">
@@ -534,9 +573,9 @@ export default function AdminDashboard() {
         </section>
 
         <section className={`mt-6 bg-white rounded-2xl border border-gray-200 p-6 ${!showBarangay && 'hidden'}`}>
-          <div className="max-w-4xl mx-auto">
-            <h3 className="text-lg font-semibold text-emerald-800 mb-4">Barangay Overview</h3>
-            <canvas ref={barangayRef} style={{ height: 200 }} />
+          <div className="max-w-3xl mx-auto">
+            <h3 className="text-lg font-semibold text-emerald-800 mb-4">Overall Overview</h3>
+            <canvas ref={overallClassificationRef} style={{ height: 160 }} />
             <div className="mt-3 text-center">
               <button
                 onClick={() => setShowBarangayDesc(v => !v)}
@@ -547,58 +586,56 @@ export default function AdminDashboard() {
               </button>
               {showBarangayDesc && (
                 <p className="mt-2 text-sm text-gray-700">
-                  {describeBarangay(barangayData)}
+                  {describeClassification(overallClassificationData)}
                 </p>
               )}
             </div>
           </div>
         </section>
 
-        <section className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className={`bg-white rounded-2xl border border-gray-200 p-6 min-h-[340px] ${!showClassification && 'hidden'} md:col-span-2`}>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-lg font-semibold text-emerald-800">Overall Summary ({classificationPeriod.start} - {classificationPeriod.end})</h3>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">By classification</span>
-                <select
-                  value={`${classificationPeriod.start}-${classificationPeriod.end}`}
-                  onChange={(e) => {
-                    const [s,e2] = e.target.value.split('-').map(v => Number(v.trim()))
-                    setClassificationPeriod({ start: s, end: e2 })
-                  }}
-                  className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300"
+        <section className="mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className={`bg-white rounded-2xl border border-gray-200 p-6 min-h-[340px] ${!showClassification && 'hidden'}`}>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-semibold text-emerald-800">By Year Summary ({classificationPeriod.start} - {classificationPeriod.end})</h3>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">By classification</span>
+                  <select
+                    value={`${classificationPeriod.start}-${classificationPeriod.end}`}
+                    onChange={(e) => {
+                      const [s,e2] = e.target.value.split('-').map(v => Number(v.trim()))
+                      setClassificationPeriod({ start: s, end: e2 })
+                    }}
+                    className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300"
+                  >
+                    <option value="2023-2024">2023 - 2024</option>
+                    <option value="2025-2026">2025 - 2026</option>
+                    <option value="2027-2028">2027 - 2028</option>
+                  </select>
+                </div>
+              </div>
+              <canvas ref={classificationRef} style={{ height: 200 }} />
+              <div className="mt-3">
+                <button
+                  onClick={() => setShowClassificationDesc(v => !v)}
+                  className="text-xs text-emerald-600 hover:text-emerald-700 font-medium inline-flex items-center gap-1"
                 >
-                  <option value="2023-2024">2023 - 2024</option>
-                  <option value="2025-2026">2025 - 2026</option>
-                  <option value="2027-2028">2027 - 2028</option>
-                </select>
+                  {showClassificationDesc ? 'Hide summary' : 'Show summary'}
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+                </button>
+                {showClassificationDesc && (
+                  <p className="mt-2 text-sm text-gray-700">{describeClassification(classificationData)}</p>
+                )}
               </div>
             </div>
-            <canvas ref={classificationRef} style={{ height: 200 }} />
-            <div className="mt-3">
-              <button
-                onClick={() => setShowClassificationDesc(v => !v)}
-                className="text-xs text-emerald-600 hover:text-emerald-700 font-medium inline-flex items-center gap-1"
-              >
-                {showClassificationDesc ? 'Hide summary' : 'Show summary'}
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-              </button>
-              {showClassificationDesc && (
-                <p className="mt-2 text-sm text-gray-700">{describeClassification(classificationData)}</p>
-              )}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 min-h-[340px]">
+              <h3 className="text-lg font-semibold text-gray-900">Overall Distribution Map</h3>
+              <p className="text-xs text-gray-500">All surveys</p>
+              <div
+                ref={mapRef}
+                className="mt-4 aspect-square w-full rounded-xl overflow-hidden border"
+              />
             </div>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 min-h-[340px]">
-            <h3 className="text-lg font-semibold text-gray-900">Distribution Map</h3>
-            <p className="text-xs text-gray-500">All surveys</p>
-            <div 
-              ref={mapRef} 
-              className="mt-4 h-64 rounded-xl overflow-hidden border cursor-pointer hover:ring-2 hover:ring-emerald-500 transition-all"
-              onClick={() => setShowMapModal(true)}
-              style={{ display: showMapModal ? 'none' : 'block' }}
-              title="Click to view full map"
-            />
-            <p className="mt-2 text-xs text-emerald-600 text-center">Click map to view full Digos City</p>
           </div>
         </section>
 
@@ -655,124 +692,11 @@ export default function AdminDashboard() {
         </section>
       </main>
 
-      <aside className="w-80 flex-shrink-0 bg-white text-gray-700 p-6 border-l border-gray-200 h-screen sticky top-0 overflow-hidden">
-        <div className="bg-white rounded-3xl border border-emerald-100 shadow-sm p-6 space-y-6">
-          <div className="flex items-center justify-between">
-            <button onClick={logoutAdmin} className="text-emerald-700 font-medium">Logout</button>
-            <button className="p-2 rounded-full hover:bg-emerald-50 text-emerald-700" aria-label="Share">
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51l6.83 3.98"/><path d="M15.41 6.51L8.59 10.49"/></svg>
-            </button>
-          </div>
-          <div className="relative flex flex-col items-center text-center hidden">
-            <div className="relative">
-              <img src={profile?.avatar_url || '/image/greenlogo1.jpg'} alt="avatar" className="w-24 h-24 rounded-full object-cover border"/>
-              <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full grid place-items-center bg-emerald-600 text-white ring-2 ring-white">
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06A2 2 0 116.04 3.7l.06.06a1.65 1.65 0 001.82.33H8a1.65 1.65 0 001-1.51V2a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V8a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-              </div>
-            </div>
-            <div className="mt-3">
-              <div className="text-xl font-semibold text-gray-900">{profile?.username || 'Admin'}</div>
-              <div className="text-sm text-emerald-700">Admin</div>
-              {profile?.email && <div className="text-xs text-gray-500 mt-1">{profile.email}</div>}
-            </div>
-          </div>
-          <div className="space-y-3 hidden">
-            <div className="flex items-center justify-between bg-emerald-50 rounded-2xl p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-white text-emerald-600 ring-1 ring-emerald-100 grid place-items-center">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h18"/><path d="M7 3v4"/><path d="M17 3v4"/><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M7 13h6"/></svg>
-                </div>
-                <div>
-                  <div className="font-semibold text-gray-900">Articles</div>
-                  <div className="text-xs text-gray-500">Total published pieces</div>
-                </div>
-              </div>
-              <div className="text-2xl font-semibold text-emerald-700">126</div>
-            </div>
-            <div className="flex items-center justify-between bg-emerald-50 rounded-2xl p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-white text-emerald-600 ring-1 ring-emerald-100 grid place-items-center">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a4 4 0 01-4 4H7l-4 4V5a4 4 0 014-4h10a4 4 0 014 4v10z"/></svg>
-                </div>
-                <div>
-                  <div className="font-semibold text-gray-900">Reviews</div>
-                  <div className="text-xs text-gray-500">Total product reviews</div>
-                </div>
-              </div>
-              <div className="text-2xl font-semibold text-emerald-700">1.37K</div>
-            </div>
-          </div>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-emerald-800">Latest</div>
-              <button className="p-2 rounded-full hover:bg-emerald-50 text-emerald-700" aria-label="Notifications">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-              </button>
-            </div>
-            <div className="space-y-3">
-              {(showAllNotifs ? notifications : notifications.slice(0,5)).map(item => (
-                <button
-                  key={item.id}
-                  onClick={() => { setNotifModal({ open: true, item }); markNotificationRead(item.id) }}
-                  className={`w-full flex items-center gap-3 text-left rounded-xl p-2 ${item.read ? 'bg-white' : 'bg-gray-100'}`}
-                >
-                  <img src={'/image/greenlogo1.jpg'} alt="alert" className="w-11 h-11 rounded-xl object-cover"/>
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-gray-900 truncate">{item.title}</div>
-                    <div className="text-xs text-gray-500">{new Date(item.created_at).toLocaleString()}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => { const next = !showAllNotifs; setShowAllNotifs(next); if (next) fetchNotifications(50); }}
-              className="w-full mt-3 px-4 py-2 bg-emerald-600 text-white rounded-2xl font-normal"
-            >
-              {showAllNotifs ? 'Show fewer' : 'Show more'}
-            </button>
-          </div>
-        </div>
-      </aside>
+      {false && (
+        <aside className="w-80 flex-shrink-0 bg-white text-gray-700 p-6 border-l border-gray-200 h-screen sticky top-0 overflow-hidden"></aside>
+      )}
 
-      {/* Full Map Modal */}
-      <Modal show={showMapModal} onClose={() => setShowMapModal(false)} maxWidth="7xl" closeable={true}>
-        <div className="p-0 m-0 flex flex-col" style={{ height: '85vh', maxHeight: '85vh' }}>
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-white flex-shrink-0">
-            <div>
-              <h2 className="text-2xl font-semibold text-emerald-800">Digos City Housing Distribution Map</h2>
-              <p className="text-sm text-gray-600 mt-1">Complete view of all housing surveys across Digos City - Click on markers to view details</p>
-            </div>
-            <button
-              onClick={() => setShowMapModal(false)}
-              className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-full"
-              aria-label="Close"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <div ref={modalMapRef} className="flex-1 w-full min-h-[60vh]" style={{ height: '100%' }} />
-          <div className="p-4 border-t border-gray-200 bg-white flex items-center justify-between text-sm flex-shrink-0">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded-full bg-emerald-500 border-2 border-emerald-600"></div>
-                <span className="font-medium text-gray-700">Survey Location</span>
-              </div>
-              <span className="text-gray-400">•</span>
-              <span className="text-gray-700">
-                <span className="font-semibold text-emerald-700">{mapPoints.filter(p => typeof p.lat === 'number' && typeof p.lng === 'number').length}</span> Total Points
-              </span>
-            </div>
-            <button
-              onClick={() => setShowMapModal(false)}
-              className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
-            >
-              Close Map
-            </button>
-          </div>
-        </div>
-      </Modal>
+      
       <Modal show={notifModal.open} onClose={() => setNotifModal({ open: false, item: null })} maxWidth="sm" closeable={true}>
         <div className="p-6 bg-white">
           <div className="text-lg font-semibold text-emerald-800">Notification</div>

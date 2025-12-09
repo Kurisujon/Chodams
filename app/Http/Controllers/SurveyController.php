@@ -218,16 +218,18 @@ class SurveyController extends Controller
                 ]);
 
                 $skills_for_living = $request->input('skills_for_living');
-                $specific_skill = null;
+                $specific_skill = '';
                 if ($skills_for_living === 'Yes') {
                     $specific_skill = $request->input('specific_skill');
                     if (strtolower((string)$specific_skill) === 'others') $specific_skill = $request->input('other_skill');
+                    if ($specific_skill === null) $specific_skill = '';
                 }
                 $organization_member = $request->input('organization_member');
-                $specific_organization = null;
+                $specific_organization = '';
                 if ($organization_member === 'Yes') {
                     $specific_organization = $request->input('specific_organization');
                     if (strtolower((string)$specific_organization) === 'others') $specific_organization = $request->input('other_organization');
+                    if ($specific_organization === null) $specific_organization = '';
                 }
 
                 \Illuminate\Support\Facades\DB::table('training')->insert([
@@ -459,16 +461,18 @@ class SurveyController extends Controller
             }
 
             $skills_for_living = $request->input('skills_for_living');
-            $specific_skill = null;
+            $specific_skill = '';
             if ($skills_for_living === 'Yes') {
                 $specific_skill = $request->input('specific_skill');
                 if (strtolower((string)$specific_skill) === 'others') $specific_skill = $request->input('other_skill');
+                if ($specific_skill === null) $specific_skill = '';
             }
             $organization_member = $request->input('organization_member');
-            $specific_organization = null;
+            $specific_organization = '';
             if ($organization_member === 'Yes') {
                 $specific_organization = $request->input('specific_organization');
                 if (strtolower((string)$specific_organization) === 'others') $specific_organization = $request->input('other_organization');
+                if ($specific_organization === null) $specific_organization = '';
             }
 
             $trainExists = \Illuminate\Support\Facades\DB::table('training')->where('survey_id', $id)->first();

@@ -653,39 +653,15 @@ class ValidatorDashboardController extends Controller
 
     public function updatePassword(Request $request)
     {
-        $validator_id = session('validator_id');
-        if (!$validator_id) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
-
-        $request->validate([
-            'current_password' => ['required','string'],
-            'password' => ['required','string','min:8','confirmed'],
-        ]);
-
-        $row = DB::table('validator')
-            ->select('password')
-            ->where('validator_id', $validator_id)
-            ->where('status', 'approved')
-            ->first();
-        if (!$row) {
-            return response()->json(['message' => 'Account not found'], 404);
-        }
-        if (!password_verify($request->input('current_password'), $row->password)) {
-            return response()->json(['errors' => ['current_password' => ['Current password is incorrect']]], 422);
-        }
-        DB::table('validator')
-            ->where('validator_id', $validator_id)
-            ->update(['password' => Hash::make($request->input('password'))]);
-
-        return response()->json(['ok' => true]);
+        return response()->json(['message' => 'Password changes require a reset token. Use the reset link sent to your email.'], 403);
     }
 
     public function adminTotals(Request $request)
     {
         $total_validated = DB::table('survey')->where('is_submitted', 1)->count();
         $total_approved = DB::table('survey')->where('is_submitted', 2)->count();
-        return response()->json(['total_validated' => $total_validated, 'total_approved' => $total_approved]);
+        $total_overall = DB::table('survey')->whereIn('is_submitted', [1,2])->count();
+        return response()->json(['total_validated' => $total_validated, 'total_approved' => $total_approved, 'total_overall' => $total_overall]);
     }
 
     public function adminBarangay(Request $request)
@@ -1430,6 +1406,264 @@ class ValidatorDashboardController extends Controller
             return response()->file($absPublic, ['Content-Type' => $mime]);
         }
         return response()->json(['message' => 'Not found'], 404);
+    }
+
+    public function exportSurveyCsv(Request $request, $survey_id)
+    {
+        $validator_id = session('validator_id');
+        if (!$validator_id) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        $s = DB::table('survey as s')
+            ->where('s.survey_id', $survey_id)
+            ->where('s.validator_id', $validator_id)
+            ->first();
+        if (!$s) { return response()->json(['message' => 'Not found'], 404); }
+
+        $c = DB::table('classification')->where('survey_id', $survey_id)->first();
+        $d = DB::table('demographic')->where('survey_id', $survey_id)->first();
+        $h = DB::table('household')->where('survey_id', $survey_id)->first();
+        $e = DB::table('economic')->where('survey_id', $survey_id)->first();
+        $t = DB::table('training')->where('survey_id', $survey_id)->first();
+        $members = DB::table('household_mem')->where('survey_id', $survey_id)->get();
+
+        $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
+        $displacedLabel = [
+            1=>'Coastal Areas',2=>'Drought',3=>'Earthquake Affected',4=>'Flood Affected',5=>'Sea Level Rise',
+            6=>'Threat of Eviction',7=>'Eviction/Demolition Order',8=>'Human Induced Disaster',9=>'Infra Projects',10=>'Landslide Affected',11=>'Near Waterways'
+        ];
+        $doubleupLabel = [1=>'Renter/Tenant',2=>'Rent-free/Sharer',3=>'Caretaker'];
+        $homelessLabel = [1=>'Public - living in tent',2=>'Private - living in tent'];
+        $ynLabel = [0=>'No',1=>'Yes'];
+        $genderLabel = [1=>'Male',2=>'Female'];
+        $affLabel = [0=>'None',1=>'SSS',2=>'GSIS',3=>'PhilHealth',4=>'PagIbig',5=>'PWD',6=>'Senior_Citizen',7=>'Solo_Parent',8=>'4Ps'];
+
+        $csv = fopen('php://temp','w+');
+        fputcsv($csv, ['Section','Field','Value']);
+
+        // Survey meta
+        fputcsv($csv, ['Survey','survey_id',$survey_id]);
+        fputcsv($csv, ['Survey','interviewed_by',$s->interviewed_by ?? '']);
+        fputcsv($csv, ['Survey','date_interviewed',$s->date_interviewed ?? '']);
+        fputcsv($csv, ['Survey','is_submitted',$s->is_submitted ?? '']);
+
+        if ($c) {
+            fputcsv($csv, ['Classification','previous_client', array_key_exists($c->previous_client, $ynLabel) ? $ynLabel[$c->previous_client] : ($c->previous_client ?? '')]);
+            fputcsv($csv, ['Classification','year_inhabited',$c->year_inhabited ?? '']);
+            fputcsv($csv, ['Classification','classification', array_key_exists($c->classification, $classLabel) ? $classLabel[$c->classification] : ($c->classification ?? '')]);
+            fputcsv($csv, ['Classification','subclass_displaced', array_key_exists($c->subclass_displaced, $displacedLabel) ? $displacedLabel[$c->subclass_displaced] : ($c->subclass_displaced ?? '')]);
+            fputcsv($csv, ['Classification','subclass_doubleup', array_key_exists($c->subclass_doubleup, $doubleupLabel) ? $doubleupLabel[$c->subclass_doubleup] : ($c->subclass_doubleup ?? '')]);
+            fputcsv($csv, ['Classification','subclass_homeless', array_key_exists($c->subclass_homeless, $homelessLabel) ? $homelessLabel[$c->subclass_homeless] : ($c->subclass_homeless ?? '')]);
+        }
+
+        if ($d) {
+            fputcsv($csv, ['Demographic','interview_person',$d->interview_person ?? '']);
+            fputcsv($csv, ['Demographic','last_name',$d->last_name ?? '']);
+            fputcsv($csv, ['Demographic','first_name',$d->first_name ?? '']);
+            fputcsv($csv, ['Demographic','middle_name',$d->middle_name ?? '']);
+            fputcsv($csv, ['Demographic','suffix',$d->suffix ?? '']);
+            fputcsv($csv, ['Demographic','barangay',$d->barangay ?? '']);
+            fputcsv($csv, ['Demographic','purok',$d->purok ?? '']);
+            fputcsv($csv, ['Demographic','street',$d->street ?? '']);
+            fputcsv($csv, ['Demographic','gender',$d->gender ?? '']);
+            fputcsv($csv, ['Demographic','religion',$d->religion ?? '']);
+            fputcsv($csv, ['Demographic','birth_place',$d->birth_place ?? '']);
+            fputcsv($csv, ['Demographic','birth_date',$d->birth_date ?? '']);
+            fputcsv($csv, ['Demographic','person_age',$d->person_age ?? '']);
+            fputcsv($csv, ['Demographic','marital_status',$d->marital_status ?? '']);
+            fputcsv($csv, ['Demographic','contact_number',$d->contact_number ?? '']);
+            fputcsv($csv, ['Demographic','language_spoken',$d->language_spoken ?? '']);
+            fputcsv($csv, ['Demographic','tribe',$d->tribe ?? '']);
+            fputcsv($csv, ['Demographic','highest_education',$d->highest_education ?? '']);
+            fputcsv($csv, ['Demographic','last_school_name',$d->last_school_name ?? '']);
+            fputcsv($csv, ['Demographic','year_graduated',$d->year_graduated ?? '']);
+            fputcsv($csv, ['Demographic','spouse_name',$d->spouse_name ?? '']);
+            fputcsv($csv, ['Demographic','spouse_religion',$d->spouse_religion ?? '']);
+            fputcsv($csv, ['Demographic','spouse_tribe',$d->spouse_tribe ?? '']);
+            fputcsv($csv, ['Demographic','spouse_age',$d->spouse_age ?? '']);
+            fputcsv($csv, ['Demographic','spouse_gender', array_key_exists($d->spouse_gender, $genderLabel) ? $genderLabel[$d->spouse_gender] : ($d->spouse_gender ?? '')]);
+            fputcsv($csv, ['Demographic','affiliation', array_key_exists($d->affiliation, $affLabel) ? $affLabel[$d->affiliation] : ($d->affiliation ?? '')]);
+        }
+
+        if ($h) {
+            fputcsv($csv, ['Household','lot_ownership',$h->lot_ownership ?? '']);
+            fputcsv($csv, ['Household','house_ownership',$h->house_ownership ?? '']);
+            fputcsv($csv, ['Household','avail_socialized_housing',$h->avail_socialized_housing ?? '']);
+            fputcsv($csv, ['Household','temporary_living_area',$h->temporary_living_area ?? '']);
+            fputcsv($csv, ['Household','housing_structure',$h->housing_structure ?? '']);
+            fputcsv($csv, ['Household','type_of_toilet',$h->type_of_toilet ?? '']);
+            fputcsv($csv, ['Household','source_of_water',$h->source_of_water ?? '']);
+            fputcsv($csv, ['Household','source_of_electricity',$h->source_of_electricity ?? '']);
+        }
+
+        if ($e) {
+            fputcsv($csv, ['Economic','main_income_source',$e->main_income_source ?? '']);
+            fputcsv($csv, ['Economic','work_status',$e->work_status ?? '']);
+            fputcsv($csv, ['Economic','work_location_head',$e->work_location_head ?? '']);
+            fputcsv($csv, ['Economic','monthly_salary',$e->monthly_salary ?? '']);
+            fputcsv($csv, ['Economic','combine_monthly_income',$e->combine_monthly_income ?? '']);
+        }
+
+        if ($t) {
+            fputcsv($csv, ['Training','skills_for_living',$t->skills_for_living ?? '']);
+            fputcsv($csv, ['Training','specific_skill',$t->specific_skill ?? '']);
+            fputcsv($csv, ['Training','organization_member',$t->organization_member ?? '']);
+            fputcsv($csv, ['Training','specific_organization',$t->specific_organization ?? '']);
+            fputcsv($csv, ['Training','wanttolearn',$t->wanttolearn ?? '']);
+            fputcsv($csv, ['Training','remarks',$t->remarks ?? '']);
+            fputcsv($csv, ['Training','latitude',$t->latitude ?? '']);
+            fputcsv($csv, ['Training','longitude',$t->longitude ?? '']);
+        }
+
+        foreach ($members as $i => $m) {
+            $idx = $i + 1;
+            fputcsv($csv, ['Member '.$idx,'name',$m->name ?? '']);
+            fputcsv($csv, ['Member '.$idx,'relationship',$m->relationship ?? '']);
+            fputcsv($csv, ['Member '.$idx,'age', isset($m->age) ? $m->age : '']);
+            fputcsv($csv, ['Member '.$idx,'occupation',$m->occupation ?? '']);
+            $cs = property_exists($m,'civilStatus') ? $m->civilStatus : (property_exists($m,'civil_status') ? $m->civil_status : null);
+            $edu = property_exists($m,'educationalAttainment') ? $m->educationalAttainment : (property_exists($m,'educational_attainment') ? $m->educational_attainment : null);
+            $inc = property_exists($m,'monthlyIncome') ? $m->monthlyIncome : (property_exists($m,'monthly_income') ? $m->monthly_income : null);
+            fputcsv($csv, ['Member '.$idx,'civil_status',$cs ?? '']);
+            fputcsv($csv, ['Member '.$idx,'educational_attainment',$edu ?? '']);
+            fputcsv($csv, ['Member '.$idx,'monthly_income',$inc ?? '']);
+        }
+
+        rewind($csv);
+        $out = stream_get_contents($csv);
+        fclose($csv);
+        $filename = 'survey-'.$survey_id.'.csv';
+        return response($out, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"'
+        ]);
+    }
+
+    public function adminExportSurveyCsv(Request $request, $survey_id)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        $s = DB::table('survey as s')->where('s.survey_id', $survey_id)->first();
+        if (!$s) { return response()->json(['message' => 'Not found'], 404); }
+
+        $c = DB::table('classification')->where('survey_id', $survey_id)->first();
+        $d = DB::table('demographic')->where('survey_id', $survey_id)->first();
+        $h = DB::table('household')->where('survey_id', $survey_id)->first();
+        $e = DB::table('economic')->where('survey_id', $survey_id)->first();
+        $t = DB::table('training')->where('survey_id', $survey_id)->first();
+        $members = DB::table('household_mem')->where('survey_id', $survey_id)->get();
+
+        $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
+        $displacedLabel = [
+            1=>'Coastal Areas',2=>'Drought',3=>'Earthquake Affected',4=>'Flood Affected',5=>'Sea Level Rise',
+            6=>'Threat of Eviction',7=>'Eviction/Demolition Order',8=>'Human Induced Disaster',9=>'Infra Projects',10=>'Landslide Affected',11=>'Near Waterways'
+        ];
+        $doubleupLabel = [1=>'Renter/Tenant',2=>'Rent-free/Sharer',3=>'Caretaker'];
+        $homelessLabel = [1=>'Public - living in tent',2=>'Private - living in tent'];
+        $ynLabel = [0=>'No',1=>'Yes'];
+        $genderLabel = [1=>'Male',2=>'Female'];
+        $affLabel = [0=>'None',1=>'SSS',2=>'GSIS',3=>'PhilHealth',4=>'PagIbig',5=>'PWD',6=>'Senior_Citizen',7=>'Solo_Parent',8=>'4Ps'];
+
+        $csv = fopen('php://temp','w+');
+        fputcsv($csv, ['Section','Field','Value']);
+
+        // Survey meta
+        fputcsv($csv, ['Survey','survey_id',$survey_id]);
+        fputcsv($csv, ['Survey','interviewed_by',$s->interviewed_by ?? '']);
+        fputcsv($csv, ['Survey','date_interviewed',$s->date_interviewed ?? '']);
+        fputcsv($csv, ['Survey','is_submitted',$s->is_submitted ?? '']);
+
+        if ($c) {
+            fputcsv($csv, ['Classification','previous_client', array_key_exists($c->previous_client, $ynLabel) ? $ynLabel[$c->previous_client] : ($c->previous_client ?? '')]);
+            fputcsv($csv, ['Classification','year_inhabited',$c->year_inhabited ?? '']);
+            fputcsv($csv, ['Classification','classification', array_key_exists($c->classification, $classLabel) ? $classLabel[$c->classification] : ($c->classification ?? '')]);
+            fputcsv($csv, ['Classification','subclass_displaced', array_key_exists($c->subclass_displaced, $displacedLabel) ? $displacedLabel[$c->subclass_displaced] : ($c->subclass_displaced ?? '')]);
+            fputcsv($csv, ['Classification','subclass_doubleup', array_key_exists($c->subclass_doubleup, $doubleupLabel) ? $doubleupLabel[$c->subclass_doubleup] : ($c->subclass_doubleup ?? '')]);
+            fputcsv($csv, ['Classification','subclass_homeless', array_key_exists($c->subclass_homeless, $homelessLabel) ? $homelessLabel[$c->subclass_homeless] : ($c->subclass_homeless ?? '')]);
+        }
+
+        if ($d) {
+            fputcsv($csv, ['Demographic','interview_person',$d->interview_person ?? '']);
+            fputcsv($csv, ['Demographic','last_name',$d->last_name ?? '']);
+            fputcsv($csv, ['Demographic','first_name',$d->first_name ?? '']);
+            fputcsv($csv, ['Demographic','middle_name',$d->middle_name ?? '']);
+            fputcsv($csv, ['Demographic','suffix',$d->suffix ?? '']);
+            fputcsv($csv, ['Demographic','barangay',$d->barangay ?? '']);
+            fputcsv($csv, ['Demographic','purok',$d->purok ?? '']);
+            fputcsv($csv, ['Demographic','street',$d->street ?? '']);
+            fputcsv($csv, ['Demographic','gender',$d->gender ?? '']);
+            fputcsv($csv, ['Demographic','religion',$d->religion ?? '']);
+            fputcsv($csv, ['Demographic','birth_place',$d->birth_place ?? '']);
+            fputcsv($csv, ['Demographic','birth_date',$d->birth_date ?? '']);
+            fputcsv($csv, ['Demographic','person_age',$d->person_age ?? '']);
+            fputcsv($csv, ['Demographic','marital_status',$d->marital_status ?? '']);
+            fputcsv($csv, ['Demographic','contact_number',$d->contact_number ?? '']);
+            fputcsv($csv, ['Demographic','language_spoken',$d->language_spoken ?? '']);
+            fputcsv($csv, ['Demographic','tribe',$d->tribe ?? '']);
+            fputcsv($csv, ['Demographic','highest_education',$d->highest_education ?? '']);
+            fputcsv($csv, ['Demographic','last_school_name',$d->last_school_name ?? '']);
+            fputcsv($csv, ['Demographic','year_graduated',$d->year_graduated ?? '']);
+            fputcsv($csv, ['Demographic','spouse_name',$d->spouse_name ?? '']);
+            fputcsv($csv, ['Demographic','spouse_religion',$d->spouse_religion ?? '']);
+            fputcsv($csv, ['Demographic','spouse_tribe',$d->spouse_tribe ?? '']);
+            fputcsv($csv, ['Demographic','spouse_age',$d->spouse_age ?? '']);
+            fputcsv($csv, ['Demographic','spouse_gender', array_key_exists($d->spouse_gender, $genderLabel) ? $genderLabel[$d->spouse_gender] : ($d->spouse_gender ?? '')]);
+            fputcsv($csv, ['Demographic','affiliation', array_key_exists($d->affiliation, $affLabel) ? $affLabel[$d->affiliation] : ($d->affiliation ?? '')]);
+        }
+
+        if ($h) {
+            fputcsv($csv, ['Household','lot_ownership',$h->lot_ownership ?? '']);
+            fputcsv($csv, ['Household','house_ownership',$h->house_ownership ?? '']);
+            fputcsv($csv, ['Household','avail_socialized_housing',$h->avail_socialized_housing ?? '']);
+            fputcsv($csv, ['Household','temporary_living_area',$h->temporary_living_area ?? '']);
+            fputcsv($csv, ['Household','housing_structure',$h->housing_structure ?? '']);
+            fputcsv($csv, ['Household','type_of_toilet',$h->type_of_toilet ?? '']);
+            fputcsv($csv, ['Household','source_of_water',$h->source_of_water ?? '']);
+            fputcsv($csv, ['Household','source_of_electricity',$h->source_of_electricity ?? '']);
+        }
+
+        if ($e) {
+            fputcsv($csv, ['Economic','main_income_source',$e->main_income_source ?? '']);
+            fputcsv($csv, ['Economic','work_status',$e->work_status ?? '']);
+            fputcsv($csv, ['Economic','work_location_head',$e->work_location_head ?? '']);
+            fputcsv($csv, ['Economic','monthly_salary',$e->monthly_salary ?? '']);
+            fputcsv($csv, ['Economic','combine_monthly_income',$e->combine_monthly_income ?? '']);
+        }
+
+        if ($t) {
+            fputcsv($csv, ['Training','skills_for_living',$t->skills_for_living ?? '']);
+            fputcsv($csv, ['Training','specific_skill',$t->specific_skill ?? '']);
+            fputcsv($csv, ['Training','organization_member',$t->organization_member ?? '']);
+            fputcsv($csv, ['Training','specific_organization',$t->specific_organization ?? '']);
+            fputcsv($csv, ['Training','wanttolearn',$t->wanttolearn ?? '']);
+            fputcsv($csv, ['Training','remarks',$t->remarks ?? '']);
+            fputcsv($csv, ['Training','latitude',$t->latitude ?? '']);
+            fputcsv($csv, ['Training','longitude',$t->longitude ?? '']);
+        }
+
+        foreach ($members as $i => $m) {
+            $idx = $i + 1;
+            fputcsv($csv, ['Member '.$idx,'name',$m->name ?? '']);
+            fputcsv($csv, ['Member '.$idx,'relationship',$m->relationship ?? '']);
+            fputcsv($csv, ['Member '.$idx,'age', isset($m->age) ? $m->age : '']);
+            fputcsv($csv, ['Member '.$idx,'occupation',$m->occupation ?? '']);
+            $cs = property_exists($m,'civilStatus') ? $m->civilStatus : (property_exists($m,'civil_status') ? $m->civil_status : null);
+            $edu = property_exists($m,'educationalAttainment') ? $m->educationalAttainment : (property_exists($m,'educational_attainment') ? $m->educational_attainment : null);
+            $inc = property_exists($m,'monthlyIncome') ? $m->monthlyIncome : (property_exists($m,'monthly_income') ? $m->monthly_income : null);
+            fputcsv($csv, ['Member '.$idx,'civil_status',$cs ?? '']);
+            fputcsv($csv, ['Member '.$idx,'educational_attainment',$edu ?? '']);
+            fputcsv($csv, ['Member '.$idx,'monthly_income',$inc ?? '']);
+        }
+
+        rewind($csv);
+        $out = stream_get_contents($csv);
+        fclose($csv);
+        $filename = 'survey-'.$survey_id.'.csv';
+        return response($out, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"'
+        ]);
     }
 
     public function adminMapPoints(Request $request)
@@ -2214,17 +2448,19 @@ class ValidatorDashboardController extends Controller
         if (strtolower((string)$work_status) === 'others') $work_status = $val('other_work_status');
 
         $skills_for_living = $val('skills_for_living');
-        $specific_skill = null;
+        $specific_skill = '';
         if ($skills_for_living === 'Yes') {
             $specific_skill = $val('specific_skill');
             if (strtolower((string)$specific_skill) === 'others') $specific_skill = $val('other_skill');
+            if ($specific_skill === null) $specific_skill = '';
         }
 
         $organization_member = $val('organization_member');
-        $specific_organization = null;
+        $specific_organization = '';
         if ($organization_member === 'Yes') {
             $specific_organization = $val('specific_organization');
             if (strtolower((string)$specific_organization) === 'others') $specific_organization = $val('other_organization');
+            if ($specific_organization === null) $specific_organization = '';
         }
 
         $marital_status = $val('marital_status');

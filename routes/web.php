@@ -86,6 +86,7 @@ Route::prefix('admin/api')->group(function () {
     Route::post('/validators/{validator_id}/status', [ValidatorDashboardController::class, 'adminValidatorUpdateStatus']);
 
     Route::get('/survey/{survey_id}', [ValidatorDashboardController::class, 'adminSurveyDetails']);
+    Route::get('/survey/{survey_id}/export', [ValidatorDashboardController::class, 'adminExportSurveyCsv']);
     Route::get('/survey/{survey_id}/photo', [ValidatorDashboardController::class, 'adminSurveyPhoto']);
     Route::get('/map-points', [ValidatorDashboardController::class, 'adminMapPoints']);
     Route::post('/approve', [ValidatorDashboardController::class, 'adminApproveSurvey']);
@@ -138,6 +139,7 @@ Route::prefix('validator/api')->group(function () {
     Route::get('/surveys', [ValidatorDashboardController::class, 'surveys']);
     Route::get('/submitted', [ValidatorDashboardController::class, 'submitted']);
     Route::get('/survey/{survey_id}', [ValidatorDashboardController::class, 'surveyDetails']);
+    Route::get('/survey/{survey_id}/export', [ValidatorDashboardController::class, 'exportSurveyCsv']);
     Route::get('/survey/{survey_id}/photo', [ValidatorDashboardController::class, 'surveyPhoto']);
     Route::get('/profile', [ValidatorDashboardController::class, 'profile']);
     Route::post('/profile/password', [ValidatorDashboardController::class, 'updatePassword']);
@@ -147,6 +149,7 @@ Route::prefix('validator/api')->group(function () {
 
 Route::get('/validator/reset-password', [ValidatorPasswordController::class, 'showResetForm']);
 Route::post('/validator/reset-password', [ValidatorPasswordController::class, 'submitResetForm']);
+Route::post('/validator/forgot-password', [ValidatorPasswordController::class, 'sendResetLink']);
 
 // Mobile App API (backward-compatible paths for existing Flutter app)
 Route::get('/sync_validators_api.php', [ValidatorDashboardController::class, 'mobileSyncValidators']);
