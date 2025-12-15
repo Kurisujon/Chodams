@@ -88,11 +88,12 @@ export default function SurveyDetails() {
             #print-root .chrrsdp-title { margin-top: 6px !important; }
             #print-root .members-header-wrapper { margin-top: 6px !important; }
             #print-root .members-header { margin-top: 0 !important; }
+            #print-root .survey-box { margin-top: 6px !important; }
           }
         `}</style>
 
         <div id="print-root" className="bg-white p-6 print:shadow-none" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
-          <div className="border-2 border-black">
+          <div className="border-2 border-black survey-box">
             <div className="grid grid-cols-3">
               <div className="col-span-1 p-3 border-r-2 border-black bg-slate-50">
                 <div className="text-sm font-semibold chrrsdp-title">CHRRSDP FORM 2</div>
