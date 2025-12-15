@@ -82,12 +82,13 @@ Route::prefix('admin/api')->group(function () {
     Route::post('/profile', [ValidatorDashboardController::class, 'adminProfileUpdate']);
 
     Route::get('/validators', [ValidatorDashboardController::class, 'adminValidators']);
-    Route::post('/validators', [ValidatorDashboardController::class, 'adminValidatorCreate']);
+    Route::post('/validators', [ValidatorDashboardController::class, 'adminValidatorCreate'])->middleware('throttle:6,1');
     Route::post('/validators/{validator_id}/status', [ValidatorDashboardController::class, 'adminValidatorUpdateStatus']);
 
     Route::get('/survey/{survey_id}', [ValidatorDashboardController::class, 'adminSurveyDetails']);
     Route::get('/survey/{survey_id}/export', [ValidatorDashboardController::class, 'adminExportSurveyCsv']);
     Route::get('/survey/{survey_id}/photo', [ValidatorDashboardController::class, 'adminSurveyPhoto']);
+    Route::get('/survey/{survey_id}/person-photo', [ValidatorDashboardController::class, 'adminSurveyPersonPhoto']);
     Route::get('/map-points', [ValidatorDashboardController::class, 'adminMapPoints']);
     Route::post('/approve', [ValidatorDashboardController::class, 'adminApproveSurvey']);
     Route::get('/db-info', [ValidatorDashboardController::class, 'adminDbInfo']);
@@ -141,6 +142,7 @@ Route::prefix('validator/api')->group(function () {
     Route::get('/survey/{survey_id}', [ValidatorDashboardController::class, 'surveyDetails']);
     Route::get('/survey/{survey_id}/export', [ValidatorDashboardController::class, 'exportSurveyCsv']);
     Route::get('/survey/{survey_id}/photo', [ValidatorDashboardController::class, 'surveyPhoto']);
+    Route::get('/survey/{survey_id}/person-photo', [ValidatorDashboardController::class, 'surveyPersonPhoto']);
     Route::get('/profile', [ValidatorDashboardController::class, 'profile']);
     Route::post('/profile/password', [ValidatorDashboardController::class, 'updatePassword']);
     Route::post('/survey', [ValidatorDashboardController::class, 'createSurvey']);

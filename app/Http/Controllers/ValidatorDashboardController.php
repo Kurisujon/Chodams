@@ -7,6 +7,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class ValidatorDashboardController extends Controller
@@ -19,14 +22,20 @@ class ValidatorDashboardController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
-        $total_surveyed = DB::table('survey')
-            ->where('validator_id', $validator_id)
-            ->count();
+        $total_surveyed = DB::table('survey as s')
+            ->join('demographic as d', 'd.survey_id', '=', 's.survey_id')
+            ->join('classification as c', 'c.survey_id', '=', 's.survey_id')
+            ->where('s.validator_id', $validator_id)
+            ->distinct('s.survey_id')
+            ->count('s.survey_id');
 
-        $total_submitted = DB::table('survey')
-            ->where('validator_id', $validator_id)
-            ->whereIn('is_submitted', [1,2])
-            ->count();
+        $total_submitted = DB::table('survey as s')
+            ->join('demographic as d', 'd.survey_id', '=', 's.survey_id')
+            ->join('classification as c', 'c.survey_id', '=', 's.survey_id')
+            ->where('s.validator_id', $validator_id)
+            ->whereIn('s.is_submitted', [1,2])
+            ->distinct('s.survey_id')
+            ->count('s.survey_id');
 
         return response()->json([
             'total_surveyed' => $total_surveyed,
@@ -252,6 +261,7 @@ class ValidatorDashboardController extends Controller
             $surveyArr['wanttolearn'] = $t->wanttolearn ?? null;
             $surveyArr['remarks'] = $t->remarks ?? null;
             $surveyArr['house_photo'] = $t->house_photo ?? null;
+            $surveyArr['person_photo'] = $t->person_photo ?? null;
             $surveyArr['latitude'] = $t->latitude ?? null;
             $surveyArr['longitude'] = $t->longitude ?? null;
             $surveyArr['respondent_signature'] = $t->respondent_signature ?? null;
@@ -290,7 +300,7 @@ class ValidatorDashboardController extends Controller
 
         if ($pathStr !== '') {
             $p = ltrim($pathStr, '/');
-            if (str_starts_with($p, 'storage/')) {
+            if (Str::startsWith($p, 'storage/')) {
                 $rel = substr($p, 8);
                 if (\Illuminate\Support\Facades\Storage::disk('public')->exists($rel)) {
                     $abs = \Illuminate\Support\Facades\Storage::disk('public')->path($rel);
@@ -305,6 +315,45 @@ class ValidatorDashboardController extends Controller
             }
         }
 
+        return response()->json(['message' => 'Not found'], 404);
+    }
+
+    public function surveyPersonPhoto(Request $request, $survey_id)
+    {
+        $validator_id = session('validator_id');
+        if (!$validator_id) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $row = DB::table('training as t')
+            ->join('survey as s', 's.survey_id', '=', 't.survey_id')
+            ->select('t.person_photo')
+            ->where('t.survey_id', $survey_id)
+            ->where('s.validator_id', $validator_id)
+            ->first();
+
+        if (!$row || empty($row->person_photo)) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
+
+        $pathStr = trim((string)$row->person_photo);
+        $ctype = 'image/jpeg';
+        if ($pathStr !== '') {
+            $p = ltrim($pathStr, '/');
+            if (Str::startsWith($p, 'storage/')) {
+                $rel = substr($p, 8);
+                if (\Illuminate\Support\Facades\Storage::disk('public')->exists($rel)) {
+                    $abs = \Illuminate\Support\Facades\Storage::disk('public')->path($rel);
+                    $mime = \Illuminate\Support\Facades\Storage::disk('public')->mimeType($rel) ?: $ctype;
+                    return response()->file($abs, ['Content-Type' => $mime]);
+                }
+            }
+            $absPublic = public_path($p);
+            if (file_exists($absPublic)) {
+                $mime = function_exists('mime_content_type') ? mime_content_type($absPublic) : $ctype;
+                return response()->file($absPublic, ['Content-Type' => $mime]);
+            }
+        }
         return response()->json(['message' => 'Not found'], 404);
     }
 
@@ -639,15 +688,9 @@ class ValidatorDashboardController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
         $row = DB::table('validator')
-            ->select('validator_id','username','name','email','signature_data')
+            ->select('validator_id','username','name','email')
             ->where('validator_id', $validator_id)
             ->first();
-        if ($row && is_string($row->signature_data ?? null)) {
-            $sig = trim($row->signature_data);
-            if ($sig !== '' && str_starts_with($sig, 'signatures/')) {
-                $row->signature_data = 'storage/'.$sig;
-            }
-        }
         return response()->json(['profile' => $row]);
     }
 
@@ -1373,6 +1416,7 @@ class ValidatorDashboardController extends Controller
             $surveyArr['wanttolearn'] = $t->wanttolearn ?? null;
             $surveyArr['remarks'] = $t->remarks ?? null;
             $surveyArr['house_photo'] = $t->house_photo ?? null;
+            $surveyArr['person_photo'] = $t->person_photo ?? null;
             $surveyArr['latitude'] = $t->latitude ?? null;
             $surveyArr['longitude'] = $t->longitude ?? null;
             $surveyArr['respondent_signature'] = $t->respondent_signature ?? null;
@@ -1392,7 +1436,34 @@ class ValidatorDashboardController extends Controller
             return response()->json(['message' => 'Not found'], 404);
         }
         $p = ltrim(trim((string)$row->house_photo), '/');
-        if (str_starts_with($p, 'storage/')) {
+        if (Str::startsWith($p, 'storage/')) {
+            $rel = substr($p, 8);
+            if (\Illuminate\Support\Facades\Storage::disk('public')->exists($rel)) {
+                $abs = \Illuminate\Support\Facades\Storage::disk('public')->path($rel);
+                $mime = \Illuminate\Support\Facades\Storage::disk('public')->mimeType($rel) ?: 'image/jpeg';
+                return response()->file($abs, ['Content-Type' => $mime]);
+            }
+        }
+        $absPublic = public_path($p);
+        if (file_exists($absPublic)) {
+            $mime = function_exists('mime_content_type') ? mime_content_type($absPublic) : 'image/jpeg';
+            return response()->file($absPublic, ['Content-Type' => $mime]);
+        }
+        return response()->json(['message' => 'Not found'], 404);
+    }
+
+    public function adminSurveyPersonPhoto(Request $request, $survey_id)
+    {
+        $row = DB::table('training as t')
+            ->join('survey as s','s.survey_id','=','t.survey_id')
+            ->select('t.person_photo')
+            ->where('t.survey_id', $survey_id)
+            ->first();
+        if (!$row || empty($row->person_photo)) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
+        $p = ltrim(trim((string)$row->person_photo), '/');
+        if (Str::startsWith($p, 'storage/')) {
             $rel = substr($p, 8);
             if (\Illuminate\Support\Facades\Storage::disk('public')->exists($rel)) {
                 $abs = \Illuminate\Support\Facades\Storage::disk('public')->path($rel);
@@ -1947,11 +2018,11 @@ class ValidatorDashboardController extends Controller
             $url = null;
             if ($img !== '') {
                 $rel = ltrim($img, '/');
-                if (str_starts_with($rel, 'storage/')) {
+                if (Str::startsWith($rel, 'storage/')) {
                     $rel2 = substr($rel, 8);
                     $url = Storage::disk('public')->exists($rel2) ? Storage::url($rel2) : "/storage/$rel2";
                 } else {
-                    $url = Storage::disk('public')->exists($rel) ? Storage::url($rel) : (str_starts_with($img, '/') ? $img : "/storage/$rel");
+                    $url = Storage::disk('public')->exists($rel) ? Storage::url($rel) : (Str::startsWith($img, '/') ? $img : "/storage/$rel");
                 }
             }
             $data[] = [
@@ -2253,25 +2324,19 @@ class ValidatorDashboardController extends Controller
             'name' => ['required','string'],
             'email' => ['required','email'],
             'password' => ['required','string','min:8'],
-            'signature_data' => ['nullable','string'],
+            'signature' => ['required','file','image','max:2048'],
         ]);
         $username = $request->input('username');
         $exists = DB::table('validator')->where('username', $username)->exists();
         if ($exists) {
             return response()->json(['errors' => ['username' => ['Username already taken']]], 422);
         }
-        $signature_path = null;
-        $sig = $request->input('signature_data');
-        if ($sig) {
-            $parts = explode(',', $sig);
-            if (count($parts) === 2) {
-                $data = base64_decode($parts[1]);
-                $relative = 'signatures/'.uniqid().'.png';
-                Storage::disk('public')->put($relative, $data);
-                $signature_path = 'storage/'.$relative;
-            } else {
-                $signature_path = $sig;
-            }
+        $encryptedSignature = null;
+        if ($request->hasFile('signature')) {
+            $file = $request->file('signature');
+            $bytes = file_get_contents($file->getRealPath());
+            $b64 = base64_encode($bytes);
+            $encryptedSignature = Crypt::encryptString($b64);
         }
         DB::table('validator')->insert([
             'username' => $username,
@@ -2279,7 +2344,13 @@ class ValidatorDashboardController extends Controller
             'email' => $request->input('email'),
             'password' => \Illuminate\Support\Facades\Hash::make($request->input('password')),
             'status' => 'approved',
-            'signature_data' => $signature_path,
+            'signature_data' => $encryptedSignature,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        Log::info('Validator created with signature upload', [
+            'username' => $username,
+            'ip' => $request->ip(),
         ]);
         return response()->json(['ok' => true]);
     }
@@ -2292,18 +2363,11 @@ class ValidatorDashboardController extends Controller
                 DB::raw('CAST(validator_id AS UNSIGNED) AS id'),
                 'name','email','username','password','status',
                 DB::raw('created_at AS createdAt'),
-                DB::raw('updated_at AS updatedAt'),
-                'signature_data'
+                DB::raw('updated_at AS updatedAt')
             )
             ->where('status', 'approved')
             ->get()
             ->map(function($row) {
-                if (is_string($row->signature_data ?? null)) {
-                    $sig = trim($row->signature_data);
-                    if ($sig !== '' && str_starts_with($sig, 'signatures/')) {
-                        $row->signature_data = 'storage/'.$sig;
-                    }
-                }
                 return $row;
             })->all();
         return response()->json([
@@ -2326,8 +2390,7 @@ class ValidatorDashboardController extends Controller
                 DB::raw('CAST(validator_id AS UNSIGNED) AS id'),
                 'name','email','username','password','status',
                 DB::raw('created_at AS createdAt'),
-                DB::raw('updated_at AS updatedAt'),
-                'signature_data'
+                DB::raw('updated_at AS updatedAt')
             )
             ->whereRaw('LOWER(username) = ?', [$username])
             ->where('status','approved')
@@ -2337,17 +2400,11 @@ class ValidatorDashboardController extends Controller
             return response()->json(['success' => false, 'message' => 'Validator not found or not approved'], 404);
         }
         $stored = is_string($row->password ?? null) ? $row->password : '';
-        $valid = ($stored !== '' && password_verify($password, $stored)) || $password === $stored;
+        $valid = ($stored !== '' && password_verify($password, $stored)) || $password === $stored || (md5($password) === $stored);
         if (!$valid) {
             return response()->json(['success' => false, 'message' => 'Invalid password', 'debug' => ['username' => $username]], 401);
         }
 
-        if (is_string($row->signature_data ?? null)) {
-            $sig = trim($row->signature_data);
-            if ($sig !== '' && str_starts_with($sig, 'signatures/')) {
-                $row->signature_data = 'storage/'.$sig;
-            }
-        }
         return response()->json(['success' => true, 'validator' => $row]);
     }
 
@@ -2362,10 +2419,37 @@ class ValidatorDashboardController extends Controller
         $norm = function($v) { return is_string($v) ? trim($v) : $v; };
         $val = function($key) use ($data, $norm) { return $norm($data[$key] ?? null); };
 
+        $saveSignature = function ($input) {
+            if (!$input) return null;
+            $s = is_string($input) ? trim($input) : '';
+            if ($s === '') return null;
+            if (strpos($s, 'signatures/') === 0 || strpos($s, 'storage/signatures/') === 0) {
+                return $s;
+            }
+            $base64 = $s;
+            if (strpos($s, 'base64,') !== false) {
+                $parts = explode(',', $s, 2);
+                $base64 = $parts[1] ?? '';
+            }
+            if ($base64 === '') return null;
+            $dataBin = base64_decode($base64);
+            if ($dataBin === false) return null;
+            $path = 'signatures/' . uniqid() . '.png';
+            Storage::disk('public')->put($path, $dataBin);
+            return $path;
+        };
+
+        $validator_signature = $saveSignature($val('validator_signature') ?: $request->input('validator_signature'));
+        $respondent_signature = $saveSignature($val('respondent_signature') ?: $request->input('respondent_signature'));
+
         $house_photo_blob = null;
         $house_photo_filename = null;
         $house_photo_type = null;
         $house_photo_path = null;
+        $person_photo_blob = null;
+        $person_photo_filename = null;
+        $person_photo_type = null;
+        $person_photo_path = null;
         $hp = $data['house_photo'] ?? $request->input('house_photo');
         if ($hp) {
             $s = is_string($hp) ? $hp : '';
@@ -2423,6 +2507,63 @@ class ValidatorDashboardController extends Controller
             $house_photo_path = 'storage/survey_photos/' . $house_photo_filename;
         }
 
+        // Person photo handling (base64 or file)
+        $pp = $data['person_photo'] ?? $request->input('person_photo');
+        if ($pp) {
+            $s = is_string($pp) ? $pp : '';
+            $typeFromDataUri = null;
+            if (strpos($s, 'base64,') !== false) {
+                $pos = strpos($s, ',');
+                $head = substr($s, 0, $pos);
+                $s = substr($s, $pos + 1);
+                $p1 = strpos($head, ':');
+                $p2 = strpos($head, ';');
+                if ($p1 !== false && $p2 !== false) {
+                    $typeFromDataUri = substr($head, $p1 + 1, $p2 - $p1 - 1);
+                }
+            }
+            $decoded = base64_decode($s);
+            if ($decoded !== false) {
+                if (strlen($decoded) > 5 * 1024 * 1024) {
+                    return response()->json(['message' => 'File too large'], 422);
+                }
+                $t = $val('person_photo_type') ?: $request->input('person_photo_type') ?: ($typeFromDataUri ?: 'image/jpeg');
+                $allowed = ['image/jpeg','image/png','image/gif','image/jpg'];
+                if (!in_array($t, $allowed)) {
+                    return response()->json(['message' => 'Invalid file type'], 422);
+                }
+                $person_photo_blob = $decoded;
+                $person_photo_filename = $val('person_photo_filename') ?: $request->input('person_photo_filename');
+                $person_photo_type = $t;
+            }
+        }
+        if (!$person_photo_blob) {
+            $file = $request->file('person_photo');
+            if ($file) {
+                if ($file->getSize() > 5 * 1024 * 1024) {
+                    return response()->json(['message' => 'File too large'], 422);
+                }
+                $allowed = ['image/jpeg','image/png','image/gif','image/jpg'];
+                if (!in_array($file->getMimeType(), $allowed)) {
+                    return response()->json(['message' => 'Invalid file type'], 422);
+                }
+                $person_photo_blob = file_get_contents($file->getRealPath());
+                $person_photo_filename = $file->getClientOriginalName();
+                $person_photo_type = $file->getMimeType();
+            }
+        }
+        if ($person_photo_blob) {
+            $ext = 'jpg';
+            if ($person_photo_type === 'image/png') $ext = 'png';
+            elseif ($person_photo_type === 'image/gif') $ext = 'gif';
+            elseif ($person_photo_type === 'image/jpg' || $person_photo_type === 'image/jpeg') $ext = 'jpg';
+            if (!$person_photo_filename || strpos($person_photo_filename, '.') === false) {
+                $person_photo_filename = 'survey_person_' . time() . '_' . uniqid() . '.' . $ext;
+            }
+            Storage::disk('public')->put('survey_photos/' . $person_photo_filename, $person_photo_blob);
+            $person_photo_path = 'storage/survey_photos/' . $person_photo_filename;
+        }
+
         // Prepare variables and handle 'Others' logic
         $classification = $val('classification');
         $subclass_displaced = $val('subclass_displaced') ?: $val('sub_class_displaced');
@@ -2471,7 +2612,7 @@ class ValidatorDashboardController extends Controller
         $spouse_age = $allowSpouse ? $val('spouse_age') : null;
         $spouse_gender = $allowSpouse ? $val('spouse_gender') : null;
 
-        $survey_id = DB::transaction(function() use ($data, $val, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $house_photo_path, $marital_status, $spouse_name, $spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender) {
+        $result = DB::transaction(function() use ($data, $val, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $house_photo_path, $person_photo_path, $marital_status, $spouse_name, $spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender, $validator_signature, $respondent_signature) {
             $toInt = function($v) { return is_numeric($v) ? (int)$v : null; };
             $yn = function($v) { $s = is_string($v) ? strtolower(trim($v)) : $v; return ($s === 'yes' || $s === 1 || $s === '1') ? 1 : (($s === 'no' || $s === 0 || $s === '0') ? 0 : null); };
             $classMap = [
@@ -2524,8 +2665,11 @@ class ValidatorDashboardController extends Controller
                 'interviewed_by' => $val('interviewed_by'),
                 'date_interviewed' => $val('date_interviewed'),
                 'is_submitted' => (int)($data['is_submitted'] ?? 0),
-                'validator_signature' => $val('validator_signature'),
+                'validator_signature' => $validator_signature,
             ]);
+
+            $barangayValue = (string)$val('barangay');
+            $tagNumber = $this->generateTagNumber($barangayValue);
 
             DB::table('classification')->insert([
                 'survey_id' => $sid,
@@ -2544,7 +2688,7 @@ class ValidatorDashboardController extends Controller
                 'first_name' => $val('first_name'),
                 'middle_name' => $val('middle_name'),
                 'suffix' => $val('suffix'),
-                'barangay' => $val('barangay'),
+                'barangay' => $barangayValue,
                 'purok' => $val('purok'),
                 'street' => $val('street'),
                 'gender' => $val('gender'),
@@ -2565,6 +2709,7 @@ class ValidatorDashboardController extends Controller
                 'spouse_age' => $toInt($spouse_age),
                 'spouse_gender' => $spouseGenderCode,
                 'affiliation' => $affCode,
+                'tag_number' => $tagNumber,
             ]);
 
             DB::table('household')->insert([
@@ -2595,31 +2740,64 @@ class ValidatorDashboardController extends Controller
                 'organization_member' => $organization_member,
                 'specific_organization' => $specific_organization,
                 'house_photo' => $house_photo_path ?: '',
+                'person_photo' => $person_photo_path ?? '',
                 'wanttolearn' => $val('wanttolearn'),
                 'remarks' => $val('remarks'),
                 'latitude' => $val('latitude'),
                 'longitude' => $val('longitude'),
-                'respondent_signature' => $val('respondent_signature'),
+                'respondent_signature' => $respondent_signature,
             ]);
 
-            return $sid;
+            return [
+                'survey_id' => $sid,
+                'tag_number' => $tagNumber,
+            ];
         });
+
+        $survey_id = $result['survey_id'];
+        $tagNumber = $result['tag_number'];
 
         // Household members
         $members = $data['household_members'] ?? $data['members'] ?? [];
         if (is_array($members)) {
+            $hmCols = Schema::getColumnListing('household_mem');
+            $colCivil = in_array('civilStatus', $hmCols) ? 'civilStatus' : 'civil_status';
+            $colEdu = in_array('educationalAttainment', $hmCols) ? 'educationalAttainment' : 'educational_attainment';
+            $colIncome = in_array('monthlyIncome', $hmCols) ? 'monthlyIncome' : 'monthly_income';
+            $colSex = null;
+            if (in_array('sex', $hmCols)) {
+                $colSex = 'sex';
+            } elseif (in_array('gender', $hmCols)) {
+                $colSex = 'gender';
+            }
+            $colCode = in_array('code', $hmCols) ? 'code' : null;
+
             foreach ($members as $m) {
-                DB::table('household_mem')->insert([
+                $payload = [
                     'survey_id' => $survey_id,
                     'name' => $m['name'] ?? null,
                     'age' => isset($m['age']) ? (int)$m['age'] : null,
-                    'sex' => $m['sex'] ?? null,
                     'relationship' => $m['relationship'] ?? null,
-                    'civil_status' => $m['civilStatus'] ?? ($m['civil_status'] ?? null),
-                    'educational_attainment' => $m['educationalAttainment'] ?? ($m['educational_attainment'] ?? null),
-                    'occupation' => $m['occupation'] ?? null,
-                    'monthly_income' => $m['monthlyIncome'] ?? ($m['monthly_income'] ?? null),
-                ]);
+                    'occupation' => ($m['occupation'] ?? '') === '' ? 'N/A' : $m['occupation'],
+                ];
+
+                if ($colSex !== null) {
+                    $payload[$colSex] = $m['sex'] ?? ($m['gender'] ?? null);
+                }
+
+                $payload[$colCivil] = $m['civilStatus'] ?? ($m['civil_status'] ?? null);
+                $eduVal = $m['educationalAttainment'] ?? ($m['educational_attainment'] ?? '');
+                $payload[$colEdu] = $eduVal === '' ? 'N/A' : $eduVal;
+                $payload[$colIncome] = ($m['monthlyIncome'] ?? ($m['monthly_income'] ?? '')) == ''
+                    ? 'N/A'
+                    : ($m['monthlyIncome'] ?? $m['monthly_income']);
+
+                if ($colCode !== null) {
+                    $codeVal = isset($m['code']) && $m['code'] !== '' ? $m['code'] : 'N/A';
+                    $payload[$colCode] = $codeVal;
+                }
+
+                DB::table('household_mem')->insert($payload);
             }
         }
 
@@ -2629,21 +2807,107 @@ class ValidatorDashboardController extends Controller
                 ->where('name', $spouse_name)
                 ->count();
             if ($exists === 0) {
-                DB::table('household_mem')->insert([
+                $hmCols = Schema::getColumnListing('household_mem');
+                $colCivil = in_array('civilStatus', $hmCols) ? 'civilStatus' : 'civil_status';
+                $colEdu = in_array('educationalAttainment', $hmCols) ? 'educationalAttainment' : 'educational_attainment';
+                $colIncome = in_array('monthlyIncome', $hmCols) ? 'monthlyIncome' : 'monthly_income';
+                $colSex = null;
+                if (in_array('sex', $hmCols)) {
+                    $colSex = 'sex';
+                } elseif (in_array('gender', $hmCols)) {
+                    $colSex = 'gender';
+                }
+                $colCode = in_array('code', $hmCols) ? 'code' : null;
+
+                $payload = [
                     'survey_id' => $survey_id,
                     'name' => $spouse_name,
                     'age' => isset($spouse_age) && is_numeric($spouse_age) ? (int)$spouse_age : null,
-                    'sex' => $spouse_gender,
                     'relationship' => 'Spouse',
-                    'civil_status' => $marital_status,
-                    'educational_attainment' => null,
-                    'occupation' => null,
-                    'monthly_income' => null,
-                ]);
+                    'occupation' => 'N/A',
+                ];
+
+                if ($colSex !== null) {
+                    $payload[$colSex] = $spouse_gender;
+                }
+
+                $payload[$colCivil] = $marital_status;
+                $payload[$colEdu] = 'N/A';
+                $payload[$colIncome] = 'N/A';
+
+                if ($colCode !== null) {
+                    $payload[$colCode] = 'N/A';
+                }
+
+                DB::table('household_mem')->insert($payload);
             }
         }
 
-        return response()->json(['success' => true, 'survey_id' => $survey_id, 'message' => 'Survey submitted successfully']);
+        return response()->json(['success' => true, 'survey_id' => $survey_id, 'tag_number' => $tagNumber, 'message' => 'Survey submitted successfully']);
+    }
+
+    protected function getBarangayCode(string $barangay): string
+    {
+        $map = [
+            'Aplaya' => 'A',
+            'Balabag' => 'B',
+            'Binaton' => 'C',
+            'Cogon' => 'D',
+            'Colorado' => 'E',
+            'Dawis' => 'F',
+            'Dulangan' => 'G',
+            'Goma' => 'H',
+            'Igpit' => 'I',
+            'Kapatagan' => 'J',
+            'Kiagot' => 'K',
+            'Lungag' => 'L',
+            'Mahatahay' => 'M',
+            'Matti' => 'N',
+            'Ruparan' => 'O',
+            'San Agustin' => 'P',
+            'San Jose' => 'Q',
+            'San Miguel' => 'R',
+            'San Roque' => 'S',
+            'Sinawilan' => 'T',
+            'Soong' => 'U',
+            'Tiguman' => 'V',
+            'Tres De Mayo' => 'W',
+            'Zone I' => 'X',
+            'Zone II' => 'Y',
+            'Zone III' => 'Z',
+        ];
+
+        return $map[$barangay] ?? 'Z';
+    }
+
+    protected function generateTagNumber(string $barangay): string
+    {
+        $code = $this->getBarangayCode($barangay);
+
+        $maxTag = DB::table('demographic')
+            ->where('barangay', $barangay)
+            ->where('tag_number', 'like', $code . '%')
+            ->lockForUpdate()
+            ->max('tag_number');
+
+        $nextSeq = 1;
+        if ($maxTag) {
+            $numericPart = substr($maxTag, 1);
+            $parsed = (int)$numericPart;
+            if ($parsed > 0) {
+                $nextSeq = $parsed + 1;
+            }
+        }
+
+        $seqStr = str_pad((string)$nextSeq, 3, '0', STR_PAD_LEFT);
+        $tagNumber = $code . $seqStr;
+
+        Log::info('Generated tag number', [
+            'barangay' => $barangay,
+            'tag_number' => $tagNumber,
+        ]);
+
+        return $tagNumber;
     }
 
     // Mobile: simple connectivity test

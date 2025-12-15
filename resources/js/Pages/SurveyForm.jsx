@@ -67,9 +67,8 @@ export default function SurveyForm() {
   const [purokOptions, setPurokOptions] = useState([])
   const [lat, setLat] = useState('')
   const [lon, setLon] = useState('')
-  const vSigRef = useRef(null)
   const rSigRef = useRef(null)
-  const [signaturePath, setSignaturePath] = useState('')
+  
   const inputClass = 'w-full border border-gray-300 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-300'
   const selectClass = inputClass
   function StepHeader({ number, title }) { return (
@@ -127,7 +126,6 @@ export default function SurveyForm() {
     axios.get('/validator/api/profile')
       .then(res => {
         const p = res.data?.profile
-        if (p?.signature_data) setSignaturePath(p.signature_data)
         if (p?.name) setData(d => ({...d, interviewed_by: p.name}))
       })
       .catch(() => {})
@@ -167,7 +165,7 @@ export default function SurveyForm() {
       if (housePhoto) fd.append('house_photo', housePhoto)
       fd.append('latitude', lat)
       fd.append('longitude', lon)
-      fd.append('validator_signature', signaturePath || (vSigRef.current?.toDataURL ? vSigRef.current.toDataURL() : ''))
+      
       fd.append('respondent_signature', rSigRef.current.toDataURL ? rSigRef.current.toDataURL() : '')
       members.forEach(m => {
         fd.append('name[]', m.name ?? '')
@@ -604,15 +602,7 @@ export default function SurveyForm() {
                 <div className="text-sm text-gray-500">Remarks</div>
                 <textarea className={inputClass} rows={4} value={data.remarks} onChange={e=>setData({...data, remarks:e.target.value})}/>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <div className="text-sm text-gray-500 mb-2">Validator Signature</div>
-                  {signaturePath ? (
-                    <div className="border rounded p-2 inline-block"><img src={`/storage/${signaturePath}`} alt="Validator Signature" className="h-24 object-contain"/></div>
-                  ) : (
-                    <Signature canvasRef={vSigRef} onClear={()=>clearCanvas(vSigRef)} />
-                  )}
-                </div>
+              <div className="grid grid-cols-1 gap-6">
                 <div>
                   <div className="text-sm text-gray-500 mb-2">Respondent Signature</div>
                   <Signature canvasRef={rSigRef} onClear={()=>clearCanvas(rSigRef)} />

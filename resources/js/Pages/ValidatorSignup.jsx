@@ -1,5 +1,5 @@
 // resources/js/Pages/ValidatorSignup.jsx
-import React, { useRef, useState } from 'react'
+import React, { useState } from 'react'
 import axios from 'axios'
 import { Link, router } from '@inertiajs/react'
 
@@ -8,7 +8,7 @@ export default function ValidatorSignup() {
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const sigRef = useRef(null)
+  const [signatureFile, setSignatureFile] = useState(null)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
@@ -18,8 +18,26 @@ export default function ValidatorSignup() {
     try {
       setError('')
       setSaving(true)
-      const signature_data = sigRef.current?.toDataURL ? sigRef.current.toDataURL() : ''
-      await axios.post('/admin/api/validators', { name, username, email, password, signature_data }, { headers: { 'X-CSRF-TOKEN': csrf() } })
+      if (!signatureFile) {
+        setError('Signature image is required')
+        return
+      }
+      const allowed = ['image/png','image/jpeg']
+      if (!allowed.includes(signatureFile.type)) {
+        setError('Signature must be PNG or JPG')
+        return
+      }
+      if (signatureFile.size > 2 * 1024 * 1024) {
+        setError('Signature must be at most 2MB')
+        return
+      }
+      const fd = new FormData()
+      fd.append('name', name)
+      fd.append('username', username)
+      fd.append('email', email)
+      fd.append('password', password)
+      fd.append('signature', signatureFile)
+      await axios.post('/admin/api/validators', fd, { headers: { 'X-CSRF-TOKEN': csrf() } })
       router.visit('/admin/profile')
     } catch (err) {
       const data = err?.response?.data
@@ -80,22 +98,13 @@ export default function ValidatorSignup() {
               </div>
               <div>
                 <div className="text-sm text-gray-500">Signature</div>
-                <div className="space-y-2">
-                  <canvas
-                    ref={sigRef}
-                    width={300}
-                    height={100}
-                    className="border border-gray-300 rounded-xl"
-                    onMouseDown={(e)=>{sigRef.current._draw=true; const r=e.target.getBoundingClientRect(); sigRef.current._last={x:e.clientX-r.left,y:e.clientY-r.top}}}
-                    onMouseMove={(e)=>{if(!sigRef.current._draw)return; const r=e.target.getBoundingClientRect(); const x=e.clientX-r.left; const y=e.clientY-r.top; const ctx=sigRef.current.getContext('2d'); ctx.strokeStyle='#000'; ctx.lineWidth=2; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(sigRef.current._last.x, sigRef.current._last.y); ctx.lineTo(x,y); ctx.stroke(); sigRef.current._last={x,y}}}
-                    onMouseUp={()=>{sigRef.current._draw=false}}
-                    onMouseLeave={()=>{sigRef.current._draw=false}}
-                    onTouchStart={(e)=>{sigRef.current._draw=true; const r=e.target.getBoundingClientRect(); const t=e.touches[0]; sigRef.current._last={x:t.clientX-r.left,y:t.clientY-r.top}}}
-                    onTouchMove={(e)=>{if(!sigRef.current._draw)return; const r=e.target.getBoundingClientRect(); const t=e.touches[0]; const x=t.clientX-r.left; const y=t.clientY-r.top; const ctx=sigRef.current.getContext('2d'); ctx.strokeStyle='#000'; ctx.lineWidth=2; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(sigRef.current._last.x, sigRef.current._last.y); ctx.lineTo(x,y); ctx.stroke(); sigRef.current._last={x,y}}}
-                    onTouchEnd={()=>{sigRef.current._draw=false}}
-                  />
-                  <button type="button" className="px-3 py-1 border rounded text-emerald-800" onClick={()=>{const ctx=sigRef.current.getContext('2d'); ctx.clearRect(0,0,sigRef.current.width,sigRef.current.height)}}>Clear</button>
-                </div>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg"
+                  className="border border-gray-300 rounded-xl p-2.5 w-full focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                  onChange={e=>setSignatureFile(e.target.files?.[0] || null)}
+                  required
+                />
               </div>
               <div className="flex justify-end">
                 <button className="px-3 py-2 bg-emerald-600 text-white rounded-xl" type="submit" disabled={saving}>Create Account</button>

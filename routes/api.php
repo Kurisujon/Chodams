@@ -1,8 +1,8 @@
 <?php
-
-use App\Http\Controllers\SurveyController;
+//
 use App\Http\Controllers\ValidatorController;
 use App\Http\Controllers\ValidatorPasswordController;
+use App\Http\Controllers\ValidatorDashboardController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -17,8 +17,8 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::post('/submit-survey', [SurveyController::class, 'store']);
-Route::post('/update-survey', [SurveyController::class, 'update']);
+Route::post('/submit-survey', [ValidatorDashboardController::class, 'mobileSubmitSurvey']);
+Route::post('/update-survey', [ValidatorDashboardController::class, 'mobileSubmitSurvey']);
 Route::post('/validate-validator', [ValidatorController::class, 'validateValidator']);
 Route::get('/sync-validators', [ValidatorController::class, 'syncValidators']);
 Route::post('/validator/forgot-password', [ValidatorPasswordController::class, 'sendResetLink']);

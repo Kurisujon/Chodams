@@ -6,6 +6,7 @@ use App\Models\Validator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class ValidatorController extends Controller
 {
@@ -26,7 +27,7 @@ class ValidatorController extends Controller
             $username = $request->input('username');
             $password = $request->input('password');
 
-            $validator = Validator::where('username', $username)->first();
+            $validator = Validator::whereRaw('LOWER(username) = ?', [strtolower($username)])->first();
 
             if (!$validator) {
                 return response()->json([
@@ -45,14 +46,15 @@ class ValidatorController extends Controller
             // If the user encounters "password incorrect" but they are sure it's right, 
             // we might need to adjust this.
             if (!Hash::check($password, $validator->password)) {
-                 // Fallback for plain text passwords (DANGEROUS but common in legacy migrations)
-                 if ($validator->password !== $password) {
+                $plainMatch = ($validator->password === $password);
+                $md5Match = (md5($password) === $validator->password);
+                if (!$plainMatch && !$md5Match) {
                     return response()->json([
                         'success' => false,
                         'message' => 'Incorrect password',
                         'debug' => ['username_found' => true]
                     ], 200);
-                 }
+                }
             }
 
             if ($validator->status !== 'approved') {
@@ -67,16 +69,13 @@ class ValidatorController extends Controller
             // Flutter ValidatorModel expects: id, name, username, status
             // Our DB has: validator_id, name, username, status
             
-            $sig = is_string($validator->signature_data ?? null) ? trim($validator->signature_data) : null;
-            if ($sig !== null && $sig !== '' && str_starts_with($sig, 'signatures/')) {
-                $sig = 'storage/'.$sig;
-            }
+            Log::info('Validator validated', ['username' => $username]);
             $validatorData = [
                 'id' => $validator->validator_id,
                 'name' => $validator->name,
+                'email' => $validator->email,
                 'username' => $validator->username,
                 'status' => $validator->status,
-                'signature_data' => $sig,
             ];
 
             return response()->json([
@@ -104,16 +103,12 @@ class ValidatorController extends Controller
             $validators = Validator::where('status','approved')->get();
 
             $validatorsData = $validators->map(function ($validator) {
-                $sig = is_string($validator->signature_data ?? null) ? trim($validator->signature_data) : null;
-                if ($sig !== null && $sig !== '' && str_starts_with($sig, 'signatures/')) {
-                    $sig = 'storage/'.$sig;
-                }
                 return [
                     'id' => $validator->validator_id,
                     'name' => $validator->name,
+                    'email' => $validator->email,
                     'username' => $validator->username,
                     'status' => $validator->status,
-                    'signature_data' => $sig,
                 ];
             });
 
