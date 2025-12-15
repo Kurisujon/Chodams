@@ -14,6 +14,14 @@ export default function SurveyDetails() {
   const [error, setError] = useState('')
   const [showHouseInfo, setShowHouseInfo] = useState(false)
   const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+  const fileUrl = (path) => {
+    const s = String(path || '')
+    if (!s) return ''
+    if (s.startsWith('http')) return s
+    if (s.startsWith('storage/')) return `/${s}`
+    if (s.startsWith('signatures/')) return `/storage/${s}`
+    return s.startsWith('/') ? s : `/${s}`
+  }
 
   async function handleApprove() {
     try {
@@ -43,7 +51,7 @@ export default function SurveyDetails() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <div className="max-w-6xl mx-auto p-6">
+      <div className="max-w-6xl mx-auto p-6 print:max-w-none print:p-0 print:m-0">
         <div className="flex justify-between items-center mb-4 print:hidden">
           <h1 className="text-2xl font-semibold text-emerald-800">Survey Form Details</h1>
           <div className="flex gap-2">
@@ -61,12 +69,33 @@ export default function SurveyDetails() {
             )}
           </div>
         </div>
+        <style>{`
+          @page { size: 8.5in 13in; margin: 0in; }
+          @media print {
+            html, body { margin: 0; padding: 0; }
+            #print-root { padding: 0 !important; margin: 0 !important; width: 100% !important; }
+            #print-root table { width: 100% !important; page-break-inside: auto; }
+            #print-root table td, #print-root table th { padding: 2px 4px !important; font-size: 10px; }
+            #print-root .leading-relaxed { line-height: 1.2 !important; }
+            #print-root .text-xs { font-size: 10px !important; }
+            #print-root .text-sm { font-size: 11px !important; }
+            #print-root .mt-6 { margin-top: 6px !important; }
+            #print-root .mt-5 { margin-top: 6px !important; }
+            #print-root .p-6 { padding: 10px !important; }
+            #print-root .p-3 { padding: 6px !important; }
+            #print-root .px-3 { padding-left: 6px !important; padding-right: 6px !important; }
+            #print-root .py-2 { padding-top: 4px !important; padding-bottom: 4px !important; }
+            #print-root .chrrsdp-title { margin-top: 6px !important; }
+            #print-root .members-header-wrapper { margin-top: 6px !important; }
+            #print-root .members-header { margin-top: 0 !important; }
+          }
+        `}</style>
 
-        <div className="bg-white border border-gray-900 p-6 print:shadow-none" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+        <div id="print-root" className="bg-white p-6 print:shadow-none" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
           <div className="border-2 border-black">
             <div className="grid grid-cols-3">
               <div className="col-span-1 p-3 border-r-2 border-black bg-slate-50">
-                <div className="text-sm font-semibold">CHRRSDP FORM 2</div>
+                <div className="text-sm font-semibold chrrsdp-title">CHRRSDP FORM 2</div>
                 <div className="text-xs mt-1">Date</div>
                 <div className="text-sm font-medium">{survey.date_interviewed || ''}</div>
                 <div className="text-xs mt-2">Form No.</div>
@@ -97,7 +126,7 @@ export default function SurveyDetails() {
             </div>
           </div>
 
-          <div className="mt-5" style={{ pageBreakAfter: 'always' }}>
+          <div className="mt-1 mb-1">
             <table className="w-full border border-black text-sm border-collapse">
               <tbody>
                 <tr>
@@ -209,6 +238,10 @@ export default function SurveyDetails() {
                   <td className="border border-gray-300 px-3 py-2">{survey.tribe || '-'}</td>
                 </tr>
                 <tr className="bg-gray-100 text-gray-900 font-semibold">
+                  <td className="border border-gray-300 px-3 py-2">Affiliation</td>
+                  <td className="border border-gray-300 px-3 py-2" colSpan={3}>{survey.affiliation || survey.affiliations || '-'}</td>
+                </tr>
+                <tr className="bg-gray-100 text-gray-900 font-semibold">
                   <td className="border border-gray-300 px-3 py-2" colSpan={2}>Highest Educational Attainment</td>
                   <td className="border border-gray-300 px-3 py-2">Name of the School Last Attended</td>
                   <td className="border border-gray-300 px-3 py-2">Year Graduated</td>
@@ -240,6 +273,40 @@ export default function SurveyDetails() {
                 </tr>
               </tbody>
             </table>
+
+            <div style={{ pageBreakBefore: 'always' }} className="members-header-wrapper">
+              <div className="bg-blue-200 text-gray-900 font-semibold px-3 py-2 border border-black members-header">MEMBERS OF THE HOUSEHOLD</div>
+              <table className="w-full border border-black text-sm border-collapse">
+                <thead>
+                  <tr className="bg-gray-100 text-gray-900 font-semibold">
+                    <th className="border border-gray-300 px-3 py-2 text-left">Name</th>
+                    <th className="border border-gray-300 px-3 py-2 text-left">Age</th>
+                    <th className="border border-gray-300 px-3 py-2 text-left">Sex</th>
+                    <th className="border border-gray-300 px-3 py-2 text-left">Relationship</th>
+                    <th className="border border-gray-300 px-3 py-2 text-left">Civil Status</th>
+                    <th className="border border-gray-300 px-3 py-2 text-left">Education</th>
+                    <th className="border border-gray-300 px-3 py-2 text-left">Occupation</th>
+                    <th className="border border-gray-300 px-3 py-2 text-left">Monthly Income</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {members.length ? members.map((m, i) => (
+                    <tr key={i} className="even:bg-gray-50">
+                      <td className="border border-gray-300 px-3 py-2">{m.name}</td>
+                      <td className="border border-gray-300 px-3 py-2">{m.age}</td>
+                      <td className="border border-gray-300 px-3 py-2">{m.sex}</td>
+                      <td className="border border-gray-300 px-3 py-2">{m.relationship}</td>
+                      <td className="border border-gray-300 px-3 py-2">{m.civilStatus || m.civil_status}</td>
+                      <td className="border border-gray-300 px-3 py-2">{m.educationalAttainment || m.educational_attainment}</td>
+                      <td className="border border-gray-300 px-3 py-2">{m.occupation}</td>
+                      <td className="border border-gray-300 px-3 py-2">{m.monthlyIncome || m.monthly_income}</td>
+                    </tr>
+                  )) : (
+                    <tr><td className="border border-gray-300 px-3 py-2" colSpan={8}>No household members found.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
 
             <div className="mt-6 bg-blue-100 text-gray-900 font-semibold px-3 py-2 border border-black">HOUSEHOLD INFORMATION</div>
             <table className="w-full border border-black text-sm border-collapse">
@@ -316,39 +383,7 @@ export default function SurveyDetails() {
             </table>
           </div>
 
-          <div>
-            <div className="bg-blue-200 text-gray-900 font-semibold px-3 py-2 border border-black">MEMBERS OF THE HOUSEHOLD</div>
-            <table className="w-full border border-black text-sm border-collapse">
-              <thead>
-                <tr className="bg-gray-100 text-gray-900 font-semibold">
-                  <th className="border border-gray-300 px-3 py-2 text-left">Name</th>
-                  <th className="border border-gray-300 px-3 py-2 text-left">Age</th>
-                  <th className="border border-gray-300 px-3 py-2 text-left">Sex</th>
-                  <th className="border border-gray-300 px-3 py-2 text-left">Relationship</th>
-                  <th className="border border-gray-300 px-3 py-2 text-left">Civil Status</th>
-                  <th className="border border-gray-300 px-3 py-2 text-left">Education</th>
-                  <th className="border border-gray-300 px-3 py-2 text-left">Occupation</th>
-                  <th className="border border-gray-300 px-3 py-2 text-left">Monthly Income</th>
-                </tr>
-              </thead>
-              <tbody>
-                {members.length ? members.map((m, i) => (
-                  <tr key={i} className="even:bg-gray-50">
-                    <td className="border border-gray-300 px-3 py-2">{m.name}</td>
-                    <td className="border border-gray-300 px-3 py-2">{m.age}</td>
-                    <td className="border border-gray-300 px-3 py-2">{m.sex}</td>
-                    <td className="border border-gray-300 px-3 py-2">{m.relationship}</td>
-                    <td className="border border-gray-300 px-3 py-2">{m.civilStatus || m.civil_status}</td>
-                    <td className="border border-gray-300 px-3 py-2">{m.educationalAttainment || m.educational_attainment}</td>
-                    <td className="border border-gray-300 px-3 py-2">{m.occupation}</td>
-                    <td className="border border-gray-300 px-3 py-2">{m.monthlyIncome || m.monthly_income}</td>
-                  </tr>
-                )) : (
-                  <tr><td className="border border-gray-300 px-3 py-2" colSpan={8}>No household members found.</td></tr>
-                )}
-              </tbody>
-            </table>
-
+          <div className="mt-6">
             <div className="mt-6 bg-blue-100 text-gray-900 font-semibold px-3 py-2 border border-black">REMARKS</div>
             <table className="w-full border border-black text-sm border-collapse">
               <tbody>
@@ -370,6 +405,24 @@ export default function SurveyDetails() {
                 </tr>
               </tbody>
             </table>
+            <div className="mt-4 grid grid-cols-2 gap-4">
+              <div className="border border-black p-3 flex flex-col items-center">
+                <div className="text-xs font-semibold mb-2">Validator's Signature</div>
+                {survey.validator_signature ? (
+                  <img className="signature h-24 object-contain" src={fileUrl(survey.validator_signature)} alt="Validator Signature" />
+                ) : (
+                  <div className="h-24 w-full"></div>
+                )}
+              </div>
+              <div className="border border-black p-3 flex flex-col items-center">
+                <div className="text-xs font-semibold mb-2">Respondent's Signature</div>
+                {survey.respondent_signature ? (
+                  <img className="signature h-24 object-contain" src={fileUrl(survey.respondent_signature)} alt="Respondent Signature" />
+                ) : (
+                  <div className="h-24 w-full"></div>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="mt-6 print:hidden">

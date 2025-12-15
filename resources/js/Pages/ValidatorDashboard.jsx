@@ -14,7 +14,6 @@ export default function ValidatorDashboard() {
   const [search, setSearch] = useState('')
   const [showBarangayList, setShowBarangayList] = useState(false)
   const [barangayFilter, setBarangayFilter] = useState('')
-  const [exportBarangay, setExportBarangay] = useState('')
   const [exportScope, setExportScope] = useState('submitted')
   const [exportClass, setExportClass] = useState('')
   const barangays = [
@@ -86,7 +85,7 @@ export default function ValidatorDashboard() {
 
   async function handleExportBarangay() {
     try {
-      const b = (exportBarangay || '').trim()
+      const b = (barangayFilter || '').trim()
       if (!b) return
       const params = { barangay: b, scope: exportScope || 'submitted' }
       if (exportClass) params.classification = exportClass
@@ -198,11 +197,10 @@ export default function ValidatorDashboard() {
 
             <button type="button" onClick={() => setShowBarangayList(v => !v)} className="text-left bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-md transition min-h-[160px] w-full">
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-50 text-emerald-600">
-                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 6v12"/><path d="M6 12h12"/></svg>
+                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11l4-4 4 4 4-4 4 4"/><path d="M5 19h14"/></svg>
               </div>
-              <div className="mt-4 text-3xl font-semibold text-gray-900">{pending}</div>
-              <div className="mt-1 text-sm text-gray-600">Pending to Submit</div>
-              <div className="mt-1 text-xs text-gray-500">Tap to browse by barangay</div>
+              <div className="mt-4 text-lg font-semibold text-gray-900">Browse by Barangay</div>
+              <div className="mt-1 text-xs text-gray-500">Tap to filter and export</div>
             </button>
           </div>
         </section>
@@ -210,26 +208,18 @@ export default function ValidatorDashboard() {
         <section className={`${!showBarangayList && 'hidden'} mt-6`}>
           <div className="bg-white rounded-2xl border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-emerald-800 mb-3">Browse by Barangay</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {barangays.map(b => (
-                <button key={b} type="button" onClick={() => { setBarangayFilter(b); setShowTable('survey') }} className={`px-3 py-2 rounded-xl ring-1 ring-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 text-left ${barangayFilter===b ? 'bg-emerald-50 text-emerald-800' : ''}`}>
-                  <span className="text-xs font-medium">{b.replace(/_/g,' ')}</span>
-                </button>
-              ))}
-            </div>
-            {barangayFilter && (
-              <div className="mt-3 flex items-center gap-2">
-                <span className="text-xs text-gray-600">Showing: <span className="font-medium text-emerald-700">{barangayFilter.replace(/_/g,' ')}</span></span>
-                <button type="button" onClick={() => setBarangayFilter('')} className="text-xs px-2 py-1 rounded-xl bg-gray-100 hover:bg-gray-200">Clear</button>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2">
+                <select className="border border-gray-300 rounded-xl p-2.5" value={barangayFilter} onChange={e=>{ setBarangayFilter(e.target.value); setShowTable('survey') }}>
+                  <option value="">Select barangay</option>
+                  {barangays.map(b => (
+                    <option key={b} value={b}>{b.replace(/_/g,' ')}</option>
+                  ))}
+                </select>
+                {barangayFilter && (
+                  <button type="button" onClick={() => setBarangayFilter('')} className="text-xs px-2 py-1 rounded-xl bg-gray-100 hover:bg-gray-200">Clear</button>
+                )}
               </div>
-            )}
-            <div className="mt-4 flex items-center gap-2">
-              <select className="border border-gray-300 rounded-xl p-2.5" value={exportBarangay} onChange={e=>setExportBarangay(e.target.value)}>
-                <option value="">Select barangay</option>
-                {barangays.map(b => (
-                  <option key={b} value={b}>{b.replace(/_/g,' ')}</option>
-                ))}
-              </select>
               <select className="border border-gray-300 rounded-xl p-2.5" value={exportScope} onChange={e=>setExportScope(e.target.value)}>
                 <option value="submitted">Submitted (validated + approved)</option>
                 <option value="survey">Surveyed (not yet submitted)</option>
@@ -242,7 +232,7 @@ export default function ValidatorDashboard() {
                 <option value="Homeless">Homeless</option>
                 <option value="Upgrading of Land Tenure">Upgrading of Land Tenure</option>
               </select>
-              <button type="button" onClick={handleExportBarangay} className="px-3 py-2 bg-emerald-600 text-white rounded-xl">Download CSV</button>
+              <button type="button" onClick={handleExportBarangay} disabled={!barangayFilter} className="px-3 py-2 bg-emerald-600 text-white rounded-xl disabled:opacity-50">Download CSV</button>
             </div>
           </div>
         </section>

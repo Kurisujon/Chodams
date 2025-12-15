@@ -8,13 +8,14 @@ const perPageDefault = 10
 export default function AdminBeneficiaries() {
   const [validated, setValidated] = useState({ data: [], total: 0, page: 1, per_page: perPageDefault })
   const [affiliated, setAffiliated] = useState({ data: [], total: 0, page: 1, per_page: perPageDefault })
-  const [searchValidated, setSearchValidated] = useState('')
-  const [searchAffiliated, setSearchAffiliated] = useState('')
+  const [mayor, setMayor] = useState({ data: [], total: 0, page: 1, per_page: perPageDefault })
+  const [activeTab, setActiveTab] = useState('non')
+  const [search, setSearch] = useState('')
+  const [classFilter, setClassFilter] = useState('')
   const [affType, setAffType] = useState('')
-  const [classAff, setClassAff] = useState('')
-  const [classVal, setClassVal] = useState('')
   const [error, setError] = useState('')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
   const [exportBarangay, setExportBarangay] = useState('')
   const [exportStatus, setExportStatus] = useState('submitted')
   const [exportClass, setExportClass] = useState('')
@@ -35,6 +36,7 @@ export default function AdminBeneficiaries() {
   useEffect(() => {
     fetchValidated(1, '', '', '')
     fetchAffiliated(1, '', '', '')
+    fetchMayorEndorsed(1, '', '')
   }, [])
 
   async function fetchValidated(page = 1, search = '', affiliation = '', classification = '') {
@@ -51,12 +53,23 @@ export default function AdminBeneficiaries() {
 
   async function fetchAffiliated(page = 1, search = '', affiliation = '', classification = '') {
     try {
-      const res = await axios.get('/admin/api/beneficiaries/affiliated', { params: { page, per_page: affiliated.per_page, search, affiliation, classification, status: 'submitted' } })
+      const res = await axios.get('/admin/api/beneficiaries/affiliated', { params: { page, per_page: affiliated.per_page, search, affiliation, classification, status: 'validated' } })
       setAffiliated({ ...affiliated, ...res.data, page })
       setError('')
     } catch (err) {
       console.error('Affiliated fetch failed', err)
       setError(err?.response?.data?.message || err.message || 'Failed to load affiliated list')
+    }
+  }
+
+  async function fetchMayorEndorsed(page = 1, search = '', classification = '') {
+    try {
+      const res = await axios.get('/admin/api/beneficiaries/mayor-endorsed', { params: { page, per_page: mayor.per_page, search, classification } })
+      setMayor({ ...mayor, ...res.data, page })
+      setError('')
+    } catch (err) {
+      console.error('Mayor-endorsed fetch failed', err)
+      setError(err?.response?.data?.message || err.message || 'Failed to load mayor-endorsed list')
     }
   }
 
@@ -84,6 +97,39 @@ export default function AdminBeneficiaries() {
     } catch (err) {
       console.error('Export failed', err)
       setError(err?.response?.data?.message || err.message || 'Failed to export CSV')
+    }
+  }
+
+  async function handleExportAffiliated() {
+    try {
+      const params = { status: 'validated' }
+      if (search) params.search = search
+      if (affType) params.affiliation = affType
+      if (classFilter) params.classification = classFilter
+      const res = await axios.get('/admin/api/beneficiaries/affiliated/export', { params, responseType: 'blob' })
+      const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'affiliated_beneficiaries.csv'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+      setError('')
+    } catch (err) {
+      console.error('Export affiliated failed', err)
+      setError(err?.response?.data?.message || err.message || 'Failed to export affiliated CSV')
+    }
+  }
+
+  function applyFilters(page = 1) {
+    if (activeTab === 'non') {
+      fetchValidated(page, search, '', classFilter)
+    } else if (activeTab === 'aff') {
+      fetchAffiliated(page, search, affType, classFilter)
+    } else {
+      fetchMayorEndorsed(page, search, classFilter)
     }
   }
 
@@ -192,104 +238,66 @@ export default function AdminBeneficiaries() {
         </header>
 
         <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-6">
-          <div className="mb-4 flex items-center gap-2">
-            <select className="border border-gray-300 rounded-xl p-2.5" value={exportBarangay} onChange={e=>setExportBarangay(e.target.value)}>
-              <option value="">Select barangay</option>
-              {barangays.map(b => (
-                <option key={b} value={b}>{b.replace(/_/g,' ')}</option>
-              ))}
-            </select>
-            <select className="border border-gray-300 rounded-xl p-2.5" value={exportStatus} onChange={e=>setExportStatus(e.target.value)}>
-              <option value="submitted">Submitted (validated + approved)</option>
-              <option value="validated">Validated</option>
-              <option value="approved">Approved</option>
-            </select>
-            <select className="border border-gray-300 rounded-xl p-2.5" value={exportClass} onChange={e=>setExportClass(e.target.value)}>
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="inline-flex rounded-xl bg-gray-100 p-1">
+              <button type="button" onClick={() => setActiveTab('non')} className={`px-4 py-2 rounded-lg text-sm ${activeTab === 'non' ? 'bg-white shadow text-emerald-700' : 'text-gray-600 hover:text-emerald-700'}`}>Non-affiliated</button>
+              <button type="button" onClick={() => setActiveTab('aff')} className={`px-4 py-2 rounded-lg text-sm ${activeTab === 'aff' ? 'bg-white shadow text-emerald-700' : 'text-gray-600 hover:text-emerald-700'}`}>Affiliated</button>
+              <button type="button" onClick={() => setActiveTab('mayor')} className={`px-4 py-2 rounded-lg text-sm ${activeTab === 'mayor' ? 'bg-white shadow text-emerald-700' : 'text-gray-600 hover:text-emerald-700'}`}>Mayor-endorsed</button>
+            </div>
+            <div className="flex items-center gap-2">
+              {activeTab === 'aff' && <button type="button" onClick={handleExportAffiliated} className="px-3 py-2 bg-emerald-600 text-white rounded-xl">Download CSV</button>}
+              <button type="button" onClick={() => setExportOpen(v => !v)} className="px-3 py-2 border rounded-xl text-emerald-800">Export</button>
+            </div>
+          </div>
+          <form className="flex flex-wrap items-center gap-2 mb-4" onSubmit={e => { e.preventDefault(); applyFilters(1) }}>
+            <input className="border border-gray-300 rounded-xl p-2.5 w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Search" value={search} onChange={e=>setSearch(e.target.value)}/>
+            <select className="border border-gray-300 rounded-xl p-2.5" value={classFilter} onChange={e=>setClassFilter(e.target.value)}>
               <option value="">Classification: All</option>
               <option value="Displaced">Displaced</option>
               <option value="Double-up">Double-up</option>
               <option value="Homeless">Homeless</option>
               <option value="Upgrading of Land Tenure">Upgrading of Land Tenure</option>
             </select>
-            <button type="button" onClick={handleExportBarangay} className="px-3 py-2 bg-emerald-600 text-white rounded-xl">Download CSV</button>
-          </div>
-          <form className="flex items-center gap-2 mb-4" onSubmit={e => { e.preventDefault(); fetchValidated(1, searchValidated, '', classVal) }}>
-            <input className="border border-gray-300 rounded-xl p-2.5 w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Search" value={searchValidated} onChange={e=>setSearchValidated(e.target.value)}/>
-            <select className="border border-gray-300 rounded-xl p-2.5" value={classVal} onChange={e=>setClassVal(e.target.value)}>
-              <option value="">Classification: All</option>
-              <option value="Displaced">Displaced</option>
-              <option value="Double-up">Double-up</option>
-              <option value="Homeless">Homeless</option>
-              <option value="Upgrading of Land Tenure">Upgrading of Land Tenure</option>
-            </select>
-            <button className="px-3 py-2 bg-emerald-600 text-white rounded-xl" type="submit">Search</button>
-          </form>
-          <h3 className="text-lg font-semibold text-emerald-800 mb-3">Validated Beneficiaries (Non-affiliated)</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead className="bg-emerald-50 text-emerald-800">
-                <tr>
-                  <th className="p-3 text-left">Date</th>
-                  <th className="p-3 text-left">Barangay</th>
-                  <th className="p-3 text-left">Surname</th>
-                  <th className="p-3 text-left">Classification</th>
-                  <th className="p-3 text-left">Sub-Class Displaced</th>
-                  <th className="p-3 text-left">Sub-Class Double Up</th>
-                  <th className="p-3 text-left">Sub-Class Homeless</th>
-                  <th className="p-3 text-left">Points</th>
-                  <th className="p-3 text-left">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {validated.data.map(b => (
-                  <tr key={b.survey_id} className="even:bg-gray-50">
-                    <td className="p-3">{b.date_interviewed}</td>
-                    <td className="p-3">{b.barangay}</td>
-                    <td className="p-3">{b.last_name}</td>
-                    <td className="p-3">{b.classification}</td>
-                    <td className="p-3">{b.subclass_displaced}</td>
-                    <td className="p-3">{b.subclass_doubleup}</td>
-                    <td className="p-3">{b.subclass_homeless}</td>
-                    <td className="p-3 font-semibold text-emerald-800 bg-emerald-50">{b.points}</td>
-                    <td className="p-3"><Link className="px-3 py-1 border rounded text-sm text-emerald-800 hover:bg-emerald-50" href={`/admin/beneficiaries/${b.survey_id}`}>View Details</Link></td>
-                  </tr>
-                ))}
-                {!validated.data.length && <tr><td className="p-3" colSpan="9">No results found.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-4 flex justify-center gap-2">
-            {pages(validated.total, validated.per_page).map(i => (
-              <button key={i} onClick={() => fetchValidated(i, searchValidated)} className={`px-3 py-1 rounded border ${validated.page === i ? 'bg-emerald-600 text-white' : 'text-emerald-700 hover:bg-gray-100'}`}>{i}</button>
-            ))}
-          </div>
-        </section>
-
-
-        <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-6">
-          <form className="flex items-center gap-2 mb-4" onSubmit={e => { e.preventDefault(); fetchAffiliated(1, searchAffiliated, affType, classAff) }}>
-            <input className="border border-gray-300 rounded-xl p-2.5 w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Search Affiliated" value={searchAffiliated} onChange={e=>setSearchAffiliated(e.target.value)}/>
-            <select className="border border-gray-300 rounded-xl p-2.5" value={affType} onChange={e=>setAffType(e.target.value)}>
-              <option value="">All</option>
-              <option value="SSS">SSS</option>
-              <option value="GSIS">GSIS</option>
-              <option value="PhilHealth">PhilHealth</option>
-              <option value="PagIbig">PagIbig</option>
-              <option value="PWD">PWD</option>
-              <option value="Senior_Citizen">Senior Citizen</option>
-              <option value="Solo_Parent">Solo Parent</option>
-              <option value="4Ps">4Ps</option>
-            </select>
-            <select className="border border-gray-300 rounded-xl p-2.5" value={classAff} onChange={e=>setClassAff(e.target.value)}>
-              <option value="">Classification: All</option>
-              <option value="Displaced">Displaced</option>
-              <option value="Double-up">Double-up</option>
-              <option value="Homeless">Homeless</option>
-              <option value="Upgrading of Land Tenure">Upgrading of Land Tenure</option>
-            </select>
+            {activeTab === 'aff' && (
+              <select className="border border-gray-300 rounded-xl p-2.5" value={affType} onChange={e=>setAffType(e.target.value)}>
+                <option value="">Affiliation: All</option>
+                <option value="SSS">SSS</option>
+                <option value="GSIS">GSIS</option>
+                <option value="PhilHealth">PhilHealth</option>
+                <option value="PagIbig">PagIbig</option>
+                <option value="PWD">PWD</option>
+                <option value="Senior_Citizen">Senior Citizen</option>
+                <option value="Solo_Parent">Solo Parent</option>
+                <option value="4Ps">4Ps</option>
+              </select>
+            )}
             <button className="px-3 py-2 bg-emerald-600 text-white rounded-xl" type="submit">Filter</button>
+            <button type="button" className="px-3 py-2 border rounded-xl text-emerald-800" onClick={() => { setSearch(''); setClassFilter(''); setAffType(''); applyFilters(1) }}>Reset</button>
           </form>
-          <h3 className="text-lg font-semibold text-emerald-800 mb-3">Affiliated Beneficiaries</h3>
+          {exportOpen && (
+            <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-2">
+              <select className="border border-gray-300 rounded-xl p-2.5" value={exportBarangay} onChange={e=>setExportBarangay(e.target.value)}>
+                <option value="">Select barangay</option>
+                {barangays.map(b => (
+                  <option key={b} value={b}>{b.replace(/_/g,' ')}</option>
+                ))}
+              </select>
+              <select className="border border-gray-300 rounded-xl p-2.5" value={exportStatus} onChange={e=>setExportStatus(e.target.value)}>
+                <option value="submitted">Submitted (validated + approved)</option>
+                <option value="validated">Validated</option>
+                <option value="approved">Approved</option>
+              </select>
+              <select className="border border-gray-300 rounded-xl p-2.5" value={exportClass} onChange={e=>setExportClass(e.target.value)}>
+                <option value="">Classification: All</option>
+                <option value="Displaced">Displaced</option>
+                <option value="Double-up">Double-up</option>
+                <option value="Homeless">Homeless</option>
+                <option value="Upgrading of Land Tenure">Upgrading of Land Tenure</option>
+              </select>
+              <button type="button" onClick={handleExportBarangay} className="px-3 py-2 bg-emerald-600 text-white rounded-xl">Download CSV</button>
+            </div>
+          )}
+          <h3 className="text-lg font-semibold text-emerald-800 mb-3">{activeTab === 'non' ? 'Validated Beneficiaries (Non-affiliated)' : activeTab === 'aff' ? 'Affiliated Beneficiaries' : 'Mayor-Endorsed Beneficiaries'}</h3>
           <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead className="bg-emerald-50 text-emerald-800">
@@ -297,7 +305,7 @@ export default function AdminBeneficiaries() {
                   <th className="p-3 text-left">Date</th>
                   <th className="p-3 text-left">Barangay</th>
                   <th className="p-3 text-left">Surname</th>
-                  <th className="p-3 text-left">Affiliation</th>
+                  {activeTab === 'aff' && <th className="p-3 text-left">Affiliation</th>}
                   <th className="p-3 text-left">Classification</th>
                   <th className="p-3 text-left">Sub-Class Displaced</th>
                   <th className="p-3 text-left">Sub-Class Double Up</th>
@@ -307,27 +315,38 @@ export default function AdminBeneficiaries() {
                 </tr>
               </thead>
               <tbody>
-                {affiliated.data.map(b => (
+                {(activeTab === 'non' ? validated.data : activeTab === 'aff' ? affiliated.data : mayor.data).map(b => (
                   <tr key={b.survey_id} className="even:bg-gray-50">
                     <td className="p-3">{b.date_interviewed}</td>
                     <td className="p-3">{b.barangay}</td>
                     <td className="p-3">{b.last_name}</td>
-                    <td className="p-3">{b.affiliation}</td>
+                    {activeTab === 'aff' && <td className="p-3">{b.affiliation}</td>}
                     <td className="p-3">{b.classification}</td>
                     <td className="p-3">{b.subclass_displaced}</td>
                     <td className="p-3">{b.subclass_doubleup}</td>
                     <td className="p-3">{b.subclass_homeless}</td>
-                    <td className="p-3 font-semibold text-emerald-800 bg-emerald-50">{b.points}</td>
+                    <td className="p-3 font-semibold text-emerald-800 bg-emerald-50">{b.points}%</td>
                     <td className="p-3"><Link className="px-3 py-1 border rounded text-sm text-emerald-800 hover:bg-emerald-50" href={`/admin/beneficiaries/${b.survey_id}`}>View Details</Link></td>
                   </tr>
                 ))}
-                {!affiliated.data.length && <tr><td className="p-3" colSpan="10">No affiliated beneficiaries found.</td></tr>}
+                {!((activeTab === 'non' ? validated.data.length : activeTab === 'aff' ? affiliated.data.length : mayor.data.length)) && (
+                  <tr><td className="p-3" colSpan={activeTab === 'aff' ? 10 : 9}>No results found.</td></tr>
+                )}
               </tbody>
             </table>
           </div>
           <div className="mt-4 flex justify-center gap-2">
-            {pages(affiliated.total, affiliated.per_page).map(i => (
-              <button key={i} onClick={() => fetchAffiliated(i, searchAffiliated, affType)} className={`px-3 py-1 rounded border ${affiliated.page === i ? 'bg-emerald-600 text-white' : 'text-emerald-700 hover:bg-gray-100'}`}>{i}</button>
+            {pages(
+              activeTab === 'non' ? validated.total : activeTab === 'aff' ? affiliated.total : mayor.total,
+              activeTab === 'non' ? validated.per_page : activeTab === 'aff' ? affiliated.per_page : mayor.per_page
+            ).map(i => (
+              <button
+                key={i}
+                onClick={() => applyFilters(i)}
+                className={`px-3 py-1 rounded border ${(
+                  activeTab === 'non' ? validated.page : activeTab === 'aff' ? affiliated.page : mayor.page
+                ) === i ? 'bg-emerald-600 text-white' : 'text-emerald-700 hover:bg-gray-100'}`}
+              >{i}</button>
             ))}
           </div>
         </section>

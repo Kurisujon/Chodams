@@ -406,8 +406,8 @@ export default function AdminProjectSites() {
         {showMap && selected && boundaryOpen && (
           <div className="fixed inset-0 z-50">
             <div className="absolute inset-0 bg-black/40" onClick={() => setBoundaryOpen(false)}></div>
-            <div className="absolute inset-16 bg-white rounded-2xl border shadow-xl p-4 w-[800px] max-w-[95vw]">
-              <div className="text-lg font-semibold text-emerald-800 mb-2">Paste KML or GeoJSON Polygon</div>
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl border shadow-xl p-4 w-[800px] max-w-[95vw]">
+              <div className="text-lg font-semibold text-emerald-800 mb-2 text-center">Paste KML or GeoJSON Polygon</div>
               <textarea className="w-full h-64 border rounded p-2 font-mono text-xs" value={geojsonInput} onChange={e=>setGeojsonInput(e.target.value)} placeholder='Paste KML (<Polygon><coordinates>...</coordinates></Polygon>) or GeoJSON {"type":"Polygon","coordinates":[[[lng,lat],...]]}' />
               {parseError && <div className="mt-2 text-sm text-red-600">{parseError}</div>}
               <div className="mt-3 flex gap-2">
@@ -422,8 +422,8 @@ export default function AdminProjectSites() {
         {showMap && selected && editOpen && (
           <div className="fixed inset-0 z-50">
             <div className="absolute inset-0 bg-black/40" onClick={() => setEditOpen(false)}></div>
-            <div className="absolute inset-16 bg-white rounded-2xl border shadow-xl p-4 w-[800px] max-w-[95vw]">
-              <div className="text-lg font-semibold text-emerald-800 mb-2">Edit Project Site</div>
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl border shadow-xl p-4 w-[800px] max-w-[95vw]">
+              <div className="text-lg font-semibold text-emerald-800 mb-2 text-center">Edit Project Site</div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-gray-700">Project Name</label>

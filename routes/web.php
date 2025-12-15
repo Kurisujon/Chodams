@@ -77,6 +77,8 @@ Route::prefix('admin/api')->group(function () {
     Route::get('/beneficiaries/validated', [ValidatorDashboardController::class, 'adminBeneficiariesValidated']);
     Route::get('/beneficiaries/approved', [ValidatorDashboardController::class, 'adminBeneficiariesApproved']);
     Route::get('/beneficiaries/affiliated', [ValidatorDashboardController::class, 'adminBeneficiariesAffiliated']);
+    Route::get('/beneficiaries/affiliated/export', [ValidatorDashboardController::class, 'adminExportAffiliatedCsv']);
+    Route::get('/beneficiaries/mayor-endorsed', [ValidatorDashboardController::class, 'adminBeneficiariesMayorEndorsed']);
 
     Route::get('/profile', [ValidatorDashboardController::class, 'adminProfile']);
     Route::post('/profile', [ValidatorDashboardController::class, 'adminProfileUpdate']);
@@ -87,6 +89,7 @@ Route::prefix('admin/api')->group(function () {
 
     Route::get('/survey/{survey_id}', [ValidatorDashboardController::class, 'adminSurveyDetails']);
     Route::get('/survey/{survey_id}/export', [ValidatorDashboardController::class, 'adminExportSurveyCsv']);
+    Route::get('/export/barangay', [ValidatorDashboardController::class, 'adminExportBarangayCsv']);
     Route::get('/survey/{survey_id}/photo', [ValidatorDashboardController::class, 'adminSurveyPhoto']);
     Route::get('/survey/{survey_id}/person-photo', [ValidatorDashboardController::class, 'adminSurveyPersonPhoto']);
     Route::get('/map-points', [ValidatorDashboardController::class, 'adminMapPoints']);
@@ -145,6 +148,7 @@ Route::prefix('validator/api')->group(function () {
     Route::get('/survey/{survey_id}/person-photo', [ValidatorDashboardController::class, 'surveyPersonPhoto']);
     Route::get('/profile', [ValidatorDashboardController::class, 'profile']);
     Route::post('/profile/password', [ValidatorDashboardController::class, 'updatePassword']);
+    Route::get('/tag-number/preview', [ValidatorDashboardController::class, 'previewTagNumber']);
     Route::post('/survey', [ValidatorDashboardController::class, 'createSurvey']);
     Route::post('/submit', [ValidatorDashboardController::class, 'submitSurvey']);
 });

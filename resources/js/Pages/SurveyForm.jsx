@@ -8,11 +8,74 @@ const barangays = [
 ]
 
 const purokMap = {
-  Aplaya: ['Purok 1','Purok 2'],
-  San_Miguel: ['Purok Gemelina'],
-  Zone_1: ['Purok Silangan'],
-  Zone_2: ['Purok Silangan'],
-  Zone_3: ['Purok Silangan'],
+  Aplaya: [
+    'Purok 1','Purok 2','Purok 3','Purok 4','Purok 5','Purok 6','Purok 7','Purok 7-A','Purok 8','Purok 9','Purok 9-A','Purok 10','Purok 11','Purok 12'
+  ],
+  Balabag: [
+    'Sambag','Kaimito','Sabana','Manga','Durian','Cashew','Mangosteen','Rambutan','Buongon','Lansones'
+  ],
+  Binaton: [
+    'Duranta','Kahugpong','Mabulo','Kampana','Magkahiusa','Mabuhay','Pag-asa','Lamsones','Marangan','Panaghiusa','Palma','Durian','Mangga','Anthurium','Bajada','Balite','Nangka','Gemelina','Narra'
+  ],
+  Cogon: [
+    'Butterfly','Mangga','San Francisco','Acacia','Gemelina','Ipil-ipil','Calachuchi','Mahogany','Riverside','Kalubihan','Calumpang','Owangon','Caimito','Talisay','Malabago','Hanapbuhay','Seaweeds','Tabing Ilog','Bakhaw','Pag-asa','Molave','Cherry Blossom','Laminosa','Kalingkatan','White Sand','Bermuda A','Bermuda B'
+  ],
+  Colorado: [
+    'Vanda','Gemelina','Palmera','Anahaw','Yellow Bell','Birds of Paradise','Bougainvillea','San Francisco'
+  ],
+  Dawis: [
+    'Bangus','Tangigue','Bariles','Maya-maya','Talakitok','Barongoy','Lapu-lapu','Kitong','Bolinao'
+  ],
+  Dulangan: [
+    '1','2','3','4','5','6','7'
+  ],
+  Goma: [
+    'Alom 1','Alom 2','Copper','Duranta','Gemelina','Katmon','Kawayan 1','Kawayan 2','Lansones','Maliwanag','Mangga 1','Mangga 2','Mangga 3','Narra 1','Narra 2','Narra 3','Olayan','Pinadayag','Rambutan 1','Rambutan 2','Rambutan 3','Rambutan 4','Sandawa 1','Sandawa 2','Sandawa 3','Lawaan'
+  ],
+  Igpit: [
+    'Sto. Niño','Relocation','Roxas','Bagumbuhay','Palayan','Sto. Tomas','San Vicente'
+  ],
+  Kiagot: [],
+  Lungag: [
+    'Pag-asa','Malipayon','Mabuhay'
+  ],
+  Mahayahay: [
+    'Doña Aurora','Lomboy','Mangga','Señorita','Palmera','Mahogany','Acacia'
+  ],
+  Matti: [
+    'Purok 1','Purok 2','Purok 2A','Purok 3','Purok 3A','Purok 4','Purok 5','Purok 5A','Purok 6','Purok 6A','Purok 7','Purok 7A','Purok 7B'
+  ],
+  Kapatagan: [],
+  Ruparan: [
+    'Purok 1','Purok 1A','Purok 2','Purok 2A','Purok 3','Purok 4','Purok 4A','Purok 5','Purok 5A','Purok 5B','Purok 6','Purok 6A','Purok 6B','Purok 6C','Purok 6D','Purok 6E','Purok 7','Purok 7 Mangga Ext.'
+  ],
+  San_Agustin: [
+    '1A','1','1C Tennessee Homes','2A','2B Frankville Subd.','3','4','5','6','7'
+  ],
+  San_Miguel: [
+    'Caimito','Mizrach','Sun Flower','Azucena','Talisay','Motave','Gemelina Centro','Masnanitas','Bayabas','Rambutan','Gemelina Lim Ext.','Bayanihan','Duranta','Rolex','Calumpang','Anahaw','Camnsi','Lomboy 2','Nangka Lapu2x Ext.','Nangka-B','Coconut','Nangka-A','Pine Tree','Lomboy I','Rose','Rosal','Mangga','Ilaw Ng Buhay','Sampalok','Cactus','Waling-waling','Camantigue','Santol','Durian','Calachuchi','Sambag','Santan','San Francisco','Mabinex','Narra','Sibucao'
+  ],
+  San_Jose: [
+    'Mangga','Pomelo','Mango Drive','Nindot','Nangka','Talisay I','Talisay II','Camanchilles','Superhighway','Madasigon','Batangueño','Pabalan','Cagape','Pioneer','Acacia','Gemelina','Rose','Malinawon','Jakosalem','Mahogany','Duranta','San Francisco'
+  ],
+  San_Roque: [
+    'Dayang-dayang','Curacha','Cha-cha','Lambada','Tango','Tinikling','Cariñosa','Boogie','Zumba'
+  ],
+  Sinawilan: [],
+  Soong: [
+    'Durian','Santol','Narra','Mangga','Acacia','Mahogany','Tugas'
+  ],
+  Tiguman: [],
+  Tres_De_Mayo: [
+    'Sampaloc','Panag-hiusa','Mabuhay','San Francisco','Sto. Niño','Villa de Salvacion','Manggahan','Kamansiles','Padema','Linaw','Fortune','Sambag','Conte','Tugas','Santol','Dapsa','Centro','Pag-asa','Gemelina','Mahogany','Madasigon','Adelfa','Malantawon','Duranta','Citta di Oro','Yellow Bell','Maabi-abihon','Camansi','Don Lorenzo Subd.','Paradise Subd.','Emily Homes Phase I','Emily Homes Phase II','Perfect Homes','Central Plain Phase I','Central Plain Phase II','Estrada Subd.'
+  ],
+  Zone_1: [
+    'Rosas','Avocado','Lanzones','Chesnut','Palmera','Sampaguita','Chico','Acaciaman','Rosal','Kawayab','Narra','Panaghiusa','Matamis','Riverside','Atis','Malipayon','Masipag','Pagtoo','Malunggay','Centennial','Star Apple','Madasigon','Gemelina','Santol','Tugas','Mangga','Ravina','Mahogany','Kasaligan','Golden Duranta','Durian','Kalinaw','Silangan','Bayabas','Tambis','Talisay','Yellowbell','Sambag','Duranta','Labana','Cattleya','Manggahan','Mangga-Jumao-as','San Francisco','Laminosa','Waling-waling','Papaya','Alum','Ipil-ipil','Aratilis','Islam','Molave'
+  ],
+  Zone_2: [
+    "Assessor's","Bayanihan","San Vicente","Kahayag","Cometa","Kawayan","Panaghiusa","Pakigdait","Gemelina 2","Kalayaan","Palmera","Maya","Pag-asa","Nagkahiusa","Salam","Binangay","Kalusugan","Suerte","Laging Handa","Samahang Nayon","Kauswagan","Acacia","Duranta","Narra","Sadepa","Maharlika","Maligya","Padillo","Paraiso","Ubas","Gemelina 1","Santan","Kapamilya"
+  ],
+  Zone_3: []
 }
 
 function Signature({ canvasRef, onClear }) {
@@ -64,10 +127,12 @@ export default function SurveyForm() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [housePhoto, setHousePhoto] = useState(null)
+  const [personPhoto, setPersonPhoto] = useState(null)
   const [purokOptions, setPurokOptions] = useState([])
   const [lat, setLat] = useState('')
   const [lon, setLon] = useState('')
   const rSigRef = useRef(null)
+  const sortedBarangays = useMemo(() => [...barangays].sort((a,b)=>a.replace(/_/g,' ').localeCompare(b.replace(/_/g,' '))), [])
   
   const inputClass = 'w-full border border-gray-300 rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-300'
   const selectClass = inputClass
@@ -81,13 +146,15 @@ export default function SurveyForm() {
   ) }
 
   const [members, setMembers] = useState([{ name:'', age:'', relationship:'', civil_status:'', educational_attainment:'', occupation:'', monthly_income:'' }])
+  const [tagNum, setTagNum] = useState('')
+  const [affSelections, setAffSelections] = useState([])
 
   const [data, setData] = useState({
     previous_client:'', year_inhabited:'', classification:'', sub_class_displaced:'', sub_class_double_up:'', sub_class_homeless:'',
     interview_person:'', last_name:'', first_name:'', middle_name:'', suffix:'', barangay:'', purok:'', street:'',
     gender:'', religion:'', birth_place:'', birth_date:'', person_age:'', marital_status:'', contact_number:'', language_spoken:'', tribe:'',
     highest_education:'', last_school_attended:'', year_graduated:'', spouse_name:'', spouse_religion:'', spouse_tribe:'', spouse_age:'', spouse_gender:'',
-    affiliation:'', lot_ownership:'', house_ownership:'', avail_socialized_housing:'', temporary_living_area:'',
+    affiliation:'', affiliations:'', endorsed_by_mayor:'', lot_ownership:'', house_ownership:'', avail_socialized_housing:'', temporary_living_area:'',
     housing_structure:'', other_housing_structure:'', type_of_toilet:'', other_type_of_toilet:'', source_of_water:'', other_source_of_water:'',
     source_of_electricity:'', other_source_of_electricity:'', main_income_source:'', other_main_income_source:'', work_status:'', other_work_status:'',
     work_location_head:'', monthly_salary:'', combine_monthly_income:'', skills_for_living:'', specific_skill:'', other_skill:'',
@@ -116,9 +183,22 @@ export default function SurveyForm() {
 
   useEffect(() => {
     if (data.barangay) {
-      const base = purokMap[data.barangay] || ['Purok 1']
+      const normalizeName = (s) => {
+        const t = String(s || '').replace(/"/g,'').replace(/\s+/g,' ').trim()
+        return t.split(' ').map(part => part.split('-').map(seg => {
+          const low = seg.toLowerCase()
+          if (low === 'sto.' || low === 'st.') return 'Sto.'
+          if (low === 'niño' || low === 'nińo') return 'Niño'
+          return seg.charAt(0).toUpperCase() + seg.slice(1).toLowerCase()
+        }).join('-')).join(' ')
+      }
+      const uniqSorted = (arr) => Array.from(new Set(arr.map(normalizeName))).sort((a,b)=>a.localeCompare(b))
+      const base = uniqSorted(purokMap[data.barangay] || [])
       setPurokOptions(base)
       setData(d => ({...d, purok: ''}))
+      axios.get('/validator/api/tag-number/preview', { params: { barangay: data.barangay } })
+        .then(res => setTagNum(res.data?.tag_number || ''))
+        .catch(() => setTagNum(''))
     }
   }, [data.barangay])
 
@@ -163,6 +243,7 @@ export default function SurveyForm() {
       const fd = new FormData()
       Object.entries(data).forEach(([k,v]) => fd.append(k, v ?? ''))
       if (housePhoto) fd.append('house_photo', housePhoto)
+      if (personPhoto) fd.append('person_photo', personPhoto)
       fd.append('latitude', lat)
       fd.append('longitude', lon)
       
@@ -331,7 +412,9 @@ export default function SurveyForm() {
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Barangay</div>
-                  <select className={selectClass} value={data.barangay} onChange={e=>setData({...data, barangay:e.target.value})}><option value="">- select here -</option>{barangays.map(b=><option key={b} value={b}>{b}</option>)}</select>
+                  <select className={selectClass} value={data.barangay} onChange={e=>setData({...data, barangay:e.target.value})}><option value="">- select here -</option>{sortedBarangays.map(b=>
+                    <option key={b} value={b}>{b.replace(/_/g,' ')}</option>
+                  )}</select>
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Purok</div>
@@ -340,6 +423,10 @@ export default function SurveyForm() {
                 <div>
                   <div className="text-sm text-gray-500">Street</div>
                   <input className={inputClass} value={data.street} onChange={e=>setData({...data, street:e.target.value})}/>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500">Tag Number</div>
+                  <input className={inputClass} value={tagNum} readOnly placeholder="Generated after selecting barangay"/>
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Religion</div>
@@ -387,9 +474,29 @@ export default function SurveyForm() {
               )}
 
               <div className="mt-6">
-                <div className="text-lg font-semibold text-emerald-800">Affiliation</div>
-                <select className={selectClass} value={data.affiliation} onChange={e=>setData({...data, affiliation:e.target.value})}>
-                  <option value="">- select here -</option><option value="None">None</option><option value="N/A">N/A</option><option value="SSS">SSS</option><option value="GSIS">GSIS</option><option value="PhilHealth">PhilHealth</option><option value="PagIbig">PagIbig</option><option value="PWD">PWD</option><option value="Senior_Citizen">Senior Citizen</option><option value="Solo_Parent">Solo Parent</option><option value="4Ps">4Ps</option>
+                <div className="text-lg font-semibold text-emerald-800">Affiliations</div>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-2">
+                  {['None','SSS','GSIS','PhilHealth','PagIbig','PWD','Senior_Citizen','Solo_Parent','4Ps'].map(opt => (
+                    <label key={opt} className="inline-flex items-center gap-2">
+                      <input type="checkbox" className="rounded" checked={affSelections.includes(opt)} onChange={e => {
+                        setAffSelections(prev => {
+                          const has = prev.includes(opt)
+                          const next = has ? prev.filter(x => x !== opt) : [...prev, opt]
+                          const primary = next.find(x => x !== 'None') || (next.includes('None') ? 'None' : '')
+                          setData(d => ({ ...d, affiliations: next.join(','), affiliation: primary }))
+                          return next
+                        })
+                      }}/>
+                      <span>{opt.replace(/_/g,' ')}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-6">
+                <div className="text-lg font-semibold text-emerald-800">Endorsed by Mayor</div>
+                <select className={selectClass} value={data.endorsed_by_mayor} onChange={e=>setData({...data, endorsed_by_mayor:e.target.value})}>
+                  <option value="">- select here -</option><option value="Yes">Yes</option><option value="No">No</option>
                 </select>
               </div>
 
@@ -583,6 +690,10 @@ export default function SurveyForm() {
               <div>
                 <div className="text-sm text-gray-500">House Photo</div>
                 <input type="file" accept="image/*" onChange={e=>setHousePhoto(e.target.files?.[0] || null)} />
+              </div>
+              <div>
+                <div className="text-sm text-gray-500">Respondent Photo</div>
+                <input type="file" accept="image/*" onChange={e=>setPersonPhoto(e.target.files?.[0] || null)} />
               </div>
               <div>
                 <button type="button" className="px-3 py-1 border rounded-xl" onClick={getLocation}>Get Current Location</button>

@@ -14,6 +14,7 @@ export default function AdminDashboard() {
   const [subclassHomelessData, setSubclassHomelessData] = useState([])
   const [mapPoints, setMapPoints] = useState([])
   const [assignedCount, setAssignedCount] = useState(0)
+  const [mapScope, setMapScope] = useState('all')
 
   const [profile, setProfile] = useState(null)
   const [notifications, setNotifications] = useState([])
@@ -63,6 +64,35 @@ export default function AdminDashboard() {
     document.head.appendChild(script)
   })
 
+  const ensureLeafletCluster = () => new Promise((resolve) => {
+    if (window.L && window.L.markerClusterGroup) { resolve(); return }
+    const onReady = () => resolve()
+    let link1 = document.querySelector('link[data-leaflet-cluster-css]')
+    if (!link1) {
+      link1 = document.createElement('link')
+      link1.rel = 'stylesheet'
+      link1.href = 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css'
+      link1.setAttribute('data-leaflet-cluster-css','1')
+      document.head.appendChild(link1)
+    }
+    let link2 = document.querySelector('link[data-leaflet-cluster-default-css]')
+    if (!link2) {
+      link2 = document.createElement('link')
+      link2.rel = 'stylesheet'
+      link2.href = 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css'
+      link2.setAttribute('data-leaflet-cluster-default-css','1')
+      document.head.appendChild(link2)
+    }
+    const existing = document.querySelector('script[data-leaflet-cluster]')
+    if (existing) { existing.addEventListener('load', onReady); return }
+    const script = document.createElement('script')
+    script.src = 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js'
+    script.async = true
+    script.setAttribute('data-leaflet-cluster','1')
+    script.onload = onReady
+    document.head.appendChild(script)
+  })
+
   const barangayChart = useRef(null)
   const classificationChart = useRef(null)
   const overallClassificationChart = useRef(null)
@@ -104,6 +134,10 @@ export default function AdminDashboard() {
     return () => { clearInterval(id); window.removeEventListener('focus', onFocus) }
   }, [])
 
+  useEffect(() => {
+    fetchMapPoints(mapScope)
+  }, [mapScope])
+
   async function fetchTotals() {
     const res = await axios.get('/admin/api/totals')
     setTotals(res.data)
@@ -135,8 +169,8 @@ export default function AdminDashboard() {
     const res = await axios.get('/admin/api/subclass-homeless')
     setSubclassHomelessData(res.data.data || [])
   }
-  async function fetchMapPoints() {
-    const res = await axios.get('/admin/api/map-points', { params: { scope: 'all', mode: 'survey' } })
+  async function fetchMapPoints(scope = mapScope) {
+    const res = await axios.get('/admin/api/map-points', { params: { scope, mode: 'survey' } })
     setMapPoints(res.data.points || [])
   }
   async function fetchAssignedCount() {
@@ -342,7 +376,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (!mapRef.current) return
     if (!mapPoints || mapPoints.length === 0) return
-    ensureLeaflet().then(() => {
+    ensureLeaflet().then(() => ensureLeafletCluster().then(() => {
       if (leafletMap.current) {
         leafletMap.current.remove()
         leafletMap.current = null
@@ -361,29 +395,65 @@ export default function AdminDashboard() {
       } else {
         map.fitBounds(window.L.latLngBounds(digosBounds))
       }
+      const cluster = window.L.markerClusterGroup({
+        showCoverageOnHover: false,
+        maxClusterRadius: 40,
+        iconCreateFunction: (grp) => {
+          const count = grp.getChildCount()
+          let size = 28
+          if (count >= 50) size = 40
+          else if (count >= 10) size = 32
+          const html = `<div style="background:#10B981;color:#fff;border-radius:9999px;border:2px solid #ECFDF5;width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;font-weight:700;letter-spacing:0.2px">${count}</div>`
+          return window.L.divIcon({ html, className: 'cluster-icon', iconSize: [size, size] })
+        }
+      })
       valid.forEach(p => {
-        const marker = window.L.circleMarker([p.lat, p.lng], { radius: 8, color: '#10B981', fillColor: '#10B981', fillOpacity: 0.6 })
+        const dotHtml = `<span style="display:block;width:14px;height:14px;background:#10B981;border:2px solid #ECFDF5;border-radius:9999px"></span>`
+        const marker = window.L.marker([p.lat, p.lng], {
+          icon: window.L.divIcon({ className: 'dot-icon', html: dotHtml, iconSize: [16,16], iconAnchor: [8,8] })
+        })
         marker.on('click', () => {
           const name = p.name || 'Unknown'
           const cls = p.classification || 'Unknown'
-          const img = p.photo_url 
-            ? `<img src="${p.photo_url}" alt="House Photo" loading="lazy" style="width:100%;max-width:220px;border-radius:8px;margin-top:8px;border:1px solid #e5e7eb"/>`
-            : `<div style="font-size:12px;color:#9ca3af;margin-top:8px;padding:12px;background:#f3f4f6;border-radius:8px;text-align:center;">No house photo</div>`
+          const status = p.is_submitted === 1 ? 'Validated' : (p.is_submitted === 2 ? 'Assigned' : '')
+          const tag = p.tag_number ? `<div style="margin-top:4px;background:#f0fdf4;color:#047857;padding:3px 8px;border-radius:6px;font-size:12px;display:inline-block">Tag: ${p.tag_number}</div>` : ''
+          const house = p.photo_url 
+            ? `<img src="${p.photo_url}" alt="House Photo" loading="lazy" style="width:100%;border-radius:8px;border:1px solid #e5e7eb"/>`
+            : `<div style="font-size:12px;color:#9ca3af;padding:12px;background:#f3f4f6;border-radius:8px;text-align:center;border:1px dashed #e5e7eb">No house photo</div>`
+          const person = p.person_photo_url 
+            ? `<img src="${p.person_photo_url}" alt="Person Photo" loading="lazy" style="width:100%;border-radius:8px;border:1px solid #e5e7eb"/>`
+            : `<div style="font-size:12px;color:#9ca3af;padding:12px;background:#f3f4f6;border-radius:8px;text-align:center;border:1px dashed #e5e7eb">No person photo</div>`
           const html = `
-            <div style="min-width:220px">
-              <div style="font-weight:700;color:#065f46;font-size:14px">${name}</div>
-              <div style="margin-top:4px;background:#ecfdf5;color:#065f46;padding:4px 8px;border-radius:6px;font-size:12px;display:inline-block">${cls}</div>
-              ${img}
+            <div style="min-width:280px">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="font-weight:700;color:#065f46;font-size:14px">${name}</div>
+                <div style="display:flex;gap:6px;align-items:center">${status ? `<span style="background:${p.is_submitted===2?'#eff6ff':'#ecfdf5'};color:${p.is_submitted===2?'#1d4ed8':'#065f46'};padding:4px 8px;border-radius:9999px;font-size:11px">${status}</span>` : ''}</div>
+              </div>
+              <div style="margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                <span style="background:#ecfdf5;color:#065f46;padding:4px 8px;border-radius:9999px;font-size:11px">${cls}</span>
+                ${tag}
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+                <div>
+                  <div style="font-size:11px;color:#374151;margin-bottom:4px">House</div>
+                  ${house}
+                </div>
+                <div>
+                  <div style="font-size:11px;color:#374151;margin-bottom:4px">Person</div>
+                  ${person}
+                </div>
+              </div>
             </div>
           `
-          marker.bindPopup(html, { maxWidth: 280, className: 'custom-popup' }).openPopup()
+          marker.bindPopup(html, { maxWidth: 360, className: 'custom-popup' }).openPopup()
         })
-        marker.addTo(map)
+        cluster.addLayer(marker)
       })
+      map.addLayer(cluster)
       setTimeout(() => { map.invalidateSize() }, 100)
       setTimeout(() => { map.invalidateSize() }, 400)
       leafletMap.current = map
-    })
+    }))
   }, [mapPoints])
 
   
@@ -601,7 +671,6 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-lg font-semibold text-emerald-800">By Year Summary ({rangeMode === 'past' ? `Past ${rangeYears} years` : `${classificationPeriod.start} - ${classificationPeriod.end}`})</h3>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">By barangay</span>
                   <select
                     value={rangeMode}
                     onChange={(e) => setRangeMode(e.target.value)}
@@ -643,26 +712,20 @@ export default function AdminDashboard() {
                       </select>
                     </div>
                   )}
-                  <span className="text-[11px] text-gray-500">Tip: view past year or extend the range as needed</span>
                 </div>
               </div>
               <canvas ref={classificationRef} style={{ height: 200 }} />
-              <div className="mt-3">
-                <button
-                  onClick={() => setShowClassificationDesc(v => !v)}
-                  className="text-xs text-emerald-600 hover:text-emerald-700 font-medium inline-flex items-center gap-1"
-                >
-                  {showClassificationDesc ? 'Hide summary' : 'Show summary'}
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-                </button>
-                {showClassificationDesc && (
-                  <p className="mt-2 text-sm text-gray-700">{describeBarangay(periodBarangayData)}</p>
-                )}
-              </div>
+              
             </div>
             <div className="bg-white rounded-2xl border border-gray-200 p-6 min-h-[340px]">
-              <h3 className="text-lg font-semibold text-gray-900">Overall Distribution Map</h3>
-              <p className="text-xs text-gray-500">All surveys</p>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-emerald-800">Map</h3>
+                <div className="flex items-center gap-1 bg-emerald-50 p-1 rounded-xl ring-1 ring-emerald-100">
+                  <button onClick={() => setMapScope('all')} className={`px-3 py-1 rounded-lg text-xs ${mapScope==='all' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200' : 'text-emerald-700 hover:bg-emerald-100'}`}>All</button>
+                  <button onClick={() => setMapScope('validated')} className={`px-3 py-1 rounded-lg text-xs ${mapScope==='validated' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200' : 'text-emerald-700 hover:bg-emerald-100'}`}>Validated</button>
+                  <button onClick={() => setMapScope('assigned')} className={`px-3 py-1 rounded-lg text-xs ${mapScope==='assigned' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200' : 'text-emerald-700 hover:bg-emerald-100'}`}>Assigned</button>
+                </div>
+              </div>
               <div
                 ref={mapRef}
                 className="mt-4 aspect-square w-full rounded-xl overflow-hidden border"
