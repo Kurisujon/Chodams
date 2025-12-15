@@ -1,12 +1,27 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import axios from 'axios'
 import { Link } from '@inertiajs/react'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 
 export default function AdminProjectSites() {
   const [projects, setProjects] = useState([])
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [selected, setSelected] = useState(null)
+  const [showMap, setShowMap] = useState(false)
+  const mapRef = useRef(null)
+  const mapElRef = useRef(null)
+  const overlayRef = useRef(null)
+  const [boundaryOpen, setBoundaryOpen] = useState(false)
+  const [geojsonInput, setGeojsonInput] = useState('')
+  const [savingBoundary, setSavingBoundary] = useState(false)
+  const [parseError, setParseError] = useState('')
+  const [editOpen, setEditOpen] = useState(false)
+  const [editForm, setEditForm] = useState({ project_name: '', land_area: '', total_blocks: '', total_lots: '', barangay: '', year_started: '', description: '', proj_image: null })
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [deletingProject, setDeletingProject] = useState(false)
 
   const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
 
@@ -27,6 +42,188 @@ export default function AdminProjectSites() {
       setError('')
     } catch (e) {
       setError(e?.response?.data?.message || e.message || 'Failed to load projects')
+    }
+  }
+
+  useEffect(() => {
+    if (!showMap || !selected) return
+    if (!mapElRef.current) return
+    if (mapRef.current && typeof mapRef.current.getContainer === 'function' && mapRef.current.getContainer() !== mapElRef.current) {
+      try { mapRef.current.remove() } catch {}
+      mapRef.current = null
+      overlayRef.current = null
+    }
+    if (!mapRef.current) {
+      mapRef.current = L.map(mapElRef.current).setView([6.749, 125.356], 16)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(mapRef.current)
+      setTimeout(() => { try { mapRef.current.invalidateSize() } catch {} }, 100)
+    }
+    const map = mapRef.current
+    if (overlayRef.current) { try { map.removeLayer(overlayRef.current) } catch {} }
+    if (selected?.geojson) {
+      try {
+        const gj = typeof selected.geojson === 'string' ? JSON.parse(selected.geojson) : selected.geojson
+        const layer = L.geoJSON(gj, { style: { color: '#10b981', weight: 2, fillColor: '#10b981', fillOpacity: 0.18 } })
+        layer.addTo(map)
+        overlayRef.current = layer
+        setTimeout(() => { try { map.invalidateSize() } catch {} }, 0)
+        try { map.fitBounds(layer.getBounds(), { padding: [12,12] }) } catch {}
+      } catch {}
+    }
+  }, [showMap, selected])
+
+  useEffect(() => {
+    if (!showMap && mapRef.current) {
+      try { mapRef.current.remove() } catch {}
+      mapRef.current = null
+      overlayRef.current = null
+    }
+  }, [showMap])
+
+  async function saveBoundary() {
+    if (!selected) return
+    try {
+      setSavingBoundary(true)
+      const geojsonStr = toGeoJSONString(geojsonInput)
+      const res = await axios.post(`/admin/api/project-sites/${selected.project_id}/boundary`, { geojson: geojsonStr })
+      if (res.data?.ok) {
+        setSelected(prev => ({ ...prev, geojson: geojsonStr }))
+        setProjects(prev => prev.map(pr => pr.project_id === selected.project_id ? { ...pr, geojson: geojsonStr } : pr))
+        setBoundaryOpen(false)
+        setGeojsonInput('')
+        setParseError('')
+      }
+    } catch (e) {
+      alert(e?.response?.data?.message || parseError || 'Failed to save boundary')
+    } finally {
+      setSavingBoundary(false)
+    }
+  }
+
+  function toGeoJSONString(input) {
+    const s = (input || '').trim()
+    if (!s) throw new Error('Empty input')
+    if (s.startsWith('<')) {
+      const parser = new DOMParser()
+      const doc = parser.parseFromString(s, 'text/xml')
+      const coordsNode = doc.getElementsByTagName('coordinates')[0]
+      if (!coordsNode || !coordsNode.textContent) throw new Error('KML coordinates not found')
+      const raw = coordsNode.textContent.trim()
+      const pairs = raw.split(/\s+/).map(p => p.split(',').slice(0,2).map(Number))
+      if (!pairs.length) throw new Error('No coordinates parsed')
+      const first = pairs[0]
+      const last = pairs[pairs.length - 1]
+      if (first && last && (first[0] !== last[0] || first[1] !== last[1])) {
+        pairs.push([first[0], first[1]])
+      }
+      const gj = { type: 'Polygon', coordinates: [pairs] }
+      return JSON.stringify(gj)
+    }
+    try {
+      const obj = JSON.parse(s)
+      let gj = null
+      if (obj.type === 'Feature' && obj.geometry) gj = obj.geometry
+      else if (obj.type === 'Polygon' || obj.type === 'MultiPolygon') gj = obj
+      else throw new Error('Unsupported GeoJSON type')
+      return JSON.stringify(gj)
+    } catch (err) {
+      setParseError(err.message)
+      throw err
+    }
+  }
+
+  function previewBoundary() {
+    try {
+      const geojsonStr = toGeoJSONString(geojsonInput)
+      setSelected(prev => ({ ...prev, geojson: geojsonStr }))
+      setParseError('')
+      if (!showMap) setShowMap(true)
+    } catch (e) {
+      setParseError(e.message)
+    }
+  }
+
+  function openEdit() {
+    if (!selected) return
+    setEditForm({
+      project_name: selected.project_name || '',
+      land_area: selected.land_area ?? '',
+      total_blocks: selected.total_blocks ?? '',
+      total_lots: selected.total_lots ?? '',
+      barangay: selected.barangay || '',
+      year_started: selected.year_started || '',
+      description: selected.description || '',
+      proj_image: null,
+    })
+    setEditOpen(true)
+  }
+
+  function updateEditField(k, v) {
+    setEditForm(prev => ({ ...prev, [k]: v }))
+  }
+
+  async function saveEdit() {
+    if (!selected) return
+    try {
+      setSavingEdit(true)
+      const fd = new FormData()
+      fd.append('_method', 'PUT')
+      Object.entries(editForm).forEach(([k,v]) => {
+        if (k === 'proj_image') {
+          if (v) fd.append('proj_image', v)
+        } else if (v !== '' && v !== null && v !== undefined) {
+          fd.append(k, v)
+        }
+      })
+      const res = await axios.post(`/admin/api/project-sites/${selected.project_id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      if (res.data?.ok) {
+        setProjects(prev => prev.map(pr => pr.project_id === selected.project_id ? {
+          ...pr,
+          project_name: editForm.project_name || pr.project_name,
+          land_area: editForm.land_area !== '' ? Number(editForm.land_area) : pr.land_area,
+          total_blocks: editForm.total_blocks !== '' ? Number(editForm.total_blocks) : pr.total_blocks,
+          total_lots: editForm.total_lots !== '' ? Number(editForm.total_lots) : pr.total_lots,
+          barangay: editForm.barangay || pr.barangay,
+          year_started: editForm.year_started || pr.year_started,
+          description: editForm.description || pr.description,
+        } : pr))
+        setSelected(prev => prev ? {
+          ...prev,
+          project_name: editForm.project_name || prev.project_name,
+          land_area: editForm.land_area !== '' ? Number(editForm.land_area) : prev.land_area,
+          total_blocks: editForm.total_blocks !== '' ? Number(editForm.total_blocks) : prev.total_blocks,
+          total_lots: editForm.total_lots !== '' ? Number(editForm.total_lots) : prev.total_lots,
+          barangay: editForm.barangay || prev.barangay,
+          year_started: editForm.year_started || prev.year_started,
+          description: editForm.description || prev.description,
+        } : prev)
+        setEditOpen(false)
+      }
+    } catch (e) {
+      alert(e?.response?.data?.message || 'Failed to save changes')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  async function deleteProject() {
+    if (!selected) return
+    if (!window.confirm('Delete this project site? This cannot be undone.')) return
+    try {
+      setDeletingProject(true)
+      const res = await axios.delete(`/admin/api/project-sites/${selected.project_id}`)
+      if (res.data?.ok) {
+        setProjects(prev => prev.filter(pr => pr.project_id !== selected.project_id))
+        setShowMap(false)
+        setSelected(null)
+      }
+    } catch (e) {
+      alert(e?.response?.data?.message || 'Failed to delete project')
+    } finally {
+      setDeletingProject(false)
     }
   }
 
@@ -148,7 +345,7 @@ export default function AdminProjectSites() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {projects.map(p => (
-                <div key={p.project_id} className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+                <div key={p.project_id} className="rounded-2xl border border-gray-200 bg-white overflow-hidden cursor-pointer" onClick={() => { setSelected(p); setShowMap(true) }}>
                   {p.image_url ? (
                     <img src={p.image_url} alt={p.project_name} className="w-full h-40 object-cover"/>
                   ) : (
@@ -179,6 +376,95 @@ export default function AdminProjectSites() {
             </div>
           )}
         </section>
+
+        {showMap && selected && (
+          <div className="fixed inset-0 z-50">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setShowMap(false)}></div>
+            <div className="absolute inset-6 md:inset-16 bg-white rounded-2xl border shadow-xl flex flex-col">
+              <div className="p-4 border-b flex items-center justify-between">
+                <div>
+                  <div className="text-lg font-semibold text-emerald-800">{selected.project_name}</div>
+                  <div className="text-xs text-gray-500">{selected.barangay || ''} • Area {selected.land_area || 0} m² • Perimeter ~{Math.round(Math.sqrt((selected.land_area||0))*4)} m</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button className="px-3 py-1 border rounded-xl" onClick={() => setShowMap(false)}>Close</button>
+                  <button className="px-3 py-1 bg-emerald-600 text-white rounded-xl" onClick={() => setBoundaryOpen(true)}>Set Boundary</button>
+                  <button className="px-3 py-1 border rounded-xl" onClick={openEdit}>Edit</button>
+                  <button className="px-3 py-1 border rounded-xl text-red-700" onClick={deleteProject} disabled={deletingProject}>{deletingProject ? 'Deleting…' : 'Delete'}</button>
+                </div>
+              </div>
+              <div className="flex-1">
+                <div ref={mapElRef} className="w-full h-full" />
+              </div>
+              {!selected?.geojson && (
+                <div className="p-3 border-t text-sm text-gray-600">No boundary defined. Use Add Project to upload image and save boundary later.</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {showMap && selected && boundaryOpen && (
+          <div className="fixed inset-0 z-50">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setBoundaryOpen(false)}></div>
+            <div className="absolute inset-16 bg-white rounded-2xl border shadow-xl p-4 w-[800px] max-w-[95vw]">
+              <div className="text-lg font-semibold text-emerald-800 mb-2">Paste KML or GeoJSON Polygon</div>
+              <textarea className="w-full h-64 border rounded p-2 font-mono text-xs" value={geojsonInput} onChange={e=>setGeojsonInput(e.target.value)} placeholder='Paste KML (<Polygon><coordinates>...</coordinates></Polygon>) or GeoJSON {"type":"Polygon","coordinates":[[[lng,lat],...]]}' />
+              {parseError && <div className="mt-2 text-sm text-red-600">{parseError}</div>}
+              <div className="mt-3 flex gap-2">
+                <button className="px-3 py-1 border rounded-xl" onClick={() => setBoundaryOpen(false)}>Cancel</button>
+                <button className="px-3 py-1 border rounded-xl" onClick={previewBoundary}>Preview</button>
+                <button className="px-3 py-1 bg-emerald-600 text-white rounded-xl" onClick={saveBoundary} disabled={savingBoundary}>{savingBoundary ? 'Saving...' : 'Save'}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showMap && selected && editOpen && (
+          <div className="fixed inset-0 z-50">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setEditOpen(false)}></div>
+            <div className="absolute inset-16 bg-white rounded-2xl border shadow-xl p-4 w-[800px] max-w-[95vw]">
+              <div className="text-lg font-semibold text-emerald-800 mb-2">Edit Project Site</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-700">Project Name</label>
+                  <input className="mt-1 w-full border rounded p-2" value={editForm.project_name} onChange={e=>updateEditField('project_name', e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700">Land Area (sqm)</label>
+                  <input type="number" step="0.01" className="mt-1 w-full border rounded p-2" value={editForm.land_area} onChange={e=>updateEditField('land_area', e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700">Total Blocks</label>
+                  <input type="number" className="mt-1 w-full border rounded p-2" value={editForm.total_blocks} onChange={e=>updateEditField('total_blocks', e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700">Total Lots</label>
+                  <input type="number" className="mt-1 w-full border rounded p-2" value={editForm.total_lots} onChange={e=>updateEditField('total_lots', e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700">Barangay</label>
+                  <input className="mt-1 w-full border rounded p-2" value={editForm.barangay} onChange={e=>updateEditField('barangay', e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700">Year Started</label>
+                  <input className="mt-1 w-full border rounded p-2" value={editForm.year_started} onChange={e=>updateEditField('year_started', e.target.value)} />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm text-gray-700">Description</label>
+                  <textarea className="mt-1 w-full border rounded p-2" rows={3} value={editForm.description} onChange={e=>updateEditField('description', e.target.value)} />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm text-gray-700">Replace Image</label>
+                  <input type="file" accept="image/*" className="mt-1 w-full" onChange={e=>updateEditField('proj_image', e.target.files?.[0] || null)} />
+                </div>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button className="px-3 py-1 border rounded-xl" onClick={() => setEditOpen(false)}>Cancel</button>
+                <button className="px-3 py-1 bg-emerald-600 text-white rounded-xl" onClick={saveEdit} disabled={savingEdit}>{savingEdit ? 'Saving…' : 'Save Changes'}</button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   )

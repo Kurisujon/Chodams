@@ -15,6 +15,12 @@ export default function AdminBeneficiaries() {
   const [classVal, setClassVal] = useState('')
   const [error, setError] = useState('')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [exportBarangay, setExportBarangay] = useState('')
+  const [exportStatus, setExportStatus] = useState('submitted')
+  const [exportClass, setExportClass] = useState('')
+  const barangays = [
+    'Aplaya','Balabag','Binaton','Cogon','Colorado','Dawis','Dulangan','Goma','Igpit','Kapatagan','Kiagot','Lungag','Mahayahay','Matti','Ruparan','San_Agustin','San_Jose','San_Miguel','San_Roque','Sinawilan','Soong','Tiguman','Tres_De_Mayo','Zone_1','Zone_2','Zone_3'
+  ]
 
   const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
 
@@ -51,6 +57,33 @@ export default function AdminBeneficiaries() {
     } catch (err) {
       console.error('Affiliated fetch failed', err)
       setError(err?.response?.data?.message || err.message || 'Failed to load affiliated list')
+    }
+  }
+
+  async function handleExportBarangay() {
+    try {
+      const b = (exportBarangay || '').trim()
+      if (!b) {
+        setError('Please select a barangay to export')
+        return
+      }
+      const params = { barangay: b, status: exportStatus || 'submitted' }
+      if (exportClass) params.classification = exportClass
+      const res = await axios.get('/admin/api/export/barangay', { params, responseType: 'blob' })
+      const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const fname = `barangay-${b.replace(/\s+/g,'_').toLowerCase()}.csv`
+      a.href = url
+      a.download = fname
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+      setError('')
+    } catch (err) {
+      console.error('Export failed', err)
+      setError(err?.response?.data?.message || err.message || 'Failed to export CSV')
     }
   }
 
@@ -159,6 +192,27 @@ export default function AdminBeneficiaries() {
         </header>
 
         <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <select className="border border-gray-300 rounded-xl p-2.5" value={exportBarangay} onChange={e=>setExportBarangay(e.target.value)}>
+              <option value="">Select barangay</option>
+              {barangays.map(b => (
+                <option key={b} value={b}>{b.replace(/_/g,' ')}</option>
+              ))}
+            </select>
+            <select className="border border-gray-300 rounded-xl p-2.5" value={exportStatus} onChange={e=>setExportStatus(e.target.value)}>
+              <option value="submitted">Submitted (validated + approved)</option>
+              <option value="validated">Validated</option>
+              <option value="approved">Approved</option>
+            </select>
+            <select className="border border-gray-300 rounded-xl p-2.5" value={exportClass} onChange={e=>setExportClass(e.target.value)}>
+              <option value="">Classification: All</option>
+              <option value="Displaced">Displaced</option>
+              <option value="Double-up">Double-up</option>
+              <option value="Homeless">Homeless</option>
+              <option value="Upgrading of Land Tenure">Upgrading of Land Tenure</option>
+            </select>
+            <button type="button" onClick={handleExportBarangay} className="px-3 py-2 bg-emerald-600 text-white rounded-xl">Download CSV</button>
+          </div>
           <form className="flex items-center gap-2 mb-4" onSubmit={e => { e.preventDefault(); fetchValidated(1, searchValidated, '', classVal) }}>
             <input className="border border-gray-300 rounded-xl p-2.5 w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Search" value={searchValidated} onChange={e=>setSearchValidated(e.target.value)}/>
             <select className="border border-gray-300 rounded-xl p-2.5" value={classVal} onChange={e=>setClassVal(e.target.value)}>

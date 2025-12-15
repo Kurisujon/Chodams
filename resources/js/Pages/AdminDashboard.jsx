@@ -29,6 +29,9 @@ export default function AdminDashboard() {
   const [showDoubleUpDesc, setShowDoubleUpDesc] = useState(false)
   const [showHomelessDesc, setShowHomelessDesc] = useState(false)
   const [classificationPeriod, setClassificationPeriod] = useState({ start: 2023, end: 2024 })
+  const [rangeMode, setRangeMode] = useState('past')
+  const [rangeYears, setRangeYears] = useState(3)
+  const [periodBarangayData, setPeriodBarangayData] = useState([])
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   const barangayRef = useRef(null)
@@ -81,7 +84,6 @@ export default function AdminDashboard() {
     fetchTotals()
     fetchBarangay()
     fetchClassification(classificationPeriod)
-    fetchClassificationOverall()
     fetchSubclassDisplaced()
     fetchSubclassDoubleUp()
     fetchSubclassHomeless()
@@ -111,18 +113,16 @@ export default function AdminDashboard() {
     setBarangayData(res.data.data || [])
   }
   async function fetchClassification(period = classificationPeriod) {
-    const res = await axios.get('/admin/api/classification', { params: { start_year: period.start, end_year: period.end } })
-    setClassificationData(res.data.classificationData || {})
+    const params = rangeMode === 'past' ? { years: rangeYears } : { start_year: period.start, end_year: period.end }
+    const res = await axios.get('/admin/api/barangay', { params })
+    setPeriodBarangayData(res.data.data || [])
   }
 
-  async function fetchClassificationOverall() {
-    const res = await axios.get('/admin/api/classification')
-    setOverallClassificationData(res.data.classificationData || {})
-  }
+  async function fetchClassificationOverall() {}
 
   useEffect(() => {
     fetchClassification(classificationPeriod)
-  }, [classificationPeriod])
+  }, [classificationPeriod, rangeMode, rangeYears])
   async function fetchSubclassDisplaced() {
     const res = await axios.get('/admin/api/subclass-displaced')
     setSubclassDisplacedData(res.data.data || [])
@@ -181,29 +181,31 @@ export default function AdminDashboard() {
     if (!window.Chart) return
     if (classificationChart.current) classificationChart.current.destroy()
     if (!classificationRef.current) return
-    const classKeys = Object.keys(classificationData)
-    const values = classKeys.map(k => Object.values(classificationData[k] || {}).reduce((s,v) => s + Number(v||0), 0))
-    const colors = emeraldColors(classKeys.length)
+    const top = [...periodBarangayData].sort((a, b) => (Number(b.count || 0) - Number(a.count || 0))).slice(0, 10)
+    const labels = top.map(i => i.barangay || 'Unknown')
+    const values = top.map(i => Number(i.count) || 0)
+    const colors = emeraldColors(labels.length)
     classificationChart.current = new window.Chart(classificationRef.current, {
       type: 'doughnut',
-      data: { labels: classKeys, datasets: [{ data: values, backgroundColor: colors, borderColor: '#fff', borderWidth: 2, hoverOffset: 6 }] },
+      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: '#fff', borderWidth: 2, hoverOffset: 6 }] },
       options: { responsive: true, cutout: '68%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle' } } }, animation: { duration: 800 } }
     })
-  }, [classificationData])
+  }, [periodBarangayData])
 
   useEffect(() => {
     if (!window.Chart) return
     if (overallClassificationChart.current) overallClassificationChart.current.destroy()
     if (!overallClassificationRef.current) return
-    const classKeys = Object.keys(overallClassificationData)
-    const values = classKeys.map(k => Object.values(overallClassificationData[k] || {}).reduce((s,v) => s + Number(v||0), 0))
-    const colors = emeraldColors(classKeys.length)
+    const top = [...barangayData].sort((a, b) => (Number(b.count || 0) - Number(a.count || 0))).slice(0, 10)
+    const labels = top.map(i => i.barangay || 'Unknown')
+    const values = top.map(i => Number(i.count) || 0)
+    const colors = emeraldColors(labels.length)
     overallClassificationChart.current = new window.Chart(overallClassificationRef.current, {
       type: 'doughnut',
-      data: { labels: classKeys, datasets: [{ data: values, backgroundColor: colors, borderColor: '#fff', borderWidth: 2, hoverOffset: 6 }] },
+      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: '#fff', borderWidth: 2, hoverOffset: 6 }] },
       options: { responsive: true, cutout: '78%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle' } } }, animation: { duration: 800 } }
     })
-  }, [overallClassificationData])
+  }, [barangayData])
 
   useEffect(() => {
     if (!window.Chart) return
@@ -586,7 +588,7 @@ export default function AdminDashboard() {
               </button>
               {showBarangayDesc && (
                 <p className="mt-2 text-sm text-gray-700">
-                  {describeClassification(overallClassificationData)}
+                  {describeBarangay(barangayData)}
                 </p>
               )}
             </div>
@@ -597,21 +599,51 @@ export default function AdminDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className={`bg-white rounded-2xl border border-gray-200 p-6 min-h-[340px] ${!showClassification && 'hidden'}`}>
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-lg font-semibold text-emerald-800">By Year Summary ({classificationPeriod.start} - {classificationPeriod.end})</h3>
+                <h3 className="text-lg font-semibold text-emerald-800">By Year Summary ({rangeMode === 'past' ? `Past ${rangeYears} years` : `${classificationPeriod.start} - ${classificationPeriod.end}`})</h3>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">By classification</span>
+                  <span className="text-xs text-gray-500">By barangay</span>
                   <select
-                    value={`${classificationPeriod.start}-${classificationPeriod.end}`}
-                    onChange={(e) => {
-                      const [s,e2] = e.target.value.split('-').map(v => Number(v.trim()))
-                      setClassificationPeriod({ start: s, end: e2 })
-                    }}
+                    value={rangeMode}
+                    onChange={(e) => setRangeMode(e.target.value)}
                     className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300"
                   >
-                    <option value="2023-2024">2023 - 2024</option>
-                    <option value="2025-2026">2025 - 2026</option>
-                    <option value="2027-2028">2027 - 2028</option>
+                    <option value="past">Past years</option>
+                    <option value="custom">Custom range</option>
                   </select>
+                  {rangeMode === 'past' ? (
+                    <select
+                      value={String(rangeYears)}
+                      onChange={(e) => setRangeYears(Number(e.target.value))}
+                      className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300"
+                    >
+                      <option value="1">Past 1 year</option>
+                      <option value="2">Past 2 years</option>
+                      <option value="3">Past 3 years</option>
+                    </select>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={String(classificationPeriod.start)}
+                        onChange={(e) => setClassificationPeriod(p => ({ ...p, start: Number(e.target.value) }))}
+                        className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300"
+                      >
+                        {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                          <option key={`s-${y}`} value={y}>{y}</option>
+                        ))}
+                      </select>
+                      <span className="text-xs text-gray-500">to</span>
+                      <select
+                        value={String(classificationPeriod.end)}
+                        onChange={(e) => setClassificationPeriod(p => ({ ...p, end: Number(e.target.value) }))}
+                        className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300"
+                      >
+                        {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                          <option key={`e-${y}`} value={y}>{y}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <span className="text-[11px] text-gray-500">Tip: view past year or extend the range as needed</span>
                 </div>
               </div>
               <canvas ref={classificationRef} style={{ height: 200 }} />
@@ -624,7 +656,7 @@ export default function AdminDashboard() {
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
                 </button>
                 {showClassificationDesc && (
-                  <p className="mt-2 text-sm text-gray-700">{describeClassification(classificationData)}</p>
+                  <p className="mt-2 text-sm text-gray-700">{describeBarangay(periodBarangayData)}</p>
                 )}
               </div>
             </div>

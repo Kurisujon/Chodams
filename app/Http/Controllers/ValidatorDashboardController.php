@@ -64,6 +64,8 @@ class ValidatorDashboardController extends Controller
             ->join('classification AS c', 'c.survey_id', '=', 's.survey_id')
             ->select('s.survey_id','s.date_interviewed','d.barangay','d.purok','d.last_name','c.classification','c.subclass_displaced','c.subclass_doubleup')
             ->where('s.validator_id', $validator_id)
+            ->orderBy('d.barangay','asc')
+            ->orderBy('c.classification','asc')
             ->orderBy('s.survey_id','desc')
             ->offset($offset)
             ->limit($perPage)
@@ -112,6 +114,8 @@ class ValidatorDashboardController extends Controller
             ->select('s.survey_id','s.date_interviewed','d.barangay','d.purok','d.last_name','c.classification','c.subclass_displaced','c.subclass_doubleup')
             ->where('s.validator_id', $validator_id)
             ->whereIn('s.is_submitted', [1,2])
+            ->orderBy('d.barangay','asc')
+            ->orderBy('c.classification','asc')
             ->orderBy('s.survey_id','desc')
             ->offset($offset)
             ->limit($perPage)
@@ -709,10 +713,22 @@ class ValidatorDashboardController extends Controller
 
     public function adminBarangay(Request $request)
     {
+        $years = (int) $request->get('years', 0);
+        $startYear = $request->get('start_year');
+        $endYear = $request->get('end_year');
         $rows = DB::table('survey as s')
             ->join('demographic as d','d.survey_id','=','s.survey_id')
             ->select('d.barangay', DB::raw('COUNT(*) AS count'))
             ->whereIn('s.is_submitted', [1,2])
+            ->when($startYear && $endYear, function($q) use ($startYear, $endYear) {
+                $start = Carbon::createMidnightDate((int)$startYear, 1, 1)->toDateString();
+                $end = Carbon::createMidnightDate((int)$endYear, 12, 31)->toDateString();
+                $q->whereNotNull('s.date_interviewed')->whereDate('s.date_interviewed','>=',$start)->whereDate('s.date_interviewed','<=',$end);
+            })
+            ->when($years > 0, function($q) use ($years) {
+                $start = Carbon::now()->subYears($years)->startOfDay()->toDateString();
+                $q->whereNotNull('s.date_interviewed')->whereDate('s.date_interviewed','>=',$start);
+            })
             ->groupBy('d.barangay')
             ->get();
         return response()->json(['data' => $rows]);
@@ -973,7 +989,14 @@ class ValidatorDashboardController extends Controller
                 return $row;
             })
             ->all();
-        usort($rows, function($a,$b){ if ($a->points === $b->points) return $b->survey_id <=> $a->survey_id; return $b->points <=> $a->points; });
+        usort($rows, function($a,$b){
+            $bg = strcmp((string)$a->barangay, (string)$b->barangay);
+            if ($bg !== 0) return $bg;
+            $cl = strcmp((string)$a->classification, (string)$b->classification);
+            if ($cl !== 0) return $cl;
+            if ($a->points === $b->points) return $b->survey_id <=> $a->survey_id;
+            return $b->points <=> $a->points;
+        });
         $paged = array_slice($rows, $offset, $perPage);
         return response()->json(['data' => $paged, 'total' => count($rows), 'page' => $page, 'per_page' => $perPage]);
     }
@@ -1142,7 +1165,14 @@ class ValidatorDashboardController extends Controller
                 return $row;
             })
             ->all();
-        usort($rows, function($a,$b){ if ($a->points === $b->points) return $b->survey_id <=> $a->survey_id; return $b->points <=> $a->points; });
+        usort($rows, function($a,$b){
+            $bg = strcmp((string)$a->barangay, (string)$b->barangay);
+            if ($bg !== 0) return $bg;
+            $cl = strcmp((string)$a->classification, (string)$b->classification);
+            if ($cl !== 0) return $cl;
+            if ($a->points === $b->points) return $b->survey_id <=> $a->survey_id;
+            return $b->points <=> $a->points;
+        });
         $paged = array_slice($rows, $offset, $perPage);
         return response()->json(['data' => $paged, 'total' => count($rows), 'page' => $page, 'per_page' => $perPage]);
     }
@@ -1325,7 +1355,14 @@ class ValidatorDashboardController extends Controller
                 return $row;
             })
             ->all();
-        usort($rows, function($a,$b){ if ($a->points === $b->points) return $b->survey_id <=> $a->survey_id; return $b->points <=> $a->points; });
+        usort($rows, function($a,$b){
+            $bg = strcmp((string)$a->barangay, (string)$b->barangay);
+            if ($bg !== 0) return $bg;
+            $cl = strcmp((string)$a->classification, (string)$b->classification);
+            if ($cl !== 0) return $cl;
+            if ($a->points === $b->points) return $b->survey_id <=> $a->survey_id;
+            return $b->points <=> $a->points;
+        });
         $paged = array_slice($rows, $offset, $perPage);
         return response()->json(['data' => $paged, 'total' => count($rows), 'page' => $page, 'per_page' => $perPage]);
     }
@@ -1737,6 +1774,252 @@ class ValidatorDashboardController extends Controller
         ]);
     }
 
+    public function adminExportBarangayCsv(Request $request)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        $barangay = trim((string)$request->get('barangay',''));
+        if ($barangay === '') {
+            return response()->json(['message' => 'Barangay required'], 422);
+        }
+        $status = strtolower(trim((string)$request->get('status','submitted')));
+        $class = trim((string)$request->get('classification',''));
+        $affLabel = [0=>'None',1=>'SSS',2=>'GSIS',3=>'PhilHealth',4=>'PagIbig',5=>'PWD',6=>'Senior_Citizen',7=>'Solo_Parent',8=>'4Ps'];
+        $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
+        $displacedLabel = [1=>'Coastal Areas',2=>'Drought',3=>'Earthquake Affected',4=>'Flood Affected',5=>'Sea Level Rise',6=>'Threat of Eviction',7=>'Eviction/Demolition Order',8=>'Human Induced Disaster',9=>'Infra Projects',10=>'Landslide Affected',11=>'Near Waterways'];
+        $doubleupLabel = [1=>'Renter/Tenant',2=>'Rent-free/Sharer',3=>'Caretaker'];
+        $homelessLabel = [1=>'Public - living in tent',2=>'Private - living in tent'];
+        $ynLabel = [0=>'No',1=>'Yes'];
+        $classMap = ['displaced'=>1,'double-up'=>2,'homeless'=>3,'upgrading of land tenure'=>4];
+        $base = DB::table('survey as s')
+            ->join('demographic as d','d.survey_id','=','s.survey_id')
+            ->leftJoin('classification as c','c.survey_id','=','s.survey_id')
+            ->leftJoin('household as h','h.survey_id','=','s.survey_id')
+            ->leftJoin('economic as e','e.survey_id','=','s.survey_id')
+            ->leftJoin('training as t','t.survey_id','=','s.survey_id')
+            ->where('d.barangay',$barangay);
+        if ($status === 'validated') {
+            $base->where('s.is_submitted',1);
+        } elseif ($status === 'approved') {
+            $base->where('s.is_submitted',2);
+        } elseif ($status === 'submitted') {
+            $base->whereIn('s.is_submitted',[1,2]);
+        }
+        if ($class !== '') {
+            $code = $classMap[strtolower($class)] ?? null;
+            if ($code !== null) { $base->where('c.classification',$code); }
+        }
+        $rows = $base->select(
+                'c.previous_client','c.year_inhabited','c.classification','c.subclass_displaced','c.subclass_doubleup','c.subclass_homeless',
+                'd.last_name','d.first_name','d.middle_name','d.suffix','d.barangay','d.purok','d.street','d.gender','d.religion','d.birth_place','d.birth_date','d.person_age','d.marital_status','d.contact_number','d.language_spoken','d.tribe','d.highest_education','d.last_school_name','d.year_graduated','d.spouse_name','d.spouse_religion','d.spouse_tribe','d.spouse_age','d.spouse_gender','d.affiliation',
+                'h.lot_ownership','h.house_ownership','h.avail_socialized_housing','h.temporary_living_area','h.housing_structure','h.type_of_toilet','h.source_of_water','h.source_of_electricity',
+                'e.main_income_source','e.work_status','e.work_location_head','e.monthly_salary','e.combine_monthly_income',
+                't.skills_for_living','t.specific_skill','t.organization_member','t.specific_organization','t.wanttolearn','t.remarks'
+            )
+            ->orderBy('d.barangay','asc')
+            ->orderBy('c.classification','asc')
+            ->orderBy('s.survey_id','desc')
+            ->get();
+        $csv = fopen('php://temp','w+');
+        $title = ucfirst(str_replace('_',' ',$barangay)).' beneficiary list';
+        fputcsv($csv, [$title]);
+        $header = [
+            'previous_client','year_inhabited','classification','subclass_displaced','subclass_doubleup','subclass_homeless',
+            'last_name','first_name','middle_name','suffix','barangay','purok','street','gender','religion','birth_place','birth_date','person_age','marital_status','contact_number','language_spoken','tribe','highest_education','last_school_name','year_graduated','spouse_name','spouse_religion','spouse_tribe','spouse_age','spouse_gender','affiliation',
+            'lot_ownership','house_ownership','avail_socialized_housing','temporary_living_area','housing_structure','type_of_toilet','source_of_water','source_of_electricity',
+            'main_income_source','work_status','work_location_head','monthly_salary','combine_monthly_income',
+            'skills_for_living','specific_skill','organization_member','specific_organization','wanttolearn','remarks'
+        ];
+        fputcsv($csv, $header);
+        foreach ($rows as $r) {
+            $row = [
+                array_key_exists($r->previous_client, $ynLabel) ? $ynLabel[$r->previous_client] : ($r->previous_client ?? ''),
+                $r->year_inhabited ?? '',
+                array_key_exists($r->classification, $classLabel) ? $classLabel[$r->classification] : ($r->classification ?? ''),
+                array_key_exists($r->subclass_displaced, $displacedLabel) ? $displacedLabel[$r->subclass_displaced] : ($r->subclass_displaced ?? ''),
+                array_key_exists($r->subclass_doubleup, $doubleupLabel) ? $doubleupLabel[$r->subclass_doubleup] : ($r->subclass_doubleup ?? ''),
+                array_key_exists($r->subclass_homeless, $homelessLabel) ? $homelessLabel[$r->subclass_homeless] : ($r->subclass_homeless ?? ''),
+                $r->last_name ?? '',
+                $r->first_name ?? '',
+                $r->middle_name ?? '',
+                $r->suffix ?? '',
+                $r->barangay ?? '',
+                $r->purok ?? '',
+                $r->street ?? '',
+                $r->gender ?? '',
+                $r->religion ?? '',
+                $r->birth_place ?? '',
+                $r->birth_date ?? '',
+                $r->person_age ?? '',
+                $r->marital_status ?? '',
+                $r->contact_number ?? '',
+                $r->language_spoken ?? '',
+                $r->tribe ?? '',
+                $r->highest_education ?? '',
+                $r->last_school_name ?? '',
+                $r->year_graduated ?? '',
+                $r->spouse_name ?? '',
+                $r->spouse_religion ?? '',
+                $r->spouse_tribe ?? '',
+                $r->spouse_age ?? '',
+                $r->spouse_gender ?? '',
+                array_key_exists($r->affiliation, $affLabel) ? $affLabel[$r->affiliation] : ($r->affiliation ?? ''),
+                $r->lot_ownership ?? '',
+                $r->house_ownership ?? '',
+                $r->avail_socialized_housing ?? '',
+                $r->temporary_living_area ?? '',
+                $r->housing_structure ?? '',
+                $r->type_of_toilet ?? '',
+                $r->source_of_water ?? '',
+                $r->source_of_electricity ?? '',
+                $r->main_income_source ?? '',
+                $r->work_status ?? '',
+                $r->work_location_head ?? '',
+                $r->monthly_salary ?? '',
+                $r->combine_monthly_income ?? '',
+                $r->skills_for_living ?? '',
+                $r->specific_skill ?? '',
+                $r->organization_member ?? '',
+                $r->specific_organization ?? '',
+                $r->wanttolearn ?? '',
+                $r->remarks ?? ''
+            ];
+            fputcsv($csv, $row);
+        }
+        rewind($csv);
+        $out = stream_get_contents($csv);
+        fclose($csv);
+        $filename = 'barangay-'.strtolower(str_replace(' ','_', $barangay)).'.csv';
+        return response($out, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"'
+        ]);
+    }
+
+    public function validatorExportBarangayCsv(Request $request)
+    {
+        $validator_id = session('validator_id');
+        if (!$validator_id) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        $barangay = trim((string)$request->get('barangay',''));
+        if ($barangay === '') {
+            return response()->json(['message' => 'Barangay required'], 422);
+        }
+        $scope = strtolower(trim((string)$request->get('scope','all')));
+        $class = trim((string)$request->get('classification',''));
+        $affLabel = [0=>'None',1=>'SSS',2=>'GSIS',3=>'PhilHealth',4=>'PagIbig',5=>'PWD',6=>'Senior_Citizen',7=>'Solo_Parent',8=>'4Ps'];
+        $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
+        $displacedLabel = [1=>'Coastal Areas',2=>'Drought',3=>'Earthquake Affected',4=>'Flood Affected',5=>'Sea Level Rise',6=>'Threat of Eviction',7=>'Eviction/Demolition Order',8=>'Human Induced Disaster',9=>'Infra Projects',10=>'Landslide Affected',11=>'Near Waterways'];
+        $doubleupLabel = [1=>'Renter/Tenant',2=>'Rent-free/Sharer',3=>'Caretaker'];
+        $homelessLabel = [1=>'Public - living in tent',2=>'Private - living in tent'];
+        $ynLabel = [0=>'No',1=>'Yes'];
+        $classMap = ['displaced'=>1,'double-up'=>2,'homeless'=>3,'upgrading of land tenure'=>4];
+        $base = DB::table('survey as s')
+            ->join('demographic as d','d.survey_id','=','s.survey_id')
+            ->leftJoin('classification as c','c.survey_id','=','s.survey_id')
+            ->leftJoin('household as h','h.survey_id','=','s.survey_id')
+            ->leftJoin('economic as e','e.survey_id','=','s.survey_id')
+            ->leftJoin('training as t','t.survey_id','=','s.survey_id')
+            ->where('d.barangay',$barangay)
+            ->where('s.validator_id',$validator_id);
+        if ($scope === 'submitted') {
+            $base->whereIn('s.is_submitted',[1,2]);
+        } elseif ($scope === 'survey') {
+            $base->whereNull('s.is_submitted')->orWhere('s.is_submitted',0);
+        }
+        if ($class !== '') {
+            $code = $classMap[strtolower($class)] ?? null;
+            if ($code !== null) { $base->where('c.classification',$code); }
+        }
+        $rows = $base->select(
+                'c.previous_client','c.year_inhabited','c.classification','c.subclass_displaced','c.subclass_doubleup','c.subclass_homeless',
+                'd.last_name','d.first_name','d.middle_name','d.suffix','d.barangay','d.purok','d.street','d.gender','d.religion','d.birth_place','d.birth_date','d.person_age','d.marital_status','d.contact_number','d.language_spoken','d.tribe','d.highest_education','d.last_school_name','d.year_graduated','d.spouse_name','d.spouse_religion','d.spouse_tribe','d.spouse_age','d.spouse_gender','d.affiliation',
+                'h.lot_ownership','h.house_ownership','h.avail_socialized_housing','h.temporary_living_area','h.housing_structure','h.type_of_toilet','h.source_of_water','h.source_of_electricity',
+                'e.main_income_source','e.work_status','e.work_location_head','e.monthly_salary','e.combine_monthly_income',
+                't.skills_for_living','t.specific_skill','t.organization_member','t.specific_organization','t.wanttolearn','t.remarks'
+            )
+            ->orderBy('d.barangay','asc')
+            ->orderBy('c.classification','asc')
+            ->orderBy('s.survey_id','desc')
+            ->get();
+        $csv = fopen('php://temp','w+');
+        $title = ucfirst(str_replace('_',' ',$barangay)).' beneficiary list';
+        fputcsv($csv, [$title]);
+        $header = [
+            'previous_client','year_inhabited','classification','subclass_displaced','subclass_doubleup','subclass_homeless',
+            'last_name','first_name','middle_name','suffix','barangay','purok','street','gender','religion','birth_place','birth_date','person_age','marital_status','contact_number','language_spoken','tribe','highest_education','last_school_name','year_graduated','spouse_name','spouse_religion','spouse_tribe','spouse_age','spouse_gender','affiliation',
+            'lot_ownership','house_ownership','avail_socialized_housing','temporary_living_area','housing_structure','type_of_toilet','source_of_water','source_of_electricity',
+            'main_income_source','work_status','work_location_head','monthly_salary','combine_monthly_income',
+            'skills_for_living','specific_skill','organization_member','specific_organization','wanttolearn','remarks'
+        ];
+        fputcsv($csv, $header);
+        foreach ($rows as $r) {
+            $row = [
+                array_key_exists($r->previous_client, $ynLabel) ? $ynLabel[$r->previous_client] : ($r->previous_client ?? ''),
+                $r->year_inhabited ?? '',
+                array_key_exists($r->classification, $classLabel) ? $classLabel[$r->classification] : ($r->classification ?? ''),
+                array_key_exists($r->subclass_displaced, $displacedLabel) ? $displacedLabel[$r->subclass_displaced] : ($r->subclass_displaced ?? ''),
+                array_key_exists($r->subclass_doubleup, $doubleupLabel) ? $doubleupLabel[$r->subclass_doubleup] : ($r->subclass_doubleup ?? ''),
+                array_key_exists($r->subclass_homeless, $homelessLabel) ? $homelessLabel[$r->subclass_homeless] : ($r->subclass_homeless ?? ''),
+                $r->last_name ?? '',
+                $r->first_name ?? '',
+                $r->middle_name ?? '',
+                $r->suffix ?? '',
+                $r->barangay ?? '',
+                $r->purok ?? '',
+                $r->street ?? '',
+                $r->gender ?? '',
+                $r->religion ?? '',
+                $r->birth_place ?? '',
+                $r->birth_date ?? '',
+                $r->person_age ?? '',
+                $r->marital_status ?? '',
+                $r->contact_number ?? '',
+                $r->language_spoken ?? '',
+                $r->tribe ?? '',
+                $r->highest_education ?? '',
+                $r->last_school_name ?? '',
+                $r->year_graduated ?? '',
+                $r->spouse_name ?? '',
+                $r->spouse_religion ?? '',
+                $r->spouse_tribe ?? '',
+                $r->spouse_age ?? '',
+                $r->spouse_gender ?? '',
+                array_key_exists($r->affiliation, $affLabel) ? $affLabel[$r->affiliation] : ($r->affiliation ?? ''),
+                $r->lot_ownership ?? '',
+                $r->house_ownership ?? '',
+                $r->avail_socialized_housing ?? '',
+                $r->temporary_living_area ?? '',
+                $r->housing_structure ?? '',
+                $r->type_of_toilet ?? '',
+                $r->source_of_water ?? '',
+                $r->source_of_electricity ?? '',
+                $r->main_income_source ?? '',
+                $r->work_status ?? '',
+                $r->work_location_head ?? '',
+                $r->monthly_salary ?? '',
+                $r->combine_monthly_income ?? '',
+                $r->skills_for_living ?? '',
+                $r->specific_skill ?? '',
+                $r->organization_member ?? '',
+                $r->specific_organization ?? '',
+                $r->wanttolearn ?? '',
+                $r->remarks ?? ''
+            ];
+            fputcsv($csv, $row);
+        }
+        rewind($csv);
+        $out = stream_get_contents($csv);
+        fclose($csv);
+        $filename = 'barangay-'.strtolower(str_replace(' ','_', $barangay)).'.csv';
+        return response($out, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"'
+        ]);
+    }
+
     public function adminMapPoints(Request $request)
     {
         $scope = strtolower(trim((string)$request->get('scope', 'submitted')));
@@ -2036,6 +2319,7 @@ class ValidatorDashboardController extends Controller
                 'description' => $r->description,
                 'proj_image' => $img,
                 'image_url' => $url,
+                'geojson' => property_exists($r,'geojson') ? $r->geojson : null,
             ];
         }
         return response()->json(['data' => $data]);
@@ -2098,6 +2382,128 @@ class ValidatorDashboardController extends Controller
             }
             return response()->json(['message' => 'Failed to save project', 'error' => $msg], 500);
         }
+    }
+
+    public function adminProjectSitesUpdate(Request $request, $project_id)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        if (!Schema::hasTable('siteproj')) {
+            return response()->json(['message' => 'Project sites table missing'], 422);
+        }
+        $project = DB::table('siteproj')->where('project_id', (int)$project_id)->first();
+        if (!$project) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
+        $validated = $request->validate([
+            'project_name' => ['nullable','string','max:255'],
+            'land_area' => ['nullable','numeric'],
+            'total_blocks' => ['nullable','integer','min:0'],
+            'total_lots' => ['nullable','integer','min:0'],
+            'barangay' => ['nullable','string','max:100'],
+            'year_started' => ['nullable','digits:4'],
+            'description' => ['nullable','string'],
+            'proj_image' => ['nullable','file','image','max:5120'],
+        ]);
+        $path = null;
+        if ($request->hasFile('proj_image')) {
+            $file = $request->file('proj_image');
+            $filename = uniqid('proj_').'.'.$file->getClientOriginalExtension();
+            $stored = $file->storeAs('projects', $filename, 'public');
+            $srcAbs = Storage::disk('public')->path('projects/'.$filename);
+            $pubDir = public_path('storage/projects');
+            if (!is_dir($pubDir)) { @mkdir($pubDir, 0775, true); }
+            $dstAbs = $pubDir.'/'.$filename;
+            @copy($srcAbs, $dstAbs);
+            $path = 'storage/projects/'.$filename;
+        }
+        $columns = Schema::getColumnListing('siteproj');
+        $payload = [];
+        foreach (['project_name','land_area','total_blocks','total_lots','barangay','year_started','description'] as $k) {
+            if (array_key_exists($k, $validated)) {
+                $payload[$k] = $validated[$k];
+            }
+        }
+        if ($path !== null) { $payload['proj_image'] = $path; }
+        $filtered = array_intersect_key($payload, array_flip($columns));
+        if (empty($filtered)) {
+            return response()->json(['ok' => true]);
+        }
+        DB::table('siteproj')->where('project_id', (int)$project_id)->update($filtered);
+        return response()->json(['ok' => true]);
+    }
+
+    public function adminProjectSitesDelete(Request $request, $project_id)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        if (!Schema::hasTable('siteproj')) {
+            return response()->json(['message' => 'Project sites table missing'], 422);
+        }
+        $project = DB::table('siteproj')->where('project_id', (int)$project_id)->first();
+        if (!$project) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
+        try {
+            $img = is_string($project->proj_image ?? null) ? $project->proj_image : '';
+            if ($img !== '') {
+                $rel = ltrim($img, '/');
+                if (str_starts_with($rel, 'storage/')) {
+                    $rel2 = substr($rel, 8);
+                    @unlink(public_path('storage/'.$rel2));
+                    Storage::disk('public')->delete($rel2);
+                } else {
+                    @unlink(public_path($rel));
+                    Storage::disk('public')->delete($rel);
+                }
+            }
+        } catch (\Throwable $e) {}
+        try {
+            DB::table('siteproj')->where('project_id', (int)$project_id)->delete();
+            return response()->json(['ok' => true]);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Failed to delete project', 'error' => $e->getMessage()], 500);
+        }
+    }
+    public function adminProjectBoundarySave(Request $request, $project_id)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        if (!Schema::hasTable('siteproj')) {
+            return response()->json(['message' => 'Project sites table missing'], 422);
+        }
+        $project = DB::table('siteproj')->where('project_id', (int)$project_id)->first();
+        if (!$project) {
+            return response()->json(['message' => 'Not found'], 404);
+        }
+        $raw = trim((string)$request->input('geojson',''));
+        if ($raw === '') {
+            return response()->json(['message' => 'GeoJSON required'], 422);
+        }
+        try {
+            $parsed = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Invalid GeoJSON'], 422);
+        }
+        $columns = Schema::getColumnListing('siteproj');
+        if (!in_array('geojson', $columns)) {
+            try {
+                Schema::table('siteproj', function (\Illuminate\Database\Schema\Blueprint $table) {
+                    $table->longText('geojson')->nullable();
+                });
+                $columns = Schema::getColumnListing('siteproj');
+            } catch (\Throwable $e) {
+                return response()->json(['message' => 'Column geojson missing in siteproj'], 422);
+            }
+            if (!in_array('geojson', $columns)) {
+                return response()->json(['message' => 'Column geojson missing in siteproj'], 422);
+            }
+        }
+        DB::table('siteproj')->where('project_id', (int)$project_id)->update(['geojson' => json_encode($parsed)]);
+        return response()->json(['ok' => true]);
     }
 
     public function adminAssignmentsPending(Request $request)

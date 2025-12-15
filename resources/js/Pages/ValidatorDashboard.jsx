@@ -14,6 +14,9 @@ export default function ValidatorDashboard() {
   const [search, setSearch] = useState('')
   const [showBarangayList, setShowBarangayList] = useState(false)
   const [barangayFilter, setBarangayFilter] = useState('')
+  const [exportBarangay, setExportBarangay] = useState('')
+  const [exportScope, setExportScope] = useState('submitted')
+  const [exportClass, setExportClass] = useState('')
   const barangays = [
     'Aplaya','Balabag','Binaton','Cogon','Colorado','Dawis','Dulangan','Goma','Igpit','Kapatagan','Kiagot','Lungag','Mahayahay','Matti','Ruparan','San_Agustin','San_Jose','San_Miguel','San_Roque','Sinawilan','Soong','Tiguman','Tres_De_Mayo','Zone_1','Zone_2','Zone_3'
   ]
@@ -79,6 +82,27 @@ export default function ValidatorDashboard() {
   function openModalWithSurveyRows(rows) {
     setModalRows(rows)
     setModalOpen(true)
+  }
+
+  async function handleExportBarangay() {
+    try {
+      const b = (exportBarangay || '').trim()
+      if (!b) return
+      const params = { barangay: b, scope: exportScope || 'submitted' }
+      if (exportClass) params.classification = exportClass
+      const res = await axios.get('/validator/api/export/barangay', { params, responseType: 'blob' })
+      const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `barangay-${b.replace(/\s+/g,'_').toLowerCase()}.csv`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error('Export failed', e)
+    }
   }
 
   // small UI helpers
@@ -199,6 +223,27 @@ export default function ValidatorDashboard() {
                 <button type="button" onClick={() => setBarangayFilter('')} className="text-xs px-2 py-1 rounded-xl bg-gray-100 hover:bg-gray-200">Clear</button>
               </div>
             )}
+            <div className="mt-4 flex items-center gap-2">
+              <select className="border border-gray-300 rounded-xl p-2.5" value={exportBarangay} onChange={e=>setExportBarangay(e.target.value)}>
+                <option value="">Select barangay</option>
+                {barangays.map(b => (
+                  <option key={b} value={b}>{b.replace(/_/g,' ')}</option>
+                ))}
+              </select>
+              <select className="border border-gray-300 rounded-xl p-2.5" value={exportScope} onChange={e=>setExportScope(e.target.value)}>
+                <option value="submitted">Submitted (validated + approved)</option>
+                <option value="survey">Surveyed (not yet submitted)</option>
+                <option value="all">All</option>
+              </select>
+              <select className="border border-gray-300 rounded-xl p-2.5" value={exportClass} onChange={e=>setExportClass(e.target.value)}>
+                <option value="">Classification: All</option>
+                <option value="Displaced">Displaced</option>
+                <option value="Double-up">Double-up</option>
+                <option value="Homeless">Homeless</option>
+                <option value="Upgrading of Land Tenure">Upgrading of Land Tenure</option>
+              </select>
+              <button type="button" onClick={handleExportBarangay} className="px-3 py-2 bg-emerald-600 text-white rounded-xl">Download CSV</button>
+            </div>
           </div>
         </section>
 
