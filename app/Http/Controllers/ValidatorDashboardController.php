@@ -2943,6 +2943,7 @@ class ValidatorDashboardController extends Controller
                     $url = Storage::disk('public')->exists($rel) ? Storage::url($rel) : (Str::startsWith($img, '/') ? $img : "/storage/$rel");
                 }
             }
+            $blocksJson = property_exists($r,'blocks_json') ? ($r->blocks_json ?? null) : null;
             $data[] = [
                 'project_id' => (int)$r->project_id,
                 'project_name' => $r->project_name,
@@ -2955,6 +2956,7 @@ class ValidatorDashboardController extends Controller
                 'proj_image' => $img,
                 'image_url' => $url,
                 'geojson' => property_exists($r,'geojson') ? $r->geojson : null,
+                'blocks_json' => $blocksJson,
             ];
         }
         return response()->json(['data' => $data]);
@@ -2977,6 +2979,7 @@ class ValidatorDashboardController extends Controller
             'year_started' => ['nullable','digits:4'],
             'description' => ['nullable','string'],
             'proj_image' => ['nullable','file','image','max:5120'],
+            'blocks_json' => ['nullable','string'],
         ]);
 
         $path = null;
@@ -2992,6 +2995,14 @@ class ValidatorDashboardController extends Controller
             $path = 'storage/projects/'.$filename;
         }
         $columns = Schema::getColumnListing('siteproj');
+        if (!in_array('blocks_json', $columns)) {
+            try {
+                Schema::table('siteproj', function (\Illuminate\Database\Schema\Blueprint $table) {
+                    $table->longText('blocks_json')->nullable();
+                });
+                $columns = Schema::getColumnListing('siteproj');
+            } catch (\Throwable $e) {}
+        }
         $payload = [
             'project_name' => $validated['project_name'],
             'land_area' => $validated['land_area'] ?? 0,
@@ -3001,6 +3012,7 @@ class ValidatorDashboardController extends Controller
             'year_started' => $validated['year_started'] ?? date('Y'),
             'description' => $validated['description'] ?? '',
             'proj_image' => $path ?? '',
+            'blocks_json' => $validated['blocks_json'] ?? null,
         ];
         $filtered = array_intersect_key($payload, array_flip($columns));
         try {
@@ -3040,6 +3052,7 @@ class ValidatorDashboardController extends Controller
             'year_started' => ['nullable','digits:4'],
             'description' => ['nullable','string'],
             'proj_image' => ['nullable','file','image','max:5120'],
+            'blocks_json' => ['nullable','string'],
         ]);
         $path = null;
         if ($request->hasFile('proj_image')) {
@@ -3061,6 +3074,7 @@ class ValidatorDashboardController extends Controller
             }
         }
         if ($path !== null) { $payload['proj_image'] = $path; }
+        if (array_key_exists('blocks_json', $validated)) { $payload['blocks_json'] = $validated['blocks_json']; }
         $filtered = array_intersect_key($payload, array_flip($columns));
         if (empty($filtered)) {
             return response()->json(['ok' => true]);
@@ -3231,21 +3245,102 @@ class ValidatorDashboardController extends Controller
         $validated = $request->validate([
             'survey_id' => ['required','integer'],
             'project_id' => ['required','integer'],
-            'block_no' => ['nullable'],
-            'lot_no' => ['nullable'],
+            'block_no' => ['required'],
+            'lot_no' => ['required'],
         ]);
         $exists = DB::table('assignments')->where('survey_id', $validated['survey_id'])->first();
         if ($exists) {
             return response()->json(['message' => 'Already assigned'], 422);
         }
+        $project = DB::table('siteproj')->where('project_id', (int)$validated['project_id'])->first();
+        if (!$project) { return response()->json(['message' => 'Project not found'], 404); }
+        $blockNo = is_numeric($validated['block_no']) ? (int)$validated['block_no'] : null;
+        $lotNo = is_numeric($validated['lot_no']) ? (int)$validated['lot_no'] : null;
+        if (!$blockNo || !$lotNo) { return response()->json(['message' => 'Invalid block/lot'], 422); }
+        $maxLotsByBlock = $this->computeMaxLotsByBlock($project);
+        $validBlocks = array_keys($maxLotsByBlock);
+        if (!in_array($blockNo, $validBlocks)) {
+            return response()->json(['message' => 'Block not found in project'], 422);
+        }
+        $maxLots = (int)($maxLotsByBlock[$blockNo] ?? 0);
+        if ($maxLots <= 0) { return response()->json(['message' => 'No lots configured for this block'], 422); }
+        if ($lotNo < 1 || $lotNo > $maxLots) { return response()->json(['message' => 'Lot number out of range for block'], 422); }
+        $taken = DB::table('assignments')->where('project_id', (int)$validated['project_id'])->where('block_no', (string)$blockNo)->where('lot_no', (string)$lotNo)->first();
+        if ($taken) { return response()->json(['message' => 'Lot already occupied'], 422); }
         DB::table('assignments')->insert([
             'survey_id' => $validated['survey_id'],
             'project_id' => $validated['project_id'],
-            'block_no' => $validated['block_no'] ?? null,
-            'lot_no' => $validated['lot_no'] ?? null,
+            'block_no' => (string)$blockNo,
+            'lot_no' => (string)$lotNo,
             'date_assigned' => now(),
         ]);
         return response()->json(['ok'=>true]);
+    }
+
+    private function computeMaxLotsByBlock($project)
+    {
+        $columns = Schema::getColumnListing('siteproj');
+        $totalBlocks = (int)($project->total_blocks ?? 0);
+        $totalLots = (int)($project->total_lots ?? 0);
+        $result = [];
+        if (in_array('blocks_json', $columns) && isset($project->blocks_json) && is_string($project->blocks_json) && $project->blocks_json !== '') {
+            try {
+                $parsed = json_decode($project->blocks_json, true);
+                if (is_array($parsed)) {
+                    foreach ($parsed as $b => $max) { $bn = (int)$b; $result[$bn] = (int)$max; }
+                }
+            } catch (\Throwable $e) {}
+        }
+        if (!empty($result)) { return $result; }
+        if ($totalBlocks <= 0 || $totalLots <= 0) { return []; }
+        $base = intdiv($totalLots, $totalBlocks);
+        $rem = $totalLots % $totalBlocks;
+        for ($i=1; $i <= $totalBlocks; $i++) { $result[$i] = $base + ($i <= $rem ? 1 : 0); }
+        return $result;
+    }
+
+    public function adminProjectBlocks(Request $request, $project_id)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        $project = DB::table('siteproj')->where('project_id', (int)$project_id)->first();
+        if (!$project) { return response()->json(['message' => 'Not found'], 404); }
+        $maxByBlock = $this->computeMaxLotsByBlock($project);
+        $occupied = DB::table('assignments')
+            ->where('project_id', (int)$project_id)
+            ->select('block_no', DB::raw('COUNT(*) as cnt'))
+            ->groupBy('block_no')
+            ->get()
+            ->reduce(function($acc,$row){ $acc[(int)$row->block_no] = (int)$row->cnt; return $acc; }, []);
+        $blocks = [];
+        foreach ($maxByBlock as $bn => $max) {
+            $occ = (int)($occupied[$bn] ?? 0);
+            $blocks[] = [ 'block_no' => (int)$bn, 'max_lots' => (int)$max, 'occupied_lots' => $occ, 'available_lots' => max(0, (int)$max - $occ) ];
+        }
+        return response()->json(['data' => $blocks]);
+    }
+
+    public function adminProjectBlockAvailableLots(Request $request, $project_id, $block_no)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        $project = DB::table('siteproj')->where('project_id', (int)$project_id)->first();
+        if (!$project) { return response()->json(['message' => 'Not found'], 404); }
+        $bn = (int)$block_no;
+        $maxByBlock = $this->computeMaxLotsByBlock($project);
+        $max = (int)($maxByBlock[$bn] ?? 0);
+        if ($max <= 0) { return response()->json(['data' => []]); }
+        $used = DB::table('assignments')
+            ->where('project_id', (int)$project_id)
+            ->where('block_no', (string)$bn)
+            ->pluck('lot_no')
+            ->map(function($v){ return (int)$v; })
+            ->toArray();
+        $avail = [];
+        for ($i=1; $i <= $max; $i++) { if (!in_array($i, $used)) $avail[] = $i; }
+        return response()->json(['data' => $avail]);
     }
 
     public function adminApproveSurvey(Request $request)

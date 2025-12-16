@@ -6,6 +6,8 @@ export default function AdminAssignments() {
   const [pending, setPending] = useState([])
   const [assigned, setAssigned] = useState([])
   const [projects, setProjects] = useState([])
+  const [blocksMap, setBlocksMap] = useState({})
+  const [lotsMap, setLotsMap] = useState({})
   const [searchPending, setSearchPending] = useState('')
   const [searchAssigned, setSearchAssigned] = useState('')
   const [error, setError] = useState('')
@@ -64,12 +66,35 @@ export default function AdminAssignments() {
     )
   }
 
+  async function loadBlocks(project_id) {
+    if (!project_id) return
+    try {
+      const res = await axios.get(`/admin/api/project-sites/${project_id}/blocks`)
+      setBlocksMap(prev => ({ ...prev, [project_id]: res.data.data || [] }))
+    } catch (e) {
+      setBlocksMap(prev => ({ ...prev, [project_id]: [] }))
+    }
+  }
+  async function loadAvailableLots(project_id, block_no) {
+    if (!project_id || !block_no) return
+    try {
+      const res = await axios.get(`/admin/api/project-sites/${project_id}/blocks/${block_no}/available-lots`)
+      setLotsMap(prev => ({ ...prev, [`${project_id}#${block_no}`]: res.data.data || [] }))
+    } catch (e) {
+      setLotsMap(prev => ({ ...prev, [`${project_id}#${block_no}`]: [] }))
+    }
+  }
+
   async function assignRow(survey_id, project_id, block_no, lot_no) {
     if (!project_id) { alert('Select a project'); return }
+    if (!block_no) { alert('Select a block'); return }
+    if (!lot_no) { alert('Select a lot'); return }
     setBusyId(survey_id)
     try {
       await axios.post('/admin/api/assignments', { survey_id, project_id, block_no, lot_no }, { headers: { 'X-CSRF-TOKEN': csrf() } })
       await loadAll()
+      await loadBlocks(project_id)
+      await loadAvailableLots(project_id, block_no)
     } catch (e) {
       alert(e?.response?.data?.message || e.message)
     } finally {
@@ -204,14 +229,40 @@ export default function AdminAssignments() {
               <tbody>
                 {pending.map(r => {
                   const f = assignForms[r.survey_id] || { project_id: '', block_no: '', lot_no: '' }
+                  const blocks = f.project_id ? (blocksMap[f.project_id] || []) : []
+                  const lotsKey = `${f.project_id}#${f.block_no}`
+                  const lots = (lotsMap[lotsKey] || [])
                   return (
                     <tr key={r.survey_id} className="even:bg-gray-50">
                       <td className="p-3">{r.last_name}</td>
                       <td className="p-3">{r.barangay}</td>
                       <td className="p-3">{r.classification}</td>
-                      <td className="p-3"><ProjectSelect value={f.project_id} onChange={(v)=>setAssignForms(prev=>({ ...prev, [r.survey_id]: { ...prev[r.survey_id], project_id: v } }))} /></td>
-                      <td className="p-3"><input className="border rounded p-2 w-24" value={f.block_no} onChange={e=>setAssignForms(prev=>({ ...prev, [r.survey_id]: { ...prev[r.survey_id], block_no: e.target.value } }))} /></td>
-                      <td className="p-3"><input className="border rounded p-2 w-24" value={f.lot_no} onChange={e=>setAssignForms(prev=>({ ...prev, [r.survey_id]: { ...prev[r.survey_id], lot_no: e.target.value } }))} /></td>
+                      <td className="p-3">
+                        <ProjectSelect value={f.project_id} onChange={(v)=>{
+                          setAssignForms(prev=>({ ...prev, [r.survey_id]: { ...prev[r.survey_id], project_id: v, block_no: '', lot_no: '' } }))
+                          loadBlocks(v)
+                        }} />
+                      </td>
+                      <td className="p-3">
+                        <select className="border rounded p-2 w-28" value={f.block_no} disabled={!f.project_id || blocks.length===0}
+                          onChange={e=>{
+                            const bn = e.target.value
+                            setAssignForms(prev=>({ ...prev, [r.survey_id]: { ...prev[r.survey_id], block_no: bn, lot_no: '' } }))
+                            loadAvailableLots(f.project_id, bn)
+                          }}>
+                          <option value="">Select Block</option>
+                          {blocks.map(b => (
+                            <option key={`b-${b.block_no}`} value={b.block_no}>Block {b.block_no} (avail {b.available_lots})</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="p-3">
+                        <select className="border rounded p-2 w-28" value={f.lot_no} disabled={!f.project_id || !f.block_no || lots.length===0}
+                          onChange={e=>setAssignForms(prev=>({ ...prev, [r.survey_id]: { ...prev[r.survey_id], lot_no: e.target.value } }))}>
+                          <option value="">Select Lot</option>
+                          {lots.map(n => (<option key={`l-${n}`} value={n}>Lot {n}</option>))}
+                        </select>
+                      </td>
                       <td className="p-3"><button className="px-3 py-1 border rounded text-sm text-emerald-800 hover:bg-emerald-50" disabled={busyId===r.survey_id} onClick={() => assignRow(r.survey_id, f.project_id, f.block_no, f.lot_no)}>{busyId===r.survey_id?'Assigning...':'Assign'}</button></td>
                     </tr>
                   )

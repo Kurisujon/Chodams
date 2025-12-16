@@ -111,6 +111,8 @@ Route::prefix('admin/api')->group(function () {
     Route::post('/project-sites/{project_id}', [ValidatorDashboardController::class, 'adminProjectSitesUpdate']);
     Route::delete('/project-sites/{project_id}', [ValidatorDashboardController::class, 'adminProjectSitesDelete']);
     Route::post('/project-sites/{project_id}/boundary', [ValidatorDashboardController::class, 'adminProjectBoundarySave']);
+    Route::get('/project-sites/{project_id}/blocks', [ValidatorDashboardController::class, 'adminProjectBlocks']);
+    Route::get('/project-sites/{project_id}/blocks/{block_no}/available-lots', [ValidatorDashboardController::class, 'adminProjectBlockAvailableLots']);
 
     // Assignments API
     Route::get('/assignments', [ValidatorDashboardController::class, 'adminAssignmentsList']);
