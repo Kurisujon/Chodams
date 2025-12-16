@@ -23,6 +23,74 @@ export default function SurveyDetails() {
     return s.startsWith('/') ? s : `/${s}`
   }
 
+  const Check = ({ checked, size = 12 }) => (
+    <span className="inline-flex items-center justify-center border border-black shrink-0" style={{ width: size, height: size }}>
+      {checked ? (
+        <svg viewBox="0 0 12 12" width={size - 2} height={size - 2} fill="none" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 6l2 2 6-6" />
+        </svg>
+      ) : null}
+    </span>
+  )
+
+  const eq = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase()
+  const isYes = (v) => eq(v, 'yes')
+  const isNo = (v) => eq(v, 'no')
+  const HS_OPTS = [
+    { key: 'Full_Concrete', label: 'Full Concrete' },
+    { key: 'Combination_of_concrete_and_wood', label: 'Combination of concrete and wood' },
+    { key: 'Made_of_wood_and_metal_roof', label: 'Made of wood and metal roof' },
+    { key: 'Made_of_Amakan_and_Nipa', label: 'Made of Amakan and Nipa' },
+    { key: 'Made_of_Amakan_and_metal_roof', label: 'Made of Amakan and metal roof' },
+    { key: 'Makeshift/Salvaged/Improvised_Material', label: 'Makeshift/Salvaged/Improvised Material' },
+  ]
+  const TOILET_OPTS = [
+    { key: 'Water-sealed', label: 'Water Sealed' },
+    { key: 'Pit', label: 'Open Pit/Antipolo' },
+    { key: 'None', label: 'No Toilet' },
+  ]
+  const WATER_OPTS = [
+    { key: 'Community_Water_System_(NAWASA)', label: 'Community Water System (NAWASA)', aliases: ['With_own_meter','Shared_connection'] },
+    { key: 'Deep_Well', label: 'Deep Well', aliases: ['Well'] },
+    { key: 'Spring', label: 'Spring', aliases: [] },
+    { key: 'Rainwater', label: 'Rainwater', aliases: [] },
+    { key: 'Surface_Water_(river,lake,dam)', label: 'Surface water (river,lake,dam)', aliases: [] },
+  ]
+  const ELEC_OPTS = [
+    { key: 'With_own_meter', label: 'With own meter' },
+    { key: 'Tapping_to_the_neighbor', label: 'Tapping to the neighbor' },
+    { key: 'Solar_Panel', label: 'Solar Panel' },
+    { key: 'Candle/Lamp', label: 'Candle/Lamp' },
+  ]
+
+  const INCOME_OPTS = [
+    { key: 'Public_Employee', label: 'Employee (Public Office/Company)' },
+    { key: 'Private_Employee', label: 'Employee (Private Office/Company)' },
+    { key: 'Self_Employed', label: 'Self-employed/with owned business' },
+    { key: 'Casual', label: 'Casual (On-call for work)' },
+  ]
+  const WORK_STATUS_OPTS = [
+    { key: 'Regular', label: 'Regular' },
+    { key: 'Contractual', label: 'Contractual' },
+  ]
+  const WORK_LOC_OPTS = [
+    { key: 'Within the Barangay', label: 'Within the Barangay' },
+    { key: 'Within the City/Municipality', label: 'Within the City/Municipality' },
+    { key: 'Within the Province', label: 'Within the Province' },
+    { key: 'Within the Country', label: 'Within the Country' },
+  ]
+  const SKILL_OPTS = [
+    { key: 'Handicrafts', label: 'Handicrafts', aliases: ['Handicraft'] },
+    { key: 'Wood Works & furnitures', label: 'Wood Works & furnitures', aliases: ['Wood Works and furnitures','Wood works & furnitures','Wood works and furnitures'] },
+    { key: 'Food Processing', label: 'Food Processing', aliases: [] },
+  ]
+  const ORG_OPTS = [
+    { key: 'HOA', label: 'HOA' },
+    { key: 'Dayong', label: 'Dayong' },
+    { key: "Women's Organization", label: "Women's Organization" },
+    { key: 'Youth Organization', label: 'Youth Organization' },
+  ]
+
   async function handleApprove() {
     try {
       await axios.post('/admin/api/approve', { survey_id: surveyId }, { headers: { 'X-CSRF-TOKEN': csrf() } })
@@ -76,58 +144,66 @@ export default function SurveyDetails() {
             #print-root { padding: 0 !important; margin: 0 !important; width: 100% !important; }
             #print-root table { width: 100% !important; page-break-inside: auto; }
             #print-root table td, #print-root table th { padding: 2px 4px !important; font-size: 10px; }
-            #print-root .leading-relaxed { line-height: 1.2 !important; }
+            #print-root .leading-relaxed { line-height: 1.1 !important; }
             #print-root .text-xs { font-size: 10px !important; }
             #print-root .text-sm { font-size: 11px !important; }
             #print-root .mt-6 { margin-top: 6px !important; }
             #print-root .mt-5 { margin-top: 6px !important; }
             #print-root .p-6 { padding: 10px !important; }
-            #print-root .p-3 { padding: 6px !important; }
-            #print-root .px-3 { padding-left: 6px !important; padding-right: 6px !important; }
-            #print-root .py-2 { padding-top: 4px !important; padding-bottom: 4px !important; }
-            #print-root .chrrsdp-title { margin-top: 6px !important; }
+            #print-root .chrrsdp-title { margin-top: 0 !important; }
+            #print-root .conf-block { padding: 2px !important; }
+            #print-root .conf-title { font-size: 10px !important; font-weight: 700 !important; margin: 2px 0 1px 0 !important; line-height: 1.15 !important; }
+            #print-root .conf-text { font-size: 10px !important; margin: 1px 0 !important; line-height: 1.2 !important; }
+            #print-root .letter-block { padding: 2px !important; }
+            #print-root .letter-title { font-size: 10px !important; font-weight: 700 !important; margin: 2px 0 1px 0 !important; line-height: 1.15 !important; }
+            #print-root .letter-text { font-size: 10px !important; margin: 1px 0 !important; line-height: 1.2 !important; }
             #print-root .members-header-wrapper { margin-top: 6px !important; }
             #print-root .members-header { margin-top: 0 !important; }
             #print-root .survey-box { margin-top: 6px !important; }
+            #print-root .subclass-cell { padding: 0 !important; }
+            #print-root .subclass-table .leading-none { line-height: 1 !important; }
+            #print-root .subclass-def { font-size: 10px !important; line-height: 1.2 !important; }
+            #print-root .subclass-cell { min-height: 140px !important; display: flex !important; flex-direction: column !important; }
+            #print-root .subclass-def { margin-top: auto !important; padding-top: 2px !important; }
           }
         `}</style>
 
-        <div id="print-root" className="bg-white p-6 print:shadow-none" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
+        <div id="print-root" className="bg-white p-0 print:shadow-none" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
           <div className="border-2 border-black survey-box">
             <div className="grid grid-cols-3">
-              <div className="col-span-1 p-3 border-r-2 border-black bg-slate-50">
+              <div className="col-span-1 p-0 border-r-2 border-black">
                 <div className="text-sm font-semibold chrrsdp-title">CHRRSDP FORM 2</div>
-                <div className="text-xs mt-1">Date</div>
                 <div className="text-sm font-medium">{survey.date_interviewed || ''}</div>
-                <div className="text-xs mt-2">Form No.</div>
-                <div className="mt-1">{survey.form_no || '________'}</div>
+                <div className="text-xs">Form No.</div>
+                <div>{survey.form_no || ''}</div>
               </div>
-              <div className="col-span-2 p-3">
-                <div className="text-center font-semibold text-sm">CITY GOVERNMENT OF DIGOS</div>
-                <div className="text-center text-sm">CITY HOUSING RELOCATION RESETTLEMENT</div>
-                <div className="text-center text-sm">AND SITE DEVELOPMENT PROGRAM</div>
+              <div className="col-span-2 p-0">
+                <div className="text-center font-semibold text-sm" style={{ lineHeight: '1' }}>CITY GOVERNMENT OF DIGOS</div>
+                <div className="text-center text-sm" style={{ lineHeight: '1' }}>CITY HOUSING RELOCATION RESETTLEMENT</div>
+                <div className="text-center text-sm" style={{ lineHeight: '1' }}>AND SITE DEVELOPMENT PROGRAM</div>
               </div>
             </div>
+            
             <div className="grid grid-cols-2 border-t-2 border-black">
-              <div className="p-3">
-                <div className="text-xs font-bold">CONFIDENTIALITY</div>
-                <div className="text-xs mt-1 leading-relaxed">The CHRRSDP adheres and commits to the confidentiality of information as Section 8 of RA 10173 (Confidentiality). All data obtained herein shall be held strictly confidential, and will not be used for taxation, investigation or law enforcement purposes.</div>
+              <div className="conf-block p-[2px]">
+                <div className="conf-title text-xs font-bold leading-tight">CONFIDENTIALITY</div>
+                <div className="conf-text text-[10px] leading-tight">The CHRRSDP adheres and commits to the confidentiality of information as Section 8 of RA 10173 (Confidentiality). All data obtained herein shall be held strictly confidential, and will not be used for taxation, investigation or law enforcement purposes.</div>
               </div>
-              <div className="p-3 border-l-2 border-black flex flex-col items-center justify-center">
-                <div className="text-emerald-700 font-extrabold text-3xl">ISF</div>
-                <div className="text-[11px] leading-snug text-gray-800">Informal Settler Families<br/>Census Survey</div>
-                <div className="mt-1 font-semibold text-sm text-gray-900">Household Profile Questionnaire</div>
+              <div className="p-0 border-l-2 border-black flex flex-col items-center justify-center">
+                <div className="text-emerald-700 font-extrabold text-3xl leading-none">ISF</div>
+                <div className="text-[11px] text-gray-800 leading-none">Informal Settler Families<br/>Census Survey</div>
+                <div className="font-semibold text-sm text-gray-900 leading-none">Household Profile Questionnaire</div>
               </div>
             </div>
-            <div className="p-3 border-t-2 border-black">
-              <div className="text-xs font-semibold">Dear Sir/Madam:</div>
-              <div className="text-xs mt-1 leading-relaxed">The City Housing Relocation Resettlement and Site Development Program is collecting information to the Informal Settler Families identified in the different barangays of Digos City. The Informal Settler Families Census Survey aims to gather data about the demographic, socioeconomic and housing characteristics of every identified household. The collected data will be used by the City Government planners, policy makers, and administrators in formulating their social and economic development plans, policies, and programs.</div>
-              <div className="text-xs mt-2 leading-relaxed">The City Housing Relocation Resettlement and Site Development Program highly encourages your participation and cooperation by providing truthful and complete answers. All information provided are strictly confidential pursuant to Section 8 (Confidentiality) of Republic Act 10173 or the Data Privacy Act of 2012 and will not be used against you or to any of your household member for taxation, investigation, or law enforcement purposes.</div>
-              <div className="text-xs mt-2 leading-relaxed">We at City Housing Relocation Resettlement and Site Development Program would like to thank you for your trust in providing us with your personal information. Your information shall only be subject to reproduction, correction and/or deletion upon your personal request. For Data Privacy concern, you may send us an email at cityhousingrelocation@gmail.com.</div>
+            <div className="letter-block p-[2px] border-t-2 border-black">
+              <div className="letter-title text-xs font-semibold leading-tight">Dear Sir/Madam:</div>
+              <div className="letter-text text-[10px] leading-tight">The <span className="font-semibold">City Housing Relocation Resettlement and Site Development Program</span> is collecting information to the <span className="font-semibold">Informal Settler Families</span> identified in the different barangays of Digos City. The <span className="font-semibold">Informal Settler Families Census Survey</span> aims to gather data about the demographic, socioeconomic and housing characteristics of every identified household. The collected data will be used by the City Government planners, policy makers, and administrators in formulating their social and economic development plans, policies, and programs.</div>
+              <div className="letter-text text-[10px] leading-tight">The <span className="font-semibold">City Housing Relocation Resettlement and Site Development Program</span> highly encourages your participation and cooperation by providing truthful and complete answers. All information provided are strictly confidential pursuant to Section 8 (Confidentiality) of Republic Act 10173 or the Data Privacy Act of 2012 and will not be used against you or to any of your household member for taxation, investigation, or law enforcement purposes.</div>
+              <div className="letter-text text-[10px] leading-tight">We at <span className="font-semibold">City Housing Relocation Resettlement and Site Development Program</span> would like to thank you for your trust in providing us with your personal information. Your information shall only be subject to reproduction, correction and/or deletion upon your personal request. For Data Privacy concern, you may send us an email at cityhousingrelocation@gmail.com.</div>
             </div>
           </div>
 
-          <div className="mt-1 mb-1">
+          <div>
             <table className="w-full border border-black text-sm border-collapse">
               <tbody>
                 <tr>
@@ -135,11 +211,11 @@ export default function SurveyDetails() {
                   <td className="border border-black px-3 py-2">
                     <div className="flex items-center gap-4 text-xs">
                       <span className={`inline-flex items-center gap-2`}>
-                        <span className={`inline-block w-3 h-3 border border-black ${String(survey.previous_client).toLowerCase() === 'yes' ? 'bg-black' : ''}`}></span>
+                        <Check checked={String(survey.previous_client).toLowerCase() === 'yes'} />
                         Yes
                       </span>
                       <span className={`inline-flex items-center gap-2`}>
-                        <span className={`inline-block w-3 h-3 border border-black ${String(survey.previous_client).toLowerCase() === 'no' ? 'bg-black' : ''}`}></span>
+                        <Check checked={String(survey.previous_client).toLowerCase() === 'no'} />
                         No
                       </span>
                     </div>
@@ -150,44 +226,126 @@ export default function SurveyDetails() {
               </tbody>
             </table>
 
-            <div className="mt-5 bg-blue-200 text-gray-900 font-semibold px-3 py-2 border border-black">I. CLASSIFICATION OF INFORMAL SETTLER FAMILIES</div>
+            <div className="bg-blue-200 text-gray-900 font-semibold px-3 py-2 border border-black">I. CLASSIFICATION OF INFORMAL SETTLER FAMILIES</div>
             <table className="w-full border border-black text-sm border-collapse">
               <tbody>
                 <tr>
-                  <td className="border border-black px-3 py-2">Displaced</td>
-                  <td className="border border-black px-3 py-2 w-10">
-                    <span className={`inline-block w-4 h-4 border border-black ${String(survey.classification).toLowerCase() === 'displaced' ? 'bg-black' : ''}`}></span>
+                  <td className="border border-black px-3 py-2" style={{width:'25%'}}>
+                    <span className="inline-flex items-center gap-2">
+                      <Check checked={String(survey.classification).toLowerCase() === 'displaced'} size={16} />
+                      <span>Displaced</span>
+                    </span>
                   </td>
-                  <td className="border border-black px-3 py-2">Homeless</td>
-                  <td className="border border-black px-3 py-2 w-10">
-                    <span className={`inline-block w-4 h-4 border border-black ${String(survey.classification).toLowerCase() === 'homeless' ? 'bg-black' : ''}`}></span>
+                  <td className="border border-black px-3 py-2" style={{width:'25%'}}>
+                    <span className="inline-flex items-center gap-2">
+                      <Check checked={String(survey.classification).toLowerCase() === 'double-up' || String(survey.classification).toLowerCase() === 'double up' || String(survey.classification).toLowerCase() === 'doubled-up'} size={16} />
+                      <span>Doubled-up</span>
+                    </span>
                   </td>
-                  <td className="border border-black px-3 py-2">Upgrading of Land Tenure</td>
-                  <td className="border border-black px-3 py-2 w-10">
-                    <span className={`inline-block w-4 h-4 border border-black ${String(survey.classification).toLowerCase() === 'upgrading of land tenure' ? 'bg-black' : ''}`}></span>
+                  <td className="border border-black px-3 py-2" style={{width:'25%'}}>
+                    <span className="inline-flex items-center gap-2">
+                      <Check checked={String(survey.classification).toLowerCase() === 'homeless'} size={16} />
+                      <span>Homeless</span>
+                    </span>
                   </td>
-                  <td className="border border-black px-3 py-2">Doubled-up</td>
-                  <td className="border border-black px-3 py-2 w-10">
-                    <span className={`inline-block w-4 h-4 border border-black ${String(survey.classification).toLowerCase() === 'doubled-up' || String(survey.classification).toLowerCase() === 'double up' ? 'bg-black' : ''}`}></span>
+                  <td className="border border-black px-3 py-2" style={{width:'25%'}}>
+                    <span className="inline-flex items-center gap-2">
+                      <Check checked={String(survey.classification).toLowerCase() === 'upgrading of land tenure'} size={16} />
+                      <span>Upgrading of Land Tenure</span>
+                    </span>
                   </td>
                 </tr>
               </tbody>
             </table>
             <div className="bg-blue-100 text-gray-900 font-semibold px-3 py-2 border border-black">A. SUB-CLASSIFICATION</div>
-            <table className="w-full border border-black text-sm border-collapse">
+            <table className="w-full border border-black text-xs border-collapse subclass-table">
               <tbody>
                 <tr>
-                  <td className="border border-black px-3 py-2" colSpan={8}>{survey.sub_class_displaced || survey.subclass_displaced || survey.sub_class_double_up || survey.subclass_doubleup || survey.sub_class_homeless || survey.subclass_homeless || '-'}</td>
+                  <td className="border-l border-r border-t border-b-2 border-black align-top p-0" style={{width:'25%'}}>
+                    <div className="subclass-cell p-[2px] leading-none">
+                      <div className="mt-0 space-y-[2px] leading-none">
+                        {[
+                          'Coastal Areas','Sea Level Rise','Drought','Earthquake Affected','Landslide Affected','Flood Affected','Threat of Eviction','Eviction/Demolition Order','Human Induced Disaster (e.g. War, Fire)','Infra-Projects (e.g. Road Widening)','Near Waterways (e.g. Riverbanks, Esteros)'
+                        ].map(opt => (
+                          <div key={opt} className="flex items-center gap-[2px] leading-none text-[10px]">
+                            <Check checked={String(survey.subclass_displaced||'').toLowerCase() === opt.toLowerCase()} />
+                            <span>{opt}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="border-l border-r border-t border-b-2 border-black align-top p-0" style={{width:'25%'}}>
+                    <div className="subclass-cell p-[2px] leading-none flex flex-col min-h-[140px]">
+                      <div className="mt-0 space-y-[2px] leading-none">
+                        {['Renter/Tenant','Rent-free/Sharer','Caretaker'].map(opt => (
+                          <div key={opt} className="flex items-center gap-[2px] leading-none text-[10px]">
+                            <Check checked={String(survey.subclass_doubleup||'').toLowerCase() === opt.toLowerCase()} />
+                            <span>{opt}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="subclass-def border-t border-black text-[10px] leading-tight mt-auto pt-[4px]">
+                        Doubled‑up – Refers to households in excess of the number of dwelling units at the time of census, assuming a ratio of one household per dwelling unit. A household with a separate arrangement for food preparation and consumption but shares dwelling of another household.
+                      </div>
+                    </div>
+                  </td>
+                  <td className="border-l border-r border-t border-b-2 border-black align-top p-0" style={{width:'25%'}}>
+                    <div className="subclass-cell p-[2px] leading-none flex flex-col min-h-[140px]">
+                      <div className="mt-0 space-y-[2px] leading-none">
+                        {['Public - living in tent','Private - living in tent'].map(opt => (
+                          <div key={opt} className="flex items-center gap-[2px] leading-none text-[10px]">
+                            <Check checked={String(survey.subclass_homeless||'').toLowerCase() === opt.toLowerCase()} />
+                            <span>{opt}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="subclass-def border-t border-black text-[10px] leading-tight mt-auto pt-[4px]">
+                        Homeless – Individuals residing in public places (such as sidewalks, roads, parks, or playgrounds) or those who are not members of any household.
+                      </div>
+                    </div>
+                  </td>
+                  <td className="border-l border-r border-t border-b-2 border-black align-top p-0" style={{width:'25%'}}>
+                    <div className="subclass-cell p-[2px] leading-none flex flex-col min-h-[140px]">
+                      <div className="mt-auto">
+                        <div className="subclass-def text-[10px] leading-tight">
+                          Displaced – Household located in danger areas, such as extended esteros (canals), railroad tracks, garbage dumps, riverbanks, and flood‑prone areas; or in areas where government infrastructure projects are to be implemented; or areas where the household is under a court order of eviction and demolition.
+                        </div>
+                        <div className="subclass-def border-t border-black text-[10px] leading-tight pt-[4px]">
+                          Upgrading of Land Tenure – Households residing in areas with inadequate security of tenure and/or those with already ongoing negotiation with the land owners for the acquisition of land they are presently occupying.
+                        </div>
+                      </div>
+                    </div>
+                  </td>
                 </tr>
               </tbody>
             </table>
-            <div className="border border-black p-3 text-xs leading-relaxed">
-              <div className="font-bold">DEFINITION:</div>
-              <div className="mt-1">Displaced – Household located in danger areas, such as extended esteros (canals), railroad tracks, garbage dumps, riverbanks, and flood-prone areas or in areas where government infrastructure projects are to be implemented or areas where household is a court order of eviction and demolition.</div>
-              <div className="mt-2">Doubled-Up – It refers to a number of households in excess of the number of dwelling units at the time of census, assuming that one household per dwelling…</div>
-            </div>
 
-            <div className="mt-6 bg-blue-200 text-gray-900 font-semibold px-3 py-2 border border-black">II. DEMOGRAPHIC INFORMATION</div>
+            <div className="grid grid-cols-12 border border-black">
+              <div className="col-span-9 bg-blue-200 text-gray-900 font-semibold px-3 py-2">
+                II. DEMOGRAPHIC INFORMATION <span className="font-normal">(Put N/A if not applicable)</span>
+              </div>
+              <div className="col-span-3 bg-amber-200 px-3 py-2 text-xs flex items-center justify-end">
+                <span className="mr-1">Tag Number :</span>
+                <span className="font-bold tracking-wider">{survey.tag_number || ''}</span>
+              </div>
+            </div>
+            <div className="border border-black px-3 py-2 text-xs">
+              <div className="flex flex-wrap gap-6 items-center">
+                <div className="flex items-center gap-2">
+                  <Check checked={String(survey.interview_person||'').toLowerCase()==='household_head'} size={16} />
+                  <span>Household Head</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Check checked={String(survey.interview_person||'').toLowerCase()==='spouse_head'} size={16} />
+                  <span>Spouse of the Head</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Check checked={String(survey.interview_person||'').toLowerCase()==='never-married'} size={16} />
+                  <span>Never-Married children of Head/Spouse</span>
+                </div>
+              </div>
+            </div>
             <table className="w-full border border-black text-sm border-collapse">
               <tbody>
                 <tr className="bg-gray-100 text-gray-900 font-semibold">
@@ -211,8 +369,19 @@ export default function SurveyDetails() {
                 <tr>
                   <td className="border border-gray-300 px-3 py-2">{survey.street || '-'}</td>
                   <td className="border border-gray-300 px-3 py-2">{survey.purok || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.barangay || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.gender || '-'}</td>
+                  <td className="border border-gray-300 px-3 py-2">{String(survey.barangay || '-').replace(/_/g,' ')}</td>
+                  <td className="border border-gray-300 px-3 py-2">
+                    <div className="flex items-center gap-4 text-xs">
+                      <span className="inline-flex items-center gap-2">
+                        <Check checked={String(survey.gender||'').toLowerCase()==='male'} />
+                        Male
+                      </span>
+                      <span className="inline-flex items-center gap-2">
+                        <Check checked={String(survey.gender||'').toLowerCase()==='female'} />
+                        Female
+                      </span>
+                    </div>
+                  </td>
                 </tr>
                 <tr className="bg-gray-100 text-gray-900 font-semibold">
                   <td className="border border-gray-300 px-3 py-2">Religion</td>
@@ -221,41 +390,47 @@ export default function SurveyDetails() {
                   <td className="border border-gray-300 px-3 py-2">Age</td>
                 </tr>
                 <tr>
-                  <td className="border border-gray-300 px-3 py-2">{survey.religion || '-'}</td>
+                  <td className="border border-gray-300 px-3 py-2">{String(survey.religion || '-').replace(/_/g,' ')}</td>
                   <td className="border border-gray-300 px-3 py-2">{survey.birth_place || '-'}</td>
                   <td className="border border-gray-300 px-3 py-2">{survey.birth_date || '-'}</td>
                   <td className="border border-gray-300 px-3 py-2">{survey.person_age || '-'}</td>
                 </tr>
                 <tr className="bg-gray-100 text-gray-900 font-semibold">
-                  <td className="border border-gray-300 px-3 py-2">Marital Status</td>
+                  <td className="border border-gray-300 px-3 py-2" colSpan={2}>Marital Status</td>
                   <td className="border border-gray-300 px-3 py-2">Contact Number</td>
                   <td className="border border-gray-300 px-3 py-2">Language Spoken</td>
-                  <td className="border border-gray-300 px-3 py-2">Tribe</td>
                 </tr>
                 <tr>
-                  <td className="border border-gray-300 px-3 py-2">{survey.marital_status || '-'}</td>
+                  <td className="border border-gray-300 px-3 py-2" colSpan={2}>
+                    <div className="grid grid-cols-4 gap-x-2 gap-y-[2px] text-[10px] leading-none">
+                      {['Single','Married','Live-in','Divorced','Separated','Widow/er','Annulled','Unknown'].map(opt=> (
+                        <span key={opt} className="inline-flex items-center gap-[2px]">
+                          <Check checked={String(survey.marital_status||'').toLowerCase()===opt.toLowerCase()} />
+                          <span>{opt}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </td>
                   <td className="border border-gray-300 px-3 py-2">{survey.contact_number || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.language_spoken || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.tribe || '-'}</td>
+                  <td className="border border-gray-300 px-3 py-2">{String(survey.language_spoken || '-').replace(/_/g,' ')}</td>
                 </tr>
                 <tr className="bg-gray-100 text-gray-900 font-semibold">
-                  <td className="border border-gray-300 px-3 py-2">Affiliation</td>
-                  <td className="border border-gray-300 px-3 py-2" colSpan={3}>{survey.affiliation || survey.affiliations || '-'}</td>
-                </tr>
-                <tr className="bg-gray-100 text-gray-900 font-semibold">
-                  <td className="border border-gray-300 px-3 py-2" colSpan={2}>Highest Educational Attainment</td>
-                  <td className="border border-gray-300 px-3 py-2">Name of the School Last Attended</td>
+                  <td className="border border-gray-300 px-3 py-2">Ethnicity/Tribe</td>
+                  <td className="border border-gray-300 px-3 py-2">Highest Educational Attainment</td>
+                  <td className="border border-gray-300 px-3 py-2">Name of School Last Attended</td>
                   <td className="border border-gray-300 px-3 py-2">Year Graduated</td>
                 </tr>
                 <tr>
-                  <td className="border border-gray-300 px-3 py-2" colSpan={2}>{survey.highest_education || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.last_school_attended || survey.last_school_name || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.year_graduated || '-'}</td>
+                  <td className="border border-gray-300 px-3 py-2">{String(survey.tribe || '-').replace(/_/g,' ')}</td>
+                  <td className="border border-gray-300 px-3 py-2">{String(survey.highest_education || '-').replace(/_/g,' ')}</td>
+                  <td className="border border-gray-300 px-3 py-2">{String(survey.last_school_attended || survey.last_school_name || '-').replace(/_/g,' ')}</td>
+                  <td className="border border-gray-300 px-3 py-2">{String(survey.year_graduated || '-').replace(/_/g,' ')}</td>
                 </tr>
+                
               </tbody>
             </table>
 
-            <div className="mt-6 bg-blue-100 text-gray-900 font-semibold px-3 py-2 border border-black">SPOUSE INFORMATION</div>
+            <div className="bg-blue-100 text-gray-900 font-semibold px-3 py-2 border border-black">SPOUSE INFORMATION (Put N/A if not applicable)</div>
             <table className="w-full border border-black text-sm border-collapse">
               <tbody>
                 <tr className="bg-gray-100 text-gray-900 font-semibold">
@@ -267,13 +442,46 @@ export default function SurveyDetails() {
                 </tr>
                 <tr>
                   <td className="border border-gray-300 px-3 py-2">{survey.spouse_name || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.spouse_religion || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.spouse_tribe || '-'}</td>
+                  <td className="border border-gray-300 px-3 py-2">{String(survey.spouse_religion || '-').replace(/_/g,' ')}</td>
+                  <td className="border border-gray-300 px-3 py-2">{String(survey.spouse_tribe || '-').replace(/_/g,' ')}</td>
                   <td className="border border-gray-300 px-3 py-2">{survey.spouse_age || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.spouse_gender || '-'}</td>
+                  <td className="border border-gray-300 px-3 py-2">
+                    <div className="flex items-center gap-4 text-xs">
+                      <span className="inline-flex items-center gap-2">
+                        <Check checked={String(survey.spouse_gender||'').toLowerCase()==='male'} />
+                        Male
+                      </span>
+                      <span className="inline-flex items-center gap-2">
+                        <Check checked={String(survey.spouse_gender||'').toLowerCase()==='female'} />
+                        Female
+                      </span>
+                    </div>
+                  </td>
                 </tr>
               </tbody>
             </table>
+
+            <div className="mt-2 bg-blue-100 text-gray-900 font-semibold px-3 py-2 border border-black">AFFILIATION</div>
+            <div className="border border-black p-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  {['SSS','GSIS','PhilHealth','PagIbig'].map(opt => (
+                    <div key={opt} className="flex items-center gap-2">
+                      <Check checked={String(survey.affiliation||'').toLowerCase()===opt.toLowerCase() || String(survey.affiliations||'').toLowerCase().includes(opt.toLowerCase())} />
+                      <span>{opt}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-1">
+                  {['PWD','Senior Citizen','Solo Parent','4Ps'].map(opt => (
+                    <div key={opt} className="flex items-center gap-2">
+                      <Check checked={String(survey.affiliation||'').toLowerCase()===opt.toLowerCase().replace(' ','_') || String(survey.affiliations||'').toLowerCase().includes(opt.toLowerCase())} />
+                      <span>{opt}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
 
             <div style={{ pageBreakBefore: 'always' }} className="members-header-wrapper">
               <div className="bg-blue-200 text-gray-900 font-semibold px-3 py-2 border border-black members-header">MEMBERS OF THE HOUSEHOLD</div>
@@ -288,151 +496,438 @@ export default function SurveyDetails() {
                     <th className="border border-gray-300 px-3 py-2 text-left">Education</th>
                     <th className="border border-gray-300 px-3 py-2 text-left">Occupation</th>
                     <th className="border border-gray-300 px-3 py-2 text-left">Monthly Income</th>
+                    <th className="border border-gray-300 px-3 py-2 text-left">Code</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {members.length ? members.map((m, i) => (
+                  {Array.from({ length: 10 }, (_, i) => members[i] || {}).map((m, i) => (
                     <tr key={i} className="even:bg-gray-50">
-                      <td className="border border-gray-300 px-3 py-2">{m.name}</td>
-                      <td className="border border-gray-300 px-3 py-2">{m.age}</td>
-                      <td className="border border-gray-300 px-3 py-2">{m.sex}</td>
-                      <td className="border border-gray-300 px-3 py-2">{m.relationship}</td>
-                      <td className="border border-gray-300 px-3 py-2">{m.civilStatus || m.civil_status}</td>
-                      <td className="border border-gray-300 px-3 py-2">{m.educationalAttainment || m.educational_attainment}</td>
-                      <td className="border border-gray-300 px-3 py-2">{m.occupation}</td>
-                      <td className="border border-gray-300 px-3 py-2">{m.monthlyIncome || m.monthly_income}</td>
+                      <td className="border border-gray-300 px-3 py-2">{m?.name || ''}</td>
+                      <td className="border border-gray-300 px-3 py-2">{m?.age || ''}</td>
+                      <td className="border border-gray-300 px-3 py-2">{m?.sex || m?.gender || ''}</td>
+                      <td className="border border-gray-300 px-3 py-2">{m?.relationship || ''}</td>
+                      <td className="border border-gray-300 px-3 py-2">{m?.civilStatus || m?.civil_status || ''}</td>
+                      <td className="border border-gray-300 px-3 py-2">{m?.educationalAttainment || m?.educational_attainment || ''}</td>
+                      <td className="border border-gray-300 px-3 py-2">{m?.occupation || ''}</td>
+                      <td className="border border-gray-300 px-3 py-2">{m?.monthlyIncome || m?.monthly_income || ''}</td>
+                      <td className="border border-gray-300 px-3 py-2">{m?.code || ''}</td>
                     </tr>
-                  )) : (
-                    <tr><td className="border border-gray-300 px-3 py-2" colSpan={8}>No household members found.</td></tr>
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>
 
-            <div className="mt-6 bg-blue-100 text-gray-900 font-semibold px-3 py-2 border border-black">HOUSEHOLD INFORMATION</div>
-            <table className="w-full border border-black text-sm border-collapse">
+            <div className="mt-0 bg-blue-100 text-gray-900 font-semibold px-3 py-2 border border-black">III. HOUSEHOLD INFORMATION</div>
+            <table className="w-full border border-black text-xs border-collapse">
               <tbody>
+                <tr>
+                  <td className="border border-gray-300 px-3 py-2 align-top" colSpan={2}>
+                    <div className="flex flex-col space-y-[2px]">
+                      <div className="flex items-center">
+                        <div className="flex-1">Do you own the lot where your house is situated?</div>
+                        <div className="flex items-center gap-3 ml-3">
+                          <span className="inline-flex items-center gap-2"><Check checked={isYes(survey.lot_ownership)} /><span>YES</span></span>
+                          <span className="inline-flex items-center gap-2"><Check checked={isNo(survey.lot_ownership)} /><span>NO</span></span>
+                        </div>
+                      </div>
+                      <div className="flex items-center">
+                        <div className="flex-1">Do you own the house that you are living in at this time?</div>
+                        <div className="flex items-center gap-3 ml-3">
+                          <span className="inline-flex items-center gap-2"><Check checked={isYes(survey.house_ownership)} /><span>YES</span></span>
+                          <span className="inline-flex items-center gap-2"><Check checked={isNo(survey.house_ownership)} /><span>NO</span></span>
+                        </div>
+                      </div>
+                      <div className="flex items-center">
+                        <div className="flex-1">Do you previously avail of socialized housing?</div>
+                        <div className="flex items-center gap-3 ml-3">
+                          <span className="inline-flex items-center gap-2"><Check checked={isYes(survey.avail_socialized_housing)} /><span>YES</span></span>
+                          <span className="inline-flex items-center gap-2"><Check checked={isNo(survey.avail_socialized_housing)} /><span>NO</span></span>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="border border-gray-300 px-3 py-2 align-top" colSpan={2}>
+                    <div className="flex items-center">
+                      <div className="flex-1">Do you live in a temporary dwelling, e.g., a tent, cart?</div>
+                      <div className="flex items-center gap-3 ml-3">
+                        <span className="inline-flex items-center gap-2"><Check checked={isYes(survey.temporary_living_area)} /><span>YES</span></span>
+                        <span className="inline-flex items-center gap-2"><Check checked={isNo(survey.temporary_living_area)} /><span>NO</span></span>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
                 <tr className="bg-gray-100 text-gray-900 font-semibold">
-                  <td className="border border-gray-300 px-3 py-2">Lot Ownership</td>
-                  <td className="border border-gray-300 px-3 py-2">Temporary Dwelling</td>
-                  <td className="border border-gray-300 px-3 py-2">House Ownership</td>
-                  <td className="border border-gray-300 px-3 py-2">Socialized Housing</td>
+                  <td className="border border-gray-300 px-3 py-2 text-center" colSpan={2} style={{width:'60%'}}>House Structure</td>
+                  <td className="border border-gray-300 px-3 py-2 text-center" colSpan={2} style={{width:'40%'}}>Type of Toilet</td>
                 </tr>
                 <tr>
-                  <td className="border border-gray-300 px-3 py-2">{survey.lot_ownership || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.temporary_living_area || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.house_ownership || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.avail_socialized_housing || '-'}</td>
+                  <td className="border border-gray-300 px-1 py-1" colSpan={2} style={{width:'60%'}}>
+                    <div className="grid grid-cols-2 gap-x-0 gap-y-0">
+                      <div className="space-y-0">
+                        {[
+                          'Full Concrete',
+                          'Made of wood and metal roof',
+                          'Made of Amakan and Nipa',
+                        ].map(lbl => { const opt = HS_OPTS.find(o=>o.label===lbl); return (
+                          <div key={lbl} className="flex items-center gap-[1px]">
+                            <Check checked={opt ? eq(survey.housing_structure, opt.key) : false} />
+                            <span>{lbl}</span>
+                          </div>
+                        )})}
+                      </div>
+                      <div className="space-y-0">
+                        {[
+                          'Combination of concrete and wood',
+                          'Made of Amakan and metal roof',
+                          'Makeshift/Salvaged/Improvised Material',
+                        ].map(lbl => { const opt = HS_OPTS.find(o=>o.label===lbl); return (
+                          <div key={lbl} className="flex items-center gap-[1px]">
+                            <Check checked={opt ? eq(survey.housing_structure, opt.key) : false} />
+                            <span>{lbl}</span>
+                          </div>
+                        )})}
+                        <div className="flex items-center gap-[2px]">
+                          {(() => { const v = String(survey.housing_structure||''); const known = HS_OPTS.some(o=>eq(v,o.key)); const other = String(survey.other_housing_structure||'') || (known? '' : v); return (
+                            <>
+                              <Check checked={other !== ''} />
+                              <span>Others</span>
+                              <span className="ml-[2px]">please specify</span>
+                              <span className="inline-block border-b border-black w-[140px] overflow-hidden whitespace-nowrap">{other}</span>
+                            </>
+                          ) })()}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="border border-gray-300 px-1 py-1" colSpan={2} style={{width:'40%'}}>
+                    <div className="grid grid-cols-2 gap-x-[2px] gap-y-[1px]">
+                      <div className="space-y-0">
+                        {['Water Sealed','No Toilet'].map(lbl => { const opt = TOILET_OPTS.find(o=>o.label===lbl); return (
+                          <div key={lbl} className="flex items-center gap-[1px]">
+                            <Check checked={opt ? eq(survey.type_of_toilet, opt.key) : false} />
+                            <span>{lbl}</span>
+                          </div>
+                        )})}
+                      </div>
+                      <div className="space-y-0">
+                        {['Open Pit/Antipolo'].map(lbl => { const opt = TOILET_OPTS.find(o=>o.label===lbl); return (
+                          <div key={lbl} className="flex items-center gap-[1px]">
+                            <Check checked={opt ? eq(survey.type_of_toilet, opt.key) : false} />
+                            <span>{lbl}</span>
+                          </div>
+                        )})}
+                        <div className="flex items-center gap-[2px] mt-[2px] pl-[2px]">
+                          {(() => { const v = String(survey.type_of_toilet||''); const known = TOILET_OPTS.some(o=>eq(v,o.key)); const other = String(survey.other_type_of_toilet||'') || (known? '' : v); return (
+                            <>
+                              <Check checked={other !== ''} />
+                              <span>Others</span>
+                              <span className="ml-[2px]">please specify</span>
+                              <span className="inline-block border-b border-black w-[140px] overflow-hidden whitespace-nowrap">{other}</span>
+                            </>
+                          ) })()}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
                 </tr>
                 <tr className="bg-gray-100 text-gray-900 font-semibold">
-                  <td className="border border-gray-300 px-3 py-2">House Structure</td>
-                  <td className="border border-gray-300 px-3 py-2">Type of Toilet</td>
-                  <td className="border border-gray-300 px-3 py-2">Water Source</td>
-                  <td className="border border-gray-300 px-3 py-2">Electricity Source</td>
+                  <td className="border border-gray-300 px-3 py-2 text-center" colSpan={2} style={{width:'60%'}}>Source of Water</td>
+                  <td className="border border-gray-300 px-3 py-2 text-center" colSpan={2} style={{width:'40%'}}>Source of Electricity</td>
                 </tr>
                 <tr>
-                  <td className="border border-gray-300 px-3 py-2">{survey.housing_structure || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.type_of_toilet || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.source_of_water || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.source_of_electricity || '-'}</td>
+                  <td className="border border-gray-300 px-2 py-2" colSpan={2} style={{width:'60%'}}>
+                    <div className="grid grid-cols-2 gap-x-[2px] gap-y-[1px]">
+                      <div className="space-y-[1px]">
+                        {['Community Water System (NAWASA)','Deep Well','Spring'].map(lbl => { const opt = WATER_OPTS.find(o=>o.label===lbl); const checked = opt ? (eq(survey.source_of_water, opt.key) || eq(survey.source_of_water, opt.label) || (opt.aliases||[]).some(a=>eq(survey.source_of_water,a))) : false; return (
+                          <div key={lbl} className="flex items-center gap-[1px]">
+                            <Check checked={checked} />
+                            <span>{lbl}</span>
+                          </div>
+                        )})}
+                      </div>
+                      <div className="space-y-[1px]">
+                        {['Rainwater','Surface water (river,lake,dam)'].map(lbl => { const opt = WATER_OPTS.find(o=>o.label===lbl); const checked = opt ? (eq(survey.source_of_water, opt.key) || eq(survey.source_of_water, opt.label) || (opt.aliases||[]).some(a=>eq(survey.source_of_water,a))) : false; return (
+                          <div key={lbl} className="flex items-center gap-[1px]">
+                            <Check checked={checked} />
+                            <span>{lbl}</span>
+                          </div>
+                        )})}
+                        <div className="flex items-center gap-[2px] mt-[2px]">
+                          {(() => { const v = String(survey.source_of_water||''); const known = WATER_OPTS.some(o=>eq(v,o.key) || eq(v,o.label) || (o.aliases||[]).some(a=>eq(v,a))); const other = String(survey.other_source_of_water||'') || (known? '' : v); return (
+                            <>
+                              <Check checked={other !== '' && !eq(v,'none')} />
+                              <span>Others please specify</span>
+                              <span className="inline-block border-b border-black w-[140px] overflow-hidden whitespace-nowrap">{other}</span>
+                            </>
+                          ) })()}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="border border-gray-300 px-2 py-2" colSpan={2} style={{width:'40%'}}>
+                    <div className="grid grid-cols-2 gap-x-[2px] gap-y-[1px]">
+                      <div className="space-y-[1px]">
+                        {['with own meter','Solar Panel','Candle/Lamp'].map(lbl => { const opt = ELEC_OPTS.find(o=>o.label===lbl || o.label.toLowerCase()===lbl.toLowerCase()); const checked = opt ? (eq(survey.source_of_electricity, opt.key) || eq(survey.source_of_electricity, opt.label)) : false; return (
+                          <div key={lbl} className="flex items-center gap-[1px]">
+                            <Check checked={checked} />
+                            <span>{lbl}</span>
+                          </div>
+                        )})}
+                      </div>
+                      <div className="space-y-[1px]">
+                        {['Tapping to the neighbor'].map(lbl => { const opt = ELEC_OPTS.find(o=>o.label===lbl); const checked = opt ? (eq(survey.source_of_electricity, opt.key) || eq(survey.source_of_electricity, opt.label)) : false; return (
+                          <div key={lbl} className="flex items-center gap-[1px]">
+                            <Check checked={checked} />
+                            <span>{lbl}</span>
+                          </div>
+                        )})}
+                        <div className="flex items-center gap-[2px] mt-[2px]">
+                          {(() => { const v = String(survey.source_of_electricity||''); const known = ELEC_OPTS.some(o=>eq(v,o.key) || eq(v,o.label)); const other = String(survey.other_source_of_electricity||'') || (known? '' : v); return (
+                            <>
+                              <Check checked={other !== '' && !eq(v,'none')} />
+                              <span>Others please specify</span>
+                              <span className="inline-block border-b border-black w-[140px] overflow-hidden whitespace-nowrap">{other}</span>
+                            </>
+                          ) })()}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
                 </tr>
               </tbody>
             </table>
 
-            <div className="mt-6 bg-blue-100 text-gray-900 font-semibold px-3 py-2 border border-black">ECONOMIC ASPECT</div>
-            <table className="w-full border border-black text-sm border-collapse">
+            <div className="mt-0 bg-blue-100 text-gray-900 font-semibold px-3 py-2 border border-black">IV. ECONOMIC ASPECT</div>
+            <table className="w-full border border-black text-xs border-collapse">
               <tbody>
                 <tr className="bg-gray-100 text-gray-900 font-semibold">
-                  <td className="border border-gray-300 px-3 py-2">Main Income Source</td>
-                  <td className="border border-gray-300 px-3 py-2">Work Status</td>
-                  <td className="border border-gray-300 px-3 py-2">Work Location</td>
-                  <td className="border border-gray-300 px-3 py-2">Monthly Salary</td>
+                  <td className="border border-gray-300 px-3 py-2" colSpan={2}>Household Head main source of income</td>
+                  <td className="border border-gray-300 px-3 py-2" colSpan={2}>Work Status</td>
+                  <td className="border border-gray-300 px-3 py-2" colSpan={2}>Work Location (Household Head)</td>
                 </tr>
                 <tr>
-                  <td className="border border-gray-300 px-3 py-2">{survey.main_income_source || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.work_status || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.work_location_head || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.monthly_salary || '-'}</td>
+                  <td className="border border-gray-300 px-3 py-2 align-top" colSpan={2}>
+                    <div className="space-y-[2px]">
+                      {INCOME_OPTS.map(opt => (
+                        <div key={opt.key} className="flex items-center gap-[2px]">
+                          <Check checked={eq(survey.main_income_source, opt.key) || eq(survey.main_income_source, opt.label)} />
+                          <span>{opt.label}</span>
+                        </div>
+                      ))}
+                      <div className="flex items-center gap-[2px] mt-[2px]">
+                        {(() => { const v = String(survey.main_income_source||''); const known = INCOME_OPTS.some(o=>eq(v,o.key)||eq(v,o.label)); const other = String(survey.other_main_income_source||'') || (known? '' : v); return (
+                          <>
+                            <Check checked={other !== ''} />
+                            <span>Others</span>
+                            <span className="ml-[2px]">please specify</span>
+                            <span className="inline-block border-b border-black w-[140px] overflow-hidden whitespace-nowrap">{other}</span>
+                          </>
+                        ) })()}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="border border-gray-300 px-3 py-2 align-top" colSpan={2}>
+                    <div className="space-y-[2px]">
+                      {WORK_STATUS_OPTS.map(opt => (
+                        <div key={opt.key} className="flex items-center gap-[2px]">
+                          <Check checked={eq(survey.work_status, opt.key) || eq(survey.work_status, opt.label)} />
+                          <span>{opt.label}</span>
+                        </div>
+                      ))}
+                      <div className="flex items-center gap-[2px] mt-[2px]">
+                        {(() => { const v = String(survey.work_status||''); const known = WORK_STATUS_OPTS.some(o=>eq(v,o.key)||eq(v,o.label)); const other = String(survey.other_work_status||'') || (known? '' : v); return (
+                          <>
+                            <Check checked={other !== ''} />
+                            <span>Others</span>
+                            <span className="ml-[2px]">please specify</span>
+                            <span className="inline-block border-b border-black w-[140px] overflow-hidden whitespace-nowrap">{other}</span>
+                          </>
+                        ) })()}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="border border-gray-300 px-3 py-2 align-top" colSpan={2}>
+                    <div className="space-y-[2px]">
+                      {WORK_LOC_OPTS.map(opt => (
+                        <div key={opt.key} className="flex items-center gap-[2px]">
+                          <Check checked={eq(survey.work_location_head, opt.key) || eq(survey.work_location_head, opt.label)} />
+                          <span>{opt.label}</span>
+                        </div>
+                      ))}
+                      <div className="flex items-center gap-[2px] mt-[2px]">
+                        {(() => { const v = String(survey.work_location_head||''); const known = WORK_LOC_OPTS.some(o=>eq(v,o.key)||eq(v,o.label)); const other = String(survey.other_work_location||'') || (known? '' : v); return (
+                          <>
+                            <Check checked={other !== ''} />
+                            <span>Others</span>
+                            <span className="ml-[2px]">please specify</span>
+                            <span className="inline-block border-b border-black w-[140px] overflow-hidden whitespace-nowrap">{other}</span>
+                          </>
+                        ) })()}
+                      </div>
+                    </div>
+                  </td>
                 </tr>
-                <tr className="bg-gray-100 text-gray-900 font-semibold">
-                  <td className="border border-gray-300 px-3 py-2" colSpan={3}>Combined Household Income</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.combine_monthly_income || '-'}</td>
+                <tr>
+                  <td className="border border-gray-300 px-3 py-2 text-center" colSpan={3}>Household Head Monthly Salary/Income (Numeric Only)</td>
+                  <td className="border border-gray-300 px-3 py-2 text-center" colSpan={3}>Combine Household Income (Numeric Only)</td>
+                </tr>
+                <tr>
+                  <td className="border border-gray-300 px-3 py-4 text-center" colSpan={3}>{survey.monthly_salary || ''}</td>
+                  <td className="border border-gray-300 px-3 py-4 text-center" colSpan={3}>{survey.combine_monthly_income || ''}</td>
                 </tr>
               </tbody>
             </table>
 
-            <div className="mt-6 bg-blue-100 text-gray-900 font-semibold px-3 py-2 border border-black">TRAINING & MEMBERSHIP</div>
-            <table className="w-full border border-black text-sm border-collapse">
+            <div className="mt-0 bg-blue-100 text-gray-900 font-semibold px-3 py-2 border border-black">V. TRAINING NEEDS ASSESSMENT AND ORGANIZATION MEMBERSHIP</div>
+            <table className="w-full border border-black text-xs border-collapse">
               <tbody>
-                <tr className="bg-gray-100 text-gray-900 font-semibold">
-                  <td className="border border-gray-300 px-3 py-2">Skills for Living</td>
-                  <td className="border border-gray-300 px-3 py-2">Specific Skill</td>
-                  <td className="border border-gray-300 px-3 py-2">Skills you want to learn</td>
-                  <td className="border border-gray-300 px-3 py-2">Organization Member</td>
-                </tr>
                 <tr>
-                  <td className="border border-gray-300 px-3 py-2">{survey.skills_for_living || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.specific_skill || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.wanttolearn || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.organization_member || '-'}</td>
-                </tr>
-                <tr className="bg-gray-100 text-gray-900 font-semibold">
-                  <td className="border border-gray-300 px-3 py-2" colSpan={3}>Organization</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.specific_organization || '-'}</td>
+                  <td className="border border-gray-300 px-3 py-2 align-top" style={{width:'50%'}}>
+                    <div className="flex items-center justify-between">
+                      <span>Is there any skill that can be used for a living?</span>
+                      <div className="flex items-center gap-3">
+                        <span className="inline-flex items-center gap-[2px]"><Check checked={isYes(survey.skills_for_living)} /><span>YES</span></span>
+                        <span className="inline-flex items-center gap-[2px]"><Check checked={isNo(survey.skills_for_living)} /><span>NO</span></span>
+                      </div>
+                    </div>
+                    <div className="mt-[4px]">If there is any, what is it ?</div>
+                    <div className="mt-[2px] grid grid-cols-2 gap-x-[4px] gap-y-[2px]">
+                      {SKILL_OPTS.map(opt => { const v = String(survey.specific_skill||''); const checked = eq(v,opt.key) || eq(v,opt.label) || (opt.aliases||[]).some(a=>eq(v,a)); return (
+                        <div key={opt.key} className="flex items-center gap-[2px]">
+                          <Check checked={checked} />
+                          <span>{opt.label}</span>
+                        </div>
+                      )})}
+                      <div className="flex items-center gap-[2px]">
+                        {(() => { const v = String(survey.specific_skill||''); const known = SKILL_OPTS.some(o=>eq(v,o.key)||eq(v,o.label)||(o.aliases||[]).some(a=>eq(v,a))); const other = known? '' : v; return (
+                          <>
+                            <Check checked={other !== ''} />
+                            <span>Others please specify</span>
+                            <span className="inline-block border-b border-black w-[160px] overflow-hidden whitespace-nowrap">{other}</span>
+                          </>
+                        ) })()}
+                      </div>
+                    </div>
+                    <div className="mt-[6px]">What are the skills you want to learn?</div>
+                    <div className="mt-[2px]"><span className="inline-block border-b border-black w-[200px] overflow-hidden whitespace-nowrap">{survey.wanttolearn || ''}</span></div>
+                  </td>
+                  <td className="border border-gray-300 px-3 py-2 align-top" style={{width:'50%'}}>
+                    <div className="flex items-center justify-between">
+                      <span>Are you a member of any organization/association in your community?</span>
+                      <div className="flex items-center gap-3">
+                        <span className="inline-flex items-center gap-[2px]"><Check checked={isYes(survey.organization_member)} /><span>YES</span></span>
+                        <span className="inline-flex items-center gap-[2px]"><Check checked={isNo(survey.organization_member)} /><span>NO</span></span>
+                      </div>
+                    </div>
+                    <div className="mt-[4px]">If member, what organization/association is it?</div>
+                    <div className="mt-[2px] grid grid-cols-2 gap-x-[4px] gap-y-[2px]">
+                      {ORG_OPTS.map(opt => { const v = String(survey.specific_organization||''); const checked = eq(v,opt.key) || eq(v,opt.label); return (
+                        <div key={opt.key} className="flex items-center gap-[2px]">
+                          <Check checked={checked} />
+                          <span>{opt.label}</span>
+                        </div>
+                      )})}
+                      <div className="flex items-center gap-[2px]">
+                        {(() => { const v = String(survey.specific_organization||''); const known = ORG_OPTS.some(o=>eq(v,o.key)||eq(v,o.label)); const other = known? '' : v; return (
+                          <>
+                            <Check checked={other !== ''} />
+                            <span>Others please specify</span>
+                            <span className="inline-block border-b border-black w-[160px] overflow-hidden whitespace-nowrap">{other}</span>
+                          </>
+                        ) })()}
+                      </div>
+                    </div>
+                  </td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          <div className="mt-6">
-            <div className="mt-6 bg-blue-100 text-gray-900 font-semibold px-3 py-2 border border-black">REMARKS</div>
-            <table className="w-full border border-black text-sm border-collapse">
+          <div className="mt-0">
+            <table className="w-full border border-black text-xs border-collapse">
               <tbody>
                 <tr>
-                  <td className="border border-gray-300 px-3 py-3 leading-relaxed" colSpan={4}>{survey.remarks || ''}</td>
+                  <td className="border border-gray-300 px-3 py-2 font-semibold">REMARKS:</td>
+                </tr>
+                <tr>
+                  <td className="border border-gray-300 px-3 py-8 align-top">{survey.remarks || ''}</td>
                 </tr>
               </tbody>
             </table>
 
-            <table className="w-full border border-black text-sm border-collapse mt-6">
+            <table className="w-full border border-black text-xs border-collapse mt-0">
               <tbody>
-                <tr className="bg-gray-100 text-gray-900 font-semibold">
-                  <td className="border border-gray-300 px-3 py-2">Interviewed by</td>
-                  <td className="border border-gray-300 px-3 py-2">Date Interviewed</td>
-                </tr>
                 <tr>
-                  <td className="border border-gray-300 px-3 py-2">{survey.interviewed_by || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{survey.date_interviewed || '-'}</td>
+                  <td className="border border-gray-300 px-3 py-2 align-top" style={{width:'50%'}}>
+                    <div className="leading-relaxed">
+                      I hereby certify that the above statement and information are true and correct to the best of my knowledge. I further understand that any misrepresentation and/or deliberate omission of facts and information contained herein shall constitute ground for my disqualification. I voluntarily and freely consent to the collection and processing of the above personal information only in relation to Data Privacy Act.
+                    </div>
+                    <div className="mt-2" style={{height:'80px'}}>
+                      {survey.respondent_signature ? (
+                        <img className="h-full object-contain" src={fileUrl(survey.respondent_signature)} alt="Respondent Signature" />
+                      ) : null}
+                    </div>
+                    <div className="border-t border-gray-300 pt-1 text-center font-semibold text-[10px]">Signature over Printed Name of HH/Respondent</div>
+                  </td>
+                  <td className="border border-gray-300 px-3 py-2 align-top" style={{width:'50%'}}>
+                    <table className="w-full border-collapse">
+                      <tbody>
+                        <tr>
+                          <td className="px-2 py-1 align-top" style={{width:'50%'}}>
+                            <div className="flex items-center gap-2">
+                              <span>Interviewed by:</span>
+                              <span className="inline-block border-b border-black w-[180px] overflow-hidden whitespace-nowrap">{survey.interviewed_by || ''}</span>
+                            </div>
+                          </td>
+                          <td className="px-2 py-1 align-top text-right" style={{width:'50%'}}>
+                            <div className="flex items-center gap-2 justify-end">
+                              <span>Date Interviewed:</span>
+                              <span className="inline-block border-b border-black w-[140px] overflow-hidden whitespace-nowrap">{survey.date_interviewed || ''}</span>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="px-2 py-2" colSpan={2}>
+                            <div className="w-full" style={{height:'80px'}}>
+                              {survey.validator_signature ? (
+                                <img className="h-full object-contain mx-auto" src={fileUrl(survey.validator_signature)} alt="Validator Signature" />
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="border-t border-gray-300 px-2 py-1 text-center font-semibold text-[10px]" colSpan={2}>Signature over Printed Name of Interviewer</td>
+                        </tr>
+                        <tr>
+                          <td className="border-t border-gray-300 px-2 py-2 text-[10px] leading-relaxed" colSpan={2}>
+                            We at City Housing Office would like to thank you for your trust in providing us with your personal information. Rest assured that your data shall only be used for documentation and collection. Your information shall only be subject to reproduction, correction and/or deletion upon your personal request. For Data Privacy concern, you may send us an email at cityhousingrelocation@gmail.com
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </td>
                 </tr>
               </tbody>
             </table>
-            <div className="mt-4 grid grid-cols-2 gap-4">
-              <div className="border border-black p-3 flex flex-col items-center">
-                <div className="text-xs font-semibold mb-2">Validator's Signature</div>
-                {survey.validator_signature ? (
-                  <img className="signature h-24 object-contain" src={fileUrl(survey.validator_signature)} alt="Validator Signature" />
-                ) : (
-                  <div className="h-24 w-full"></div>
-                )}
-              </div>
-              <div className="border border-black p-3 flex flex-col items-center">
-                <div className="text-xs font-semibold mb-2">Respondent's Signature</div>
-                {survey.respondent_signature ? (
-                  <img className="signature h-24 object-contain" src={fileUrl(survey.respondent_signature)} alt="Respondent Signature" />
-                ) : (
-                  <div className="h-24 w-full"></div>
-                )}
-              </div>
-            </div>
           </div>
 
           <div className="mt-6 print:hidden">
             <div className="flex items-center justify-between">
-              <div className="text-lg font-semibold text-gray-900">House Photo & Location</div>
+              <div className="text-lg font-semibold text-gray-900">Photos & Location</div>
               <button className="px-3 py-1 border rounded-lg text-sm text-emerald-800 hover:bg-emerald-50" onClick={() => setShowHouseInfo(v => !v)}>{showHouseInfo ? 'Hide' : 'Show'}</button>
             </div>
             {showHouseInfo && (
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="rounded-2xl bg-white ring-1 ring-gray-200 shadow-sm overflow-hidden">
+                  <div className="px-4 py-3 border-b text-sm font-medium text-gray-700">Respondent Photo</div>
+                  <div className="p-4">
+                    {survey.person_photo ? (
+                      <img src={`${apiBase}/survey/${surveyId}/person-photo`} alt="Respondent" className="w-full aspect-[3/4] object-cover rounded-xl border" />
+                    ) : (
+                      <div className="h-48 flex items-center justify-center text-gray-500 bg-gray-50 rounded-xl">No respondent photo uploaded</div>
+                    )}
+                  </div>
+                </div>
                 <div className="rounded-2xl bg-white ring-1 ring-gray-200 shadow-sm overflow-hidden">
                   <div className="px-4 py-3 border-b text-sm font-medium text-gray-700">House Photo</div>
                   <div className="p-4">

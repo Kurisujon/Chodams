@@ -15,6 +15,12 @@ export default function AdminDashboard() {
   const [mapPoints, setMapPoints] = useState([])
   const [assignedCount, setAssignedCount] = useState(0)
   const [mapScope, setMapScope] = useState('all')
+  const [indicators, setIndicators] = useState(null)
+  const [filterBarangay, setFilterBarangay] = useState('')
+  const [filterClass, setFilterClass] = useState('')
+  const [filterIncome, setFilterIncome] = useState('')
+  const [filterWater, setFilterWater] = useState('')
+  const [filterElectricity, setFilterElectricity] = useState('')
 
   const [profile, setProfile] = useState(null)
   const [notifications, setNotifications] = useState([])
@@ -99,6 +105,15 @@ export default function AdminDashboard() {
   const displacedChart = useRef(null)
   const doubleUpChart = useRef(null)
   const homelessChart = useRef(null)
+  const incomeChart = useRef(null)
+  const educationChart = useRef(null)
+  const incomeRef = useRef(null)
+  const educationRef = useRef(null)
+  const householdChart = useRef(null)
+  const householdRef = useRef(null)
+  const barangays = [
+    'Aplaya','Balabag','Binaton','Cogon','Colorado','Dawis','Dulangan','Goma','Igpit','Kapatagan','Kiagot','Lungag','Mahayahay','Matti','Ruparan','San_Agustin','San_Jose','San_Miguel','San_Roque','Sinawilan','Soong','Tiguman','Tres_De_Mayo','Zone_1','Zone_2','Zone_3'
+  ]
 
   const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
 
@@ -120,7 +135,12 @@ export default function AdminDashboard() {
     fetchMapPoints()
     fetchAssignedCount()
     fetchNotifications()
+    fetchIndicators()
   }, [])
+
+  useEffect(() => {
+    fetchIndicators()
+  }, [filterBarangay, filterClass, filterIncome, filterWater, filterElectricity])
 
   useEffect(() => {
     fetchProfile()
@@ -178,6 +198,17 @@ export default function AdminDashboard() {
     setAssignedCount((res.data.data || []).length)
   }
 
+  async function fetchIndicators() {
+    const params = {
+      barangay: filterBarangay,
+      classification: filterClass ? filterClass.toLowerCase() : '',
+      income_band: filterIncome,
+      water: filterWater,
+      electricity: filterElectricity
+    }
+    const res = await axios.get('/admin/api/indicators', { params })
+    setIndicators(res.data)
+  }
 
   async function fetchNotifications(limit = 10) {
     const res = await axios.get('/admin/api/notifications', { params: { limit } })
@@ -201,7 +232,7 @@ export default function AdminDashboard() {
     if (barangayChart.current) barangayChart.current.destroy()
     if (!barangayRef.current) return
     const top = [...barangayData].sort((a, b) => (Number(b.count || 0) - Number(a.count || 0))).slice(0, 10)
-    const labels = top.map(i => i.barangay || 'Unknown')
+    const labels = top.map(i => String(i.barangay || 'Unknown').replace(/_/g,' '))
     const values = top.map(i => Number(i.count) || 0)
     const colors = emeraldColors(labels.length)
     barangayChart.current = new window.Chart(barangayRef.current, {
@@ -216,7 +247,7 @@ export default function AdminDashboard() {
     if (classificationChart.current) classificationChart.current.destroy()
     if (!classificationRef.current) return
     const top = [...periodBarangayData].sort((a, b) => (Number(b.count || 0) - Number(a.count || 0))).slice(0, 10)
-    const labels = top.map(i => i.barangay || 'Unknown')
+    const labels = top.map(i => String(i.barangay || 'Unknown').replace(/_/g,' '))
     const values = top.map(i => Number(i.count) || 0)
     const colors = emeraldColors(labels.length)
     classificationChart.current = new window.Chart(classificationRef.current, {
@@ -231,7 +262,7 @@ export default function AdminDashboard() {
     if (overallClassificationChart.current) overallClassificationChart.current.destroy()
     if (!overallClassificationRef.current) return
     const top = [...barangayData].sort((a, b) => (Number(b.count || 0) - Number(a.count || 0))).slice(0, 10)
-    const labels = top.map(i => i.barangay || 'Unknown')
+    const labels = top.map(i => String(i.barangay || 'Unknown').replace(/_/g,' '))
     const values = top.map(i => Number(i.count) || 0)
     const colors = emeraldColors(labels.length)
     overallClassificationChart.current = new window.Chart(overallClassificationRef.current, {
@@ -246,11 +277,12 @@ export default function AdminDashboard() {
     if (displacedChart.current) displacedChart.current.destroy()
     if (!displacedRef.current) return
     const subclasses = Array.from(new Set(subclassDisplacedData.map(i => i.subclass_displaced || 'Unknown')))
-    const barangays = Array.from(new Set(subclassDisplacedData.map(i => i.barangay || 'Unknown')))
+    const barangaysRaw = Array.from(new Set(subclassDisplacedData.map(i => i.barangay || 'Unknown')))
+    const labels = barangaysRaw.map(b => String(b).replace(/_/g,' '))
     const colors = emeraldColors(subclasses.length)
     const datasets = subclasses.map((sub, idx) => ({
-      label: sub,
-      data: barangays.map(b => {
+      label: String(sub).replace(/_/g,' '),
+      data: barangaysRaw.map(b => {
         const row = subclassDisplacedData.find(r => (r.barangay || 'Unknown') === b && (r.subclass_displaced || 'Unknown') === sub)
         return Number(row?.count) || 0
       }),
@@ -260,7 +292,7 @@ export default function AdminDashboard() {
     }))
     displacedChart.current = new window.Chart(displacedRef.current, {
       type: 'bar',
-      data: { labels: barangays, datasets },
+      data: { labels, datasets },
       options: {
         responsive: true,
         indexAxis: 'y',
@@ -290,11 +322,12 @@ export default function AdminDashboard() {
     if (doubleUpChart.current) doubleUpChart.current.destroy()
     if (!doubleUpRef.current) return
     const subclasses = Array.from(new Set(subclassDoubleUpData.map(i => i.subclass_doubleup || 'Unknown')))
-    const barangays = Array.from(new Set(subclassDoubleUpData.map(i => i.barangay || 'Unknown')))
+    const barangaysRaw = Array.from(new Set(subclassDoubleUpData.map(i => i.barangay || 'Unknown')))
+    const labels = barangaysRaw.map(b => String(b).replace(/_/g,' '))
     const colors = emeraldColors(subclasses.length)
     const datasets = subclasses.map((sub, idx) => ({
-      label: sub,
-      data: barangays.map(b => {
+      label: String(sub).replace(/_/g,' '),
+      data: barangaysRaw.map(b => {
         const row = subclassDoubleUpData.find(r => (r.barangay || 'Unknown') === b && (r.subclass_doubleup || 'Unknown') === sub)
         return Number(row?.count) || 0
       }),
@@ -304,7 +337,7 @@ export default function AdminDashboard() {
     }))
     doubleUpChart.current = new window.Chart(doubleUpRef.current, {
       type: 'bar',
-      data: { labels: barangays, datasets },
+      data: { labels, datasets },
       options: {
         responsive: true,
         indexAxis: 'y',
@@ -334,11 +367,12 @@ export default function AdminDashboard() {
     if (homelessChart.current) homelessChart.current.destroy()
     if (!homelessRef.current) return
     const subclasses = Array.from(new Set(subclassHomelessData.map(i => i.subclass_homeless || 'Unknown')))
-    const barangays = Array.from(new Set(subclassHomelessData.map(i => i.barangay || 'Unknown')))
+    const barangaysRaw = Array.from(new Set(subclassHomelessData.map(i => i.barangay || 'Unknown')))
+    const labels = barangaysRaw.map(b => String(b).replace(/_/g,' '))
     const colors = emeraldColors(subclasses.length)
     const datasets = subclasses.map((sub, idx) => ({
-      label: sub,
-      data: barangays.map(b => {
+      label: String(sub).replace(/_/g,' '),
+      data: barangaysRaw.map(b => {
         const row = subclassHomelessData.find(r => (r.barangay || 'Unknown') === b && (r.subclass_homeless || 'Unknown') === sub)
         return Number(row?.count) || 0
       }),
@@ -348,7 +382,7 @@ export default function AdminDashboard() {
     }))
     homelessChart.current = new window.Chart(homelessRef.current, {
       type: 'bar',
-      data: { labels: barangays, datasets },
+      data: { labels, datasets },
       options: {
         responsive: true,
         indexAxis: 'y',
@@ -372,6 +406,61 @@ export default function AdminDashboard() {
       }
     })
   }, [subclassHomelessData])
+
+  useEffect(() => {
+    if (!window.Chart || !indicators) return
+    if (incomeChart.current) incomeChart.current.destroy()
+    if (!incomeRef.current) return
+    const b = indicators.economic?.bands || { lt5k: 0, btw5to10k: 0, gt10k: 0 }
+    const labels = ['< 5k','5–10k','> 10k']
+    const values = [Number(b.lt5k||0), Number(b.btw5to10k||0), Number(b.gt10k||0)]
+    const colors = ['#10B981','#34D399','#6EE7B7']
+    incomeChart.current = new window.Chart(incomeRef.current, {
+      type: 'bar',
+      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 8, maxBarThickness: 22 }] },
+      options: { responsive: true, scales: { x: { grid: { display: false } }, y: { grid: { color: 'rgba(16,185,129,0.1)' }, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false } }, animation: { duration: 800 } }
+    })
+  }, [indicators])
+
+  useEffect(() => {
+    if (!window.Chart || !indicators) return
+    if (educationChart.current) educationChart.current.destroy()
+    if (!educationRef.current) return
+    const ed = indicators.education_skills?.education_breakdown || {}
+    const entries = Object.entries(ed)
+    const labels = entries.map(([k]) => String(k).replace(/_/g,' '))
+    const values = entries.map(([,v]) => Number(v||0))
+    const colors = emeraldColors(labels.length)
+    educationChart.current = new window.Chart(educationRef.current, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: '#fff', borderWidth: 2, hoverOffset: 6 }] },
+      options: { responsive: true, cutout: '72%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle' } } }, animation: { duration: 800 } }
+    })
+  }, [indicators])
+
+  useEffect(() => {
+    if (!window.Chart || !indicators) return
+    if (householdChart.current) householdChart.current.destroy()
+    if (!householdRef.current) return
+    const rows = (indicators.economic?.avg_household_size_by_barangay || []).slice(0,6)
+    const labels = rows.map(r => String(r.barangay || 'Unknown').replace(/_/g,' '))
+    const values = rows.map(r => Number(r.avg_size || 0))
+    const colors = emeraldColors(labels.length)
+    householdChart.current = new window.Chart(householdRef.current, {
+      type: 'bar',
+      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 8, maxBarThickness: 22 }] },
+      options: {
+        responsive: true,
+        indexAxis: 'y',
+        scales: {
+          x: { grid: { color: 'rgba(16,185,129,0.08)' }, ticks: { stepSize: 1 } },
+          y: { grid: { display: false }, ticks: { color: '#374151' } }
+        },
+        plugins: { legend: { display: false } },
+        animation: { duration: 800 }
+      }
+    })
+  }, [indicators])
 
   useEffect(() => {
     if (!mapRef.current) return
@@ -644,6 +733,152 @@ export default function AdminDashboard() {
           </div>
         </section>
 
+        {indicators && (
+          <section className="mt-6">
+            <div className="mb-3 bg-white rounded-2xl border border-gray-200 p-4">
+              <div className="text-sm font-medium text-emerald-800 mb-2">Filters</div>
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <select className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300" value={filterBarangay} onChange={e=>setFilterBarangay(e.target.value)}>
+                  <option value="">All barangays</option>
+                  {barangays.map(b => (<option key={b} value={b}>{b.replace(/_/g,' ')}</option>))}
+                </select>
+                <select className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300" value={filterClass} onChange={e=>setFilterClass(e.target.value)}>
+                  <option value="">All classifications</option>
+                  <option value="Displaced">Displaced</option>
+                  <option value="Double-up">Double-up</option>
+                  <option value="Homeless">Homeless</option>
+                  <option value="Upgrading of Land Tenure">Upgrading of Land Tenure</option>
+                </select>
+                <select className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300" value={filterIncome} onChange={e=>setFilterIncome(e.target.value)}>
+                  <option value="">All income</option>
+                  <option value="lt5k">&lt; 5k</option>
+                  <option value="5to10k">5–10k</option>
+                  <option value="gt10k">&gt; 10k</option>
+                </select>
+                <select className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300" value={filterWater} onChange={e=>setFilterWater(e.target.value)}>
+                  <option value="">Water: All</option>
+                  <option value="has">Has</option>
+                  <option value="none">None</option>
+                </select>
+                <select className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300" value={filterElectricity} onChange={e=>setFilterElectricity(e.target.value)}>
+                  <option value="">Electricity: All</option>
+                  <option value="has">Has</option>
+                  <option value="none">None</option>
+                </select>
+                <div className="ml-auto">
+                  <button type="button" onClick={()=>{setFilterBarangay('');setFilterClass('');setFilterIncome('');setFilterWater('');setFilterElectricity('')}} className="text-xs px-2 py-1 rounded-xl bg-gray-100 hover:bg-gray-200">Clear</button>
+                </div>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {filterBarangay && (
+                  <button onClick={()=>setFilterBarangay('')} className="px-2 py-1 text-xs rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+                    Barangay: {String(filterBarangay).replace(/_/g,' ')} ×
+                  </button>
+                )}
+                {filterClass && (
+                  <button onClick={()=>setFilterClass('')} className="px-2 py-1 text-xs rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+                    Classification: {filterClass} ×
+                  </button>
+                )}
+                {filterIncome && (
+                  <button onClick={()=>setFilterIncome('')} className="px-2 py-1 text-xs rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+                    Income: {filterIncome==='lt5k'?'< 5k':filterIncome==='5to10k'?'5–10k':'> 10k'} ×
+                  </button>
+                )}
+                {filterWater && (
+                  <button onClick={()=>setFilterWater('')} className="px-2 py-1 text-xs rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+                    Water: {filterWater==='has'?'Has':'None'} ×
+                  </button>
+                )}
+                {filterElectricity && (
+                  <button onClick={()=>setFilterElectricity('')} className="px-2 py-1 text-xs rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+                    Electricity: {filterElectricity==='has'?'Has':'None'} ×
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                <div className="text-sm font-medium text-emerald-800">Vulnerability</div>
+                <div className="mt-3 grid grid-cols-3 gap-3">
+                  {['Displaced','Double-up','Homeless'].map(k => (
+                    <div key={k} className="text-center">
+                      <div className="text-2xl font-semibold text-gray-900">{Math.round(indicators.vulnerability.classification_pct[k]||0)}%</div>
+                      <div className="text-xs text-gray-600">{k}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-3">
+                  <div className="text-center">
+                    <div className="text-xl font-semibold text-gray-900">{indicators.vulnerability.no_lot_pct}%</div>
+                    <div className="text-xs text-gray-600">No lot</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl font-semibold text-gray-900">{indicators.vulnerability.no_house_pct}%</div>
+                    <div className="text-xs text-gray-600">No house</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl font-semibold text-gray-900">{indicators.vulnerability.temporary_living_pct}%</div>
+                    <div className="text-xs text-gray-600">Temporary living</div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                <div className="text-sm font-medium text-emerald-800">Service Access</div>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <div className="text-center">
+                    <div className="text-2xl font-semibold text-gray-900">{indicators.service.has_water_pct}%</div>
+                    <div className="text-xs text-gray-600">Has water</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-semibold text-gray-900">{indicators.service.has_electricity_pct}%</div>
+                    <div className="text-xs text-gray-600">Has electricity</div>
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="text-center">
+                    <div className="text-xl font-semibold text-gray-900">{indicators.service.no_water_pct}%</div>
+                    <div className="text-xs text-gray-600">No water</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl font-semibold text-gray-900">{indicators.service.no_electricity_pct}%</div>
+                    <div className="text-xs text-gray-600">No electricity</div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                <div className="text-sm font-medium text-emerald-800">Skills</div>
+                <div className="mt-3">
+                  <div className="text-2xl font-semibold text-gray-900">{indicators.education_skills.skills_for_living_pct}%</div>
+                  <div className="text-xs text-gray-600">With livelihood skills</div>
+                </div>
+                <div className="mt-4">
+                  <div className="text-xs font-medium text-gray-700 mb-2">Top skills requested</div>
+                  <ul className="space-y-1 text-sm text-gray-700">
+                    {(indicators.education_skills.top_skills||[]).map((s,i)=> (
+                      <li key={`${s.specific_skill}-${i}`} className="flex justify-between"><span>{s.specific_skill}</span><span className="text-gray-500">{s.count}</span></li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                <div className="mb-2 font-medium text-emerald-800">Income Bands</div>
+                <canvas ref={incomeRef} />
+              </div>
+              <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                <div className="mb-2 font-medium text-emerald-800">Education</div>
+                <canvas ref={educationRef} />
+              </div>
+              <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                <div className="mb-2 font-medium text-emerald-800">Avg Household Size</div>
+                <canvas ref={householdRef} />
+              </div>
+            </div>
+          </section>
+        )}
+
         <section className={`mt-6 bg-white rounded-2xl border border-gray-200 p-6 ${!showBarangay && 'hidden'}`}>
           <div className="max-w-3xl mx-auto">
             <h3 className="text-lg font-semibold text-emerald-800 mb-4">Overall Overview</h3>
@@ -820,7 +1055,8 @@ export default function AdminDashboard() {
     const top = sorted.slice(0,3)
     const low = sorted[sorted.length-1]
     const pct = (n)=> total? Math.round((n/total)*100):0
-    return `${top[0].barangay} leads with ${top[0].count} (${pct(top[0].count)}%). ${top[1] ? top[1].barangay+' and '+top[2]?.barangay+' follow with '+(top[1].count)+' and '+(top[2]?.count||0)+'. ' : ''}${low ? 'Lowest is '+low.barangay+' ('+low.count+'). ' : ''}Total across barangays is ${total}.`
+    const fmt = (s)=>String(s||'Unknown').replace(/_/g,' ')
+    return `${fmt(top[0].barangay)} leads with ${top[0].count} (${pct(top[0].count)}%). ${top[1] ? fmt(top[1].barangay)+' and '+fmt(top[2]?.barangay)+' follow with '+(top[1].count)+' and '+(top[2]?.count||0)+'. ' : ''}${low ? 'Lowest is '+fmt(low.barangay)+' ('+low.count+'). ' : ''}Total across barangays is ${total}.`
   }
   function describeClassification(map) {
     const keys = Object.keys(map||{})
@@ -831,7 +1067,7 @@ export default function AdminDashboard() {
     const pct = (n)=> grand? Math.round((n/grand)*100):0
     const top = sorted[0]
     const topBarangay = Object.entries(map[top.k]||{}).sort((a,b)=>Number(b[1]||0)-Number(a[1]||0))[0]
-    const tbName = topBarangay? topBarangay[0] : 'Unknown'
+    const tbName = topBarangay? String(topBarangay[0]).replace(/_/g,' ') : 'Unknown'
     const tbCount = topBarangay? Number(topBarangay[1]||0) : 0
     return `${top.k} is most prevalent with ${top.t} (${pct(top.t)}%). Highest concentration is in ${tbName} (${tbCount}). Combined total is ${grand}, with ${sorted.slice(1).map(i=>i.k+' '+i.t+' ('+pct(i.t)+'%)').join(', ')}.`
   }
@@ -845,11 +1081,11 @@ export default function AdminDashboard() {
     const pct = (n)=> sum? Math.round((n/sum)*100):0
     const top = sorted[0]
     const topBarangay = rows.filter(r=>(r.subclass_displaced||'Unknown')===top.k).sort((a,b)=>Number(b.count||0)-Number(a.count||0))[0]
-    const tbName = topBarangay? (topBarangay.barangay||'Unknown') : 'Unknown'
+    const tbName = topBarangay? String(topBarangay.barangay||'Unknown').replace(/_/g,' ') : 'Unknown'
     const tbCount = topBarangay? Number(topBarangay.count||0) : 0
     const second = sorted[1]
     const secondBarangay = rows.filter(r=>(r.subclass_displaced||'Unknown')===second?.k).sort((a,b)=>Number(b.count||0)-Number(a.count||0))[0]
-    const sbName = secondBarangay? (secondBarangay.barangay||'Unknown') : 'Unknown'
+    const sbName = secondBarangay? String(secondBarangay.barangay||'Unknown').replace(/_/g,' ') : 'Unknown'
     const sbCount = secondBarangay? Number(secondBarangay.count||0) : 0
     return `Most displaced beneficiaries applied due to ${top.k} (${pct(top.v)}%), with highest concentration in ${tbName} (${tbCount}). ${second ? `${second.k} is the second highest cause, concentrated in ${sbName} (${sbCount}). ` : ''}Total Displaced subclasses recorded: ${sum}.`
   }
@@ -863,11 +1099,11 @@ export default function AdminDashboard() {
     const pct = (n)=> sum? Math.round((n/sum)*100):0
     const top = sorted[0]
     const topBarangay = rows.filter(r=>(r.subclass_doubleup||'Unknown')===top.k).sort((a,b)=>Number(b.count||0)-Number(a.count||0))[0]
-    const tbName = topBarangay? (topBarangay.barangay||'Unknown') : 'Unknown'
+    const tbName = topBarangay? String(topBarangay.barangay||'Unknown').replace(/_/g,' ') : 'Unknown'
     const tbCount = topBarangay? Number(topBarangay.count||0) : 0
     const second = sorted[1]
     const secondBarangay = rows.filter(r=>(r.subclass_doubleup||'Unknown')===second?.k).sort((a,b)=>Number(b.count||0)-Number(a.count||0))[0]
-    const sbName = secondBarangay? (secondBarangay.barangay||'Unknown') : 'Unknown'
+    const sbName = secondBarangay? String(secondBarangay.barangay||'Unknown').replace(/_/g,' ') : 'Unknown'
     const sbCount = secondBarangay? Number(secondBarangay.count||0) : 0
     return `Most Double‑up households are due to ${top.k} (${pct(top.v)}%), concentrated in ${tbName} (${tbCount}). ${second ? `${second.k} ranks second, concentrated in ${sbName} (${sbCount}). ` : ''}Total Double‑up subclasses recorded: ${sum}.`
   }
@@ -881,11 +1117,11 @@ export default function AdminDashboard() {
     const pct = (n)=> sum? Math.round((n/sum)*100):0
     const top = sorted[0]
     const topBarangay = rows.filter(r=>(r.subclass_homeless||'Unknown')===top.k).sort((a,b)=>Number(b.count||0)-Number(a.count||0))[0]
-    const tbName = topBarangay? (topBarangay.barangay||'Unknown') : 'Unknown'
+    const tbName = topBarangay? String(topBarangay.barangay||'Unknown').replace(/_/g,' ') : 'Unknown'
     const tbCount = topBarangay? Number(topBarangay.count||0) : 0
     const second = sorted[1]
     const secondBarangay = rows.filter(r=>(r.subclass_homeless||'Unknown')===second?.k).sort((a,b)=>Number(b.count||0)-Number(a.count||0))[0]
-    const sbName = secondBarangay? (secondBarangay.barangay||'Unknown') : 'Unknown'
+    const sbName = secondBarangay? String(secondBarangay.barangay||'Unknown').replace(/_/g,' ') : 'Unknown'
     const sbCount = secondBarangay? Number(secondBarangay.count||0) : 0
     return `Most Homeless cases are due to ${top.k} (${pct(top.v)}%), concentrated in ${tbName} (${tbCount}). ${second ? `${second.k} ranks second, concentrated in ${sbName} (${sbCount}). ` : ''}Total Homeless subclasses recorded: ${sum}.`
   }

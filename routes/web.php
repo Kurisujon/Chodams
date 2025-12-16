@@ -74,11 +74,16 @@ Route::prefix('admin/api')->group(function () {
     Route::get('/subclass-displaced', [ValidatorDashboardController::class, 'adminSubclassDisplaced']);
     Route::get('/subclass-doubleup', [ValidatorDashboardController::class, 'adminSubclassDoubleUp']);
     Route::get('/subclass-homeless', [ValidatorDashboardController::class, 'adminSubclassHomeless']);
+    Route::get('/indicators', [ValidatorDashboardController::class, 'adminIndicators']);
+    Route::get('/crosstab/income-classification', [ValidatorDashboardController::class, 'adminCrosstabIncomeClassification']);
+    Route::get('/crosstab/classification-barangay', [ValidatorDashboardController::class, 'adminCrosstabClassificationBarangay']);
     Route::get('/beneficiaries/validated', [ValidatorDashboardController::class, 'adminBeneficiariesValidated']);
     Route::get('/beneficiaries/approved', [ValidatorDashboardController::class, 'adminBeneficiariesApproved']);
     Route::get('/beneficiaries/affiliated', [ValidatorDashboardController::class, 'adminBeneficiariesAffiliated']);
     Route::get('/beneficiaries/affiliated/export', [ValidatorDashboardController::class, 'adminExportAffiliatedCsv']);
     Route::get('/beneficiaries/mayor-endorsed', [ValidatorDashboardController::class, 'adminBeneficiariesMayorEndorsed']);
+    Route::get('/beneficiaries/validated/export', [ValidatorDashboardController::class, 'adminExportValidatedCsv']);
+    Route::get('/beneficiaries/mayor-endorsed/export', [ValidatorDashboardController::class, 'adminExportMayorCsv']);
 
     Route::get('/profile', [ValidatorDashboardController::class, 'adminProfile']);
     Route::post('/profile', [ValidatorDashboardController::class, 'adminProfileUpdate']);
@@ -102,6 +107,10 @@ Route::prefix('admin/api')->group(function () {
     // Project Sites API
     Route::get('/project-sites', [ValidatorDashboardController::class, 'adminProjectSitesList']);
     Route::post('/project-sites', [ValidatorDashboardController::class, 'adminProjectSitesCreate']);
+    Route::put('/project-sites/{project_id}', [ValidatorDashboardController::class, 'adminProjectSitesUpdate']);
+    Route::post('/project-sites/{project_id}', [ValidatorDashboardController::class, 'adminProjectSitesUpdate']);
+    Route::delete('/project-sites/{project_id}', [ValidatorDashboardController::class, 'adminProjectSitesDelete']);
+    Route::post('/project-sites/{project_id}/boundary', [ValidatorDashboardController::class, 'adminProjectBoundarySave']);
 
     // Assignments API
     Route::get('/assignments', [ValidatorDashboardController::class, 'adminAssignmentsList']);
@@ -146,6 +155,7 @@ Route::prefix('validator/api')->group(function () {
     Route::get('/survey/{survey_id}/export', [ValidatorDashboardController::class, 'exportSurveyCsv']);
     Route::get('/survey/{survey_id}/photo', [ValidatorDashboardController::class, 'surveyPhoto']);
     Route::get('/survey/{survey_id}/person-photo', [ValidatorDashboardController::class, 'surveyPersonPhoto']);
+    Route::get('/export/barangay', [ValidatorDashboardController::class, 'validatorExportBarangayCsv']);
     Route::get('/profile', [ValidatorDashboardController::class, 'profile']);
     Route::post('/profile/password', [ValidatorDashboardController::class, 'updatePassword']);
     Route::get('/tag-number/preview', [ValidatorDashboardController::class, 'previewTagNumber']);

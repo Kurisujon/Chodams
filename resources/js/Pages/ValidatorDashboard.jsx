@@ -14,7 +14,7 @@ export default function ValidatorDashboard() {
   const [search, setSearch] = useState('')
   const [showBarangayList, setShowBarangayList] = useState(false)
   const [barangayFilter, setBarangayFilter] = useState('')
-  const [exportScope, setExportScope] = useState('submitted')
+  const [exportScope, setExportScope] = useState('all')
   const [exportClass, setExportClass] = useState('')
   const barangays = [
     'Aplaya','Balabag','Binaton','Cogon','Colorado','Dawis','Dulangan','Goma','Igpit','Kapatagan','Kiagot','Lungag','Mahayahay','Matti','Ruparan','San_Agustin','San_Jose','San_Miguel','San_Roque','Sinawilan','Soong','Tiguman','Tres_De_Mayo','Zone_1','Zone_2','Zone_3'

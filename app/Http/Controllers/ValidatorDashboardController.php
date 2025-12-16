@@ -236,6 +236,8 @@ class ValidatorDashboardController extends Controller
             $surveyArr['spouse_age'] = $d->spouse_age ?? null;
             $surveyArr['spouse_gender'] = array_key_exists($d->spouse_gender, $genderLabel) ? $genderLabel[$d->spouse_gender] : $d->spouse_gender;
             $surveyArr['affiliation'] = array_key_exists($d->affiliation, $affLabel) ? $affLabel[$d->affiliation] : $d->affiliation;
+            $surveyArr['affiliations'] = $d->affiliations ?? null;
+            $surveyArr['tag_number'] = $d->tag_number ?? null;
         }
 
         if ($h) {
@@ -507,7 +509,7 @@ class ValidatorDashboardController extends Controller
         $spouse_age = $allowSpouse ? $normalize($request->input('spouse_age')) : null;
         $spouse_gender = $allowSpouse ? $normalize($request->input('spouse_gender')) : null;
 
-        $survey_id = DB::transaction(function() use ($validator_id, $interviewed_by, $request, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $house_photo_path, $validator_signature, $respondent_signature, $marital_status, $spouse_name, $spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender) {
+        $survey_id = DB::transaction(function() use ($validator_id, $interviewed_by, $request, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $house_photo_path, $person_photo_path, $validator_signature, $respondent_signature, $marital_status, $spouse_name, $spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender, $normalize) {
             $toInt = function($v) { return is_numeric($v) ? (int)$v : null; };
             $yn = function($v) { $s = is_string($v) ? strtolower(trim($v)) : $v; return ($s === 'yes' || $s === 1 || $s === '1') ? 1 : (($s === 'no' || $s === 0 || $s === '0') ? 0 : null); };
             $classMap = [
@@ -690,11 +692,11 @@ class ValidatorDashboardController extends Controller
                     'name' => $spouse_name,
                     'relationship' => 'Spouse',
                     'age' => is_numeric($spouse_age) ? (int)$spouse_age : null,
-                    'occupation' => null,
+                    'occupation' => 'N/A',
                 ];
                 $payload[$colCivil] = $marital_status;
-                $payload[$colEdu] = null;
-                $payload[$colIncome] = null;
+                $payload[$colEdu] = 'N/A';
+                $payload[$colIncome] = 'N/A';
                 DB::table('household_mem')->insert($payload);
             }
         }
@@ -873,6 +875,7 @@ class ValidatorDashboardController extends Controller
         $perPage = (int) $request->get('per_page', 10);
         $page = (int) $request->get('page', 1);
         $search = trim((string)$request->get('search', ''));
+        $barangay = trim((string)$request->get('barangay', ''));
         $aff = trim((string)$request->get('affiliation', ''));
         $class = trim((string)$request->get('classification', ''));
         $offset = ($page - 1) * $perPage;
@@ -978,7 +981,7 @@ class ValidatorDashboardController extends Controller
             ->join('classification as c','c.survey_id','=','s.survey_id')
             ->leftJoin('household as h','h.survey_id','=','s.survey_id')
             ->leftJoin('economic as e','e.survey_id','=','s.survey_id')
-            ->where('s.is_submitted', 1)
+            ->whereIn('s.is_submitted', [1,2])
             ->where(function($q){
                 $q->whereNull('d.endorsed_by_mayor')
                   ->orWhere('d.endorsed_by_mayor', 0);
@@ -998,6 +1001,9 @@ class ValidatorDashboardController extends Controller
             $lc = strtolower($class);
             $code = $classMap[$lc] ?? null;
             if ($code !== null) { $base->where('c.classification', $code); }
+        }
+        if ($barangay !== '') {
+            $base->where('d.barangay', $barangay);
         }
         if ($search !== '') {
             $base->where(function($q) use ($search) {
@@ -1060,6 +1066,7 @@ class ValidatorDashboardController extends Controller
         $perPage = (int) $request->get('per_page', 10);
         $page = (int) $request->get('page', 1);
         $search = trim((string)$request->get('search', ''));
+        $barangay = trim((string)$request->get('barangay', ''));
         $aff = trim((string)$request->get('affiliation', ''));
         $class = trim((string)$request->get('classification', ''));
         $offset = ($page - 1) * $perPage;
@@ -1165,7 +1172,7 @@ class ValidatorDashboardController extends Controller
             ->join('classification as c','c.survey_id','=','s.survey_id')
             ->leftJoin('household as h','h.survey_id','=','s.survey_id')
             ->leftJoin('economic as e','e.survey_id','=','s.survey_id')
-            ->where('s.is_submitted', 2);
+            ->whereIn('s.is_submitted', [1,2]);
         if ($aff !== '') {
             $affStr = str_replace('_',' ', $aff);
             $base->where('d.affiliation', $affStr);
@@ -1174,6 +1181,9 @@ class ValidatorDashboardController extends Controller
             $lc = strtolower($class);
             $code = $classMap[$lc] ?? null;
             if ($code !== null) { $base->where('c.classification', $code); }
+        }
+        if ($barangay !== '') {
+            $base->where('d.barangay', $barangay);
         }
         if ($search !== '') {
             $base->where(function($q) use ($search) {
@@ -1237,6 +1247,7 @@ class ValidatorDashboardController extends Controller
         $page = (int) $request->get('page', 1);
         $search = trim((string)$request->get('search', ''));
         $status = strtolower(trim((string)$request->get('status', 'validated')));
+        $barangay = trim((string)$request->get('barangay', ''));
         $aff = trim((string)$request->get('affiliation', ''));
         $class = trim((string)$request->get('classification', ''));
         $offset = ($page - 1) * $perPage;
@@ -1366,6 +1377,9 @@ class ValidatorDashboardController extends Controller
             $code = $classMap[$lc] ?? null;
             if ($code !== null) { $base->where('c.classification', $code); }
         }
+        if ($barangay !== '') {
+            $base->where('d.barangay', $barangay);
+        }
         if ($search !== '') {
             $base->where(function($q) use ($search) {
                 $q->where('d.last_name','like',"%$search%")
@@ -1435,6 +1449,7 @@ class ValidatorDashboardController extends Controller
         $page = (int) $request->get('page', 1);
         $search = trim((string)$request->get('search', ''));
         $class = trim((string)$request->get('classification', ''));
+        $barangay = trim((string)$request->get('barangay', ''));
         $offset = ($page - 1) * $perPage;
 
         $base = DB::table('survey as s')
@@ -1443,7 +1458,7 @@ class ValidatorDashboardController extends Controller
             ->leftJoin('household as h','h.survey_id','=','s.survey_id')
             ->leftJoin('economic as e','e.survey_id','=','s.survey_id')
             ->where('d.endorsed_by_mayor', 1)
-            ->where('s.is_submitted', 1);
+            ->whereIn('s.is_submitted', [1,2]);
 
         $classMap = [
             'displaced' => 1,
@@ -1455,6 +1470,9 @@ class ValidatorDashboardController extends Controller
             $lc = strtolower($class);
             $code = $classMap[$lc] ?? null;
             if ($code !== null) { $base->where('c.classification', $code); }
+        }
+        if ($barangay !== '') {
+            $base->where('d.barangay', $barangay);
         }
         if ($search !== '') {
             $base->where(function($q) use ($search) {
@@ -1573,6 +1591,8 @@ class ValidatorDashboardController extends Controller
             $surveyArr['spouse_age'] = $d->spouse_age ?? null;
             $surveyArr['spouse_gender'] = array_key_exists($d->spouse_gender, $genderLabel) ? $genderLabel[$d->spouse_gender] : $d->spouse_gender;
             $surveyArr['affiliation'] = array_key_exists($d->affiliation, $affLabel) ? $affLabel[$d->affiliation] : $d->affiliation;
+            $surveyArr['affiliations'] = $d->affiliations ?? null;
+            $surveyArr['tag_number'] = $d->tag_number ?? null;
         }
         if ($h) {
             $surveyArr['lot_ownership'] = $h->lot_ownership ?? null;
@@ -2049,6 +2069,7 @@ class ValidatorDashboardController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
         $search = trim((string)$request->get('search', ''));
+        $barangay = trim((string)$request->get('barangay', ''));
         $aff = trim((string)$request->get('affiliation', ''));
         $class = trim((string)$request->get('classification', ''));
         $status = strtolower(trim((string)$request->get('status', 'submitted')));
@@ -2098,6 +2119,9 @@ class ValidatorDashboardController extends Controller
             $code = $classMap[$lc] ?? null;
             if ($code !== null) { $base->where('c.classification', $code); }
         }
+        if ($barangay !== '') {
+            $base->where('d.barangay', $barangay);
+        }
         if ($search !== '') {
             $base->where(function($q) use ($search) {
                 $q->where('d.last_name','like',"%$search%")
@@ -2105,12 +2129,14 @@ class ValidatorDashboardController extends Controller
             });
         }
 
-        $rows = $base->select(
-                's.survey_id','s.date_interviewed','d.barangay','d.last_name',
-                'c.classification','c.subclass_displaced','c.subclass_doubleup','c.subclass_homeless',
-                'd.affiliation',
-                'e.combine_monthly_income',
-                'h.lot_ownership','h.house_ownership','h.temporary_living_area','h.housing_structure','h.type_of_toilet','h.source_of_water','h.source_of_electricity'
+        $rows = $base->leftJoin('training as t','t.survey_id','=','s.survey_id')
+            ->select(
+                's.interviewed_by','s.date_interviewed','d.tag_number','s.is_submitted',
+                'c.previous_client','c.year_inhabited','c.classification','c.subclass_displaced','c.subclass_doubleup','c.subclass_homeless',
+                'd.last_name','d.first_name','d.middle_name','d.suffix','d.barangay','d.purok','d.street','d.gender','d.religion','d.birth_place','d.birth_date','d.person_age','d.marital_status','d.contact_number','d.language_spoken','d.tribe','d.highest_education','d.last_school_name','d.year_graduated','d.spouse_name','d.spouse_religion','d.spouse_tribe','d.spouse_age','d.spouse_gender','d.affiliation',
+                'h.lot_ownership','h.house_ownership','h.avail_socialized_housing','h.temporary_living_area','h.housing_structure','h.type_of_toilet','h.source_of_water','h.source_of_electricity',
+                'e.main_income_source','e.work_status','e.work_location_head','e.monthly_salary','e.combine_monthly_income',
+                't.skills_for_living','t.specific_skill','t.organization_member','t.specific_organization','t.wanttolearn','t.remarks'
             )
             ->orderBy('d.barangay','asc')
             ->orderBy('c.classification','asc')
@@ -2118,7 +2144,14 @@ class ValidatorDashboardController extends Controller
             ->get();
 
         $csv = fopen('php://temp','w+');
-        fputcsv($csv, ['Date','Barangay','Surname','Affiliation','Classification','Sub-Class Displaced','Sub-Class Double Up','Sub-Class Homeless','Points']);
+        fputcsv($csv, [
+            'interviewed_by','date_interviewed','tag_number','identifier','status',
+            'previous_client','year_inhabited','classification','subclass_displaced','subclass_doubleup','subclass_homeless',
+            'last_name','first_name','middle_name','suffix','barangay','purok','street','gender','religion','birth_place','birth_date','person_age','marital_status','contact_number','language_spoken','tribe','highest_education','last_school_name','year_graduated','spouse_name','spouse_religion','spouse_tribe','spouse_age','spouse_gender','affiliation',
+            'lot_ownership','house_ownership','avail_socialized_housing','temporary_living_area','housing_structure','type_of_toilet','source_of_water','source_of_electricity',
+            'main_income_source','work_status','work_location_head','monthly_salary','combine_monthly_income',
+            'skills_for_living','specific_skill','organization_member','specific_organization','wanttolearn','remarks'
+        ]);
 
         foreach ($rows as $row) {
             $row->classification = $classLabel[$row->classification] ?? $row->classification;
@@ -2126,31 +2159,61 @@ class ValidatorDashboardController extends Controller
             $row->subclass_doubleup = $doubleupLabel[$row->subclass_doubleup] ?? ($row->subclass_doubleup ?? '');
             $row->subclass_homeless = $homelessLabel[$row->subclass_homeless] ?? ($row->subclass_homeless ?? '');
             $row->affiliation = is_string($row->affiliation) ? $row->affiliation : ($affLabel[$row->affiliation] ?? $row->affiliation);
-            $arr = [
-                'classification' => $row->classification,
-                'subclass_displaced' => $row->subclass_displaced,
-                'subclass_doubleup' => $row->subclass_doubleup,
-                'subclass_homeless' => $row->subclass_homeless,
-                'combine_monthly_income' => $row->combine_monthly_income,
-                'lot_ownership' => $row->lot_ownership,
-                'house_ownership' => $row->house_ownership,
-                'temporary_living_area' => $row->temporary_living_area,
-                'housing_structure' => $row->housing_structure,
-                'type_of_toilet' => $row->type_of_toilet,
-                'source_of_water' => $row->source_of_water,
-                'source_of_electricity' => $row->source_of_electricity,
-            ];
-            $points = $this->computePoints($arr);
             fputcsv($csv, [
-                $row->date_interviewed,
-                $row->barangay,
-                $row->last_name,
-                $row->affiliation,
+                $row->interviewed_by ?? '',
+                $row->date_interviewed ?? '',
+                $row->tag_number ?? '',
+                'affiliated',
+                (($row->is_submitted ?? null) === 2 ? 'assigned' : 'validated'),
+                $ynLabel[$row->previous_client] ?? ($row->previous_client ?? ''),
+                $row->year_inhabited ?? '',
                 $row->classification,
                 $row->subclass_displaced,
                 $row->subclass_doubleup,
                 $row->subclass_homeless,
-                $points,
+                $row->last_name ?? '',
+                $row->first_name ?? '',
+                $row->middle_name ?? '',
+                $row->suffix ?? '',
+                $row->barangay ?? '',
+                $row->purok ?? '',
+                $row->street ?? '',
+                $row->gender ?? '',
+                $row->religion ?? '',
+                $row->birth_place ?? '',
+                $row->birth_date ?? '',
+                $row->person_age ?? '',
+                $row->marital_status ?? '',
+                $row->contact_number ?? '',
+                $row->language_spoken ?? '',
+                $row->tribe ?? '',
+                $row->highest_education ?? '',
+                $row->last_school_name ?? '',
+                $row->year_graduated ?? '',
+                $row->spouse_name ?? '',
+                $row->spouse_religion ?? '',
+                $row->spouse_tribe ?? '',
+                $row->spouse_age ?? '',
+                $row->spouse_gender ?? '',
+                $row->affiliation ?? '',
+                $row->lot_ownership ?? '',
+                $row->house_ownership ?? '',
+                $row->temporary_living_area ?? '',
+                $row->housing_structure ?? '',
+                $row->type_of_toilet ?? '',
+                $row->source_of_water ?? '',
+                $row->source_of_electricity ?? '',
+                $row->main_income_source ?? '',
+                $row->work_status ?? '',
+                $row->work_location_head ?? '',
+                $row->monthly_salary ?? '',
+                $row->combine_monthly_income ?? '',
+                $row->skills_for_living ?? '',
+                $row->specific_skill ?? '',
+                $row->organization_member ?? '',
+                $row->specific_organization ?? '',
+                $row->wanttolearn ?? '',
+                $row->remarks ?? '',
             ]);
         }
 
@@ -2160,6 +2223,287 @@ class ValidatorDashboardController extends Controller
         return response($out, 200, [
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename="affiliated_beneficiaries.csv"'
+        ]);
+    }
+
+    public function adminExportValidatedCsv(Request $request)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        $search = trim((string)$request->get('search', ''));
+        $barangay = trim((string)$request->get('barangay', ''));
+        $class = trim((string)$request->get('classification', ''));
+
+        $classMap = [
+            'displaced' => 1,
+            'double-up' => 2,
+            'homeless' => 3,
+            'upgrading of land tenure' => 4,
+        ];
+        $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
+        $displacedLabel = [1=>'Coastal Areas',2=>'Drought',3=>'Earthquake Affected',4=>'Flood Affected',5=>'Sea Level Rise',6=>'Threat of Eviction',7=>'Eviction/Demolition Order',8=>'Human Induced Disaster',9=>'Infra Projects',10=>'Landslide Affected',11=>'Near Waterways'];
+        $doubleupLabel = [1=>'Renter/Tenant',2=>'Rent-free/Sharer',3=>'Caretaker'];
+        $homelessLabel = [1=>'Public - living in tent',2=>'Private - living in tent'];
+
+        $base = DB::table('survey as s')
+            ->join('demographic as d','d.survey_id','=','s.survey_id')
+            ->join('classification as c','c.survey_id','=','s.survey_id')
+            ->leftJoin('household as h','h.survey_id','=','s.survey_id')
+            ->leftJoin('economic as e','e.survey_id','=','s.survey_id')
+            ->leftJoin('training as t','t.survey_id','=','s.survey_id')
+            ->whereIn('s.is_submitted', [1,2])
+            ->where(function($q){
+                $q->whereNull('d.affiliation')
+                  ->orWhere('d.affiliation','')
+                  ->orWhere('d.affiliation','None')
+                  ->orWhere('d.affiliation','N/A');
+            })
+            ->where(function($q){
+                $q->whereNull('d.endorsed_by_mayor')
+                  ->orWhere('d.endorsed_by_mayor', 0);
+            });
+        if ($class !== '') {
+            $lc = strtolower($class);
+            $code = $classMap[$lc] ?? null;
+            if ($code !== null) { $base->where('c.classification', $code); }
+        }
+        if ($barangay !== '') {
+            $base->where('d.barangay', $barangay);
+        }
+        if ($search !== '') {
+            $base->where(function($q) use ($search) {
+                $q->where('d.last_name','like',"%$search%")
+                  ->orWhere('d.barangay','like',"%$search%");
+            });
+        }
+
+        $rows = $base->select(
+                's.interviewed_by','s.date_interviewed','d.tag_number','s.is_submitted',
+                'c.previous_client','c.year_inhabited','c.classification','c.subclass_displaced','c.subclass_doubleup','c.subclass_homeless',
+                'd.last_name','d.first_name','d.middle_name','d.suffix','d.barangay','d.purok','d.street','d.gender','d.religion','d.birth_place','d.birth_date','d.person_age','d.marital_status','d.contact_number','d.language_spoken','d.tribe','d.highest_education','d.last_school_name','d.year_graduated','d.spouse_name','d.spouse_religion','d.spouse_tribe','d.spouse_age','d.spouse_gender','d.affiliation',
+                'h.lot_ownership','h.house_ownership','h.avail_socialized_housing','h.temporary_living_area','h.housing_structure','h.type_of_toilet','h.source_of_water','h.source_of_electricity',
+                'e.main_income_source','e.work_status','e.work_location_head','e.monthly_salary','e.combine_monthly_income',
+                't.skills_for_living','t.specific_skill','t.organization_member','t.specific_organization','t.wanttolearn','t.remarks'
+            )
+            ->orderBy('d.barangay','asc')
+            ->orderBy('c.classification','asc')
+            ->orderBy('s.survey_id','desc')
+            ->get();
+
+        $csv = fopen('php://temp','w+');
+        fputcsv($csv, [
+            'interviewed_by','date_interviewed','tag_number','identifier','status',
+            'previous_client','year_inhabited','classification','subclass_displaced','subclass_doubleup','subclass_homeless',
+            'last_name','first_name','middle_name','suffix','barangay','purok','street','gender','religion','birth_place','birth_date','person_age','marital_status','contact_number','language_spoken','tribe','highest_education','last_school_name','year_graduated','spouse_name','spouse_religion','spouse_tribe','spouse_age','spouse_gender','affiliation',
+            'lot_ownership','house_ownership','avail_socialized_housing','temporary_living_area','housing_structure','type_of_toilet','source_of_water','source_of_electricity',
+            'main_income_source','work_status','work_location_head','monthly_salary','combine_monthly_income',
+            'skills_for_living','specific_skill','organization_member','specific_organization','wanttolearn','remarks'
+        ]);
+        foreach ($rows as $row) {
+            $row->classification = $classLabel[$row->classification] ?? $row->classification;
+            $row->subclass_displaced = $displacedLabel[$row->subclass_displaced] ?? ($row->subclass_displaced ?? '');
+            $row->subclass_doubleup = $doubleupLabel[$row->subclass_doubleup] ?? ($row->subclass_doubleup ?? '');
+            $row->subclass_homeless = $homelessLabel[$row->subclass_homeless] ?? ($row->subclass_homeless ?? '');
+            fputcsv($csv, [
+                $row->interviewed_by ?? '',
+                $row->date_interviewed ?? '',
+                $row->tag_number ?? '',
+                'none-affiliated',
+                (($row->is_submitted ?? null) === 2 ? 'assigned' : 'validated'),
+                $ynLabel[$row->previous_client] ?? ($row->previous_client ?? ''),
+                $row->year_inhabited ?? '',
+                $row->classification,
+                $row->subclass_displaced,
+                $row->subclass_doubleup,
+                $row->subclass_homeless,
+                $row->last_name ?? '',
+                $row->first_name ?? '',
+                $row->middle_name ?? '',
+                $row->suffix ?? '',
+                $row->barangay ?? '',
+                $row->purok ?? '',
+                $row->street ?? '',
+                $row->gender ?? '',
+                $row->religion ?? '',
+                $row->birth_place ?? '',
+                $row->birth_date ?? '',
+                $row->person_age ?? '',
+                $row->marital_status ?? '',
+                $row->contact_number ?? '',
+                $row->language_spoken ?? '',
+                $row->tribe ?? '',
+                $row->highest_education ?? '',
+                $row->last_school_name ?? '',
+                $row->year_graduated ?? '',
+                $row->spouse_name ?? '',
+                $row->spouse_religion ?? '',
+                $row->spouse_tribe ?? '',
+                $row->spouse_age ?? '',
+                $row->spouse_gender ?? '',
+                $row->affiliation ?? '',
+                $row->lot_ownership ?? '',
+                $row->house_ownership ?? '',
+                $row->temporary_living_area ?? '',
+                $row->housing_structure ?? '',
+                $row->type_of_toilet ?? '',
+                $row->source_of_water ?? '',
+                $row->source_of_electricity ?? '',
+                $row->main_income_source ?? '',
+                $row->work_status ?? '',
+                $row->work_location_head ?? '',
+                $row->monthly_salary ?? '',
+                $row->combine_monthly_income ?? '',
+                $row->skills_for_living ?? '',
+                $row->specific_skill ?? '',
+                $row->organization_member ?? '',
+                $row->specific_organization ?? '',
+                $row->wanttolearn ?? '',
+                $row->remarks ?? '',
+            ]);
+        }
+        rewind($csv);
+        $out = stream_get_contents($csv);
+        fclose($csv);
+        return response($out, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="validated_beneficiaries.csv"'
+        ]);
+    }
+
+    public function adminExportMayorCsv(Request $request)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        $search = trim((string)$request->get('search', ''));
+        $barangay = trim((string)$request->get('barangay', ''));
+        $class = trim((string)$request->get('classification', ''));
+
+        $classMap = [
+            'displaced' => 1,
+            'double-up' => 2,
+            'homeless' => 3,
+            'upgrading of land tenure' => 4,
+        ];
+        $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
+        $displacedLabel = [1=>'Coastal Areas',2=>'Drought',3=>'Earthquake Affected',4=>'Flood Affected',5=>'Sea Level Rise',6=>'Threat of Eviction',7=>'Eviction/Demolition Order',8=>'Human Induced Disaster',9=>'Infra Projects',10=>'Landslide Affected',11=>'Near Waterways'];
+        $doubleupLabel = [1=>'Renter/Tenant',2=>'Rent-free/Sharer',3=>'Caretaker'];
+        $homelessLabel = [1=>'Public - living in tent',2=>'Private - living in tent'];
+
+        $base = DB::table('survey as s')
+            ->join('demographic as d','d.survey_id','=','s.survey_id')
+            ->join('classification as c','c.survey_id','=','s.survey_id')
+            ->leftJoin('household as h','h.survey_id','=','s.survey_id')
+            ->leftJoin('economic as e','e.survey_id','=','s.survey_id')
+            ->leftJoin('training as t','t.survey_id','=','s.survey_id')
+            ->where('d.endorsed_by_mayor', 1)
+            ->whereIn('s.is_submitted', [1,2]);
+        if ($class !== '') {
+            $lc = strtolower($class);
+            $code = $classMap[$lc] ?? null;
+            if ($code !== null) { $base->where('c.classification', $code); }
+        }
+        if ($barangay !== '') {
+            $base->where('d.barangay', $barangay);
+        }
+        if ($search !== '') {
+            $base->where(function($q) use ($search) {
+                $q->where('d.last_name','like',"%$search%")
+                  ->orWhere('d.barangay','like',"%$search%");
+            });
+        }
+
+        $rows = $base->select(
+                's.interviewed_by','s.date_interviewed','d.tag_number','s.is_submitted',
+                'c.previous_client','c.year_inhabited','c.classification','c.subclass_displaced','c.subclass_doubleup','c.subclass_homeless',
+                'd.last_name','d.first_name','d.middle_name','d.suffix','d.barangay','d.purok','d.street','d.gender','d.religion','d.birth_place','d.birth_date','d.person_age','d.marital_status','d.contact_number','d.language_spoken','d.tribe','d.highest_education','d.last_school_name','d.year_graduated','d.spouse_name','d.spouse_religion','d.spouse_tribe','d.spouse_age','d.spouse_gender','d.affiliation',
+                'h.lot_ownership','h.house_ownership','h.avail_socialized_housing','h.temporary_living_area','h.housing_structure','h.type_of_toilet','h.source_of_water','h.source_of_electricity',
+                'e.main_income_source','e.work_status','e.work_location_head','e.monthly_salary','e.combine_monthly_income',
+                't.skills_for_living','t.specific_skill','t.organization_member','t.specific_organization','t.wanttolearn','t.remarks'
+            )
+            ->orderBy('d.barangay','asc')
+            ->orderBy('c.classification','asc')
+            ->orderBy('s.survey_id','desc')
+            ->get();
+
+        $csv = fopen('php://temp','w+');
+        fputcsv($csv, [
+            'interviewed_by','date_interviewed','tag_number','identifier','status',
+            'previous_client','year_inhabited','classification','subclass_displaced','subclass_doubleup','subclass_homeless',
+            'last_name','first_name','middle_name','suffix','barangay','purok','street','gender','religion','birth_place','birth_date','person_age','marital_status','contact_number','language_spoken','tribe','highest_education','last_school_name','year_graduated','spouse_name','spouse_religion','spouse_tribe','spouse_age','spouse_gender','affiliation',
+            'lot_ownership','house_ownership','avail_socialized_housing','temporary_living_area','housing_structure','type_of_toilet','source_of_water','source_of_electricity',
+            'main_income_source','work_status','work_location_head','monthly_salary','combine_monthly_income',
+            'skills_for_living','specific_skill','organization_member','specific_organization','wanttolearn','remarks'
+        ]);
+        foreach ($rows as $row) {
+            $row->classification = $classLabel[$row->classification] ?? $row->classification;
+            $row->subclass_displaced = $displacedLabel[$row->subclass_displaced] ?? ($row->subclass_displaced ?? '');
+            $row->subclass_doubleup = $doubleupLabel[$row->subclass_doubleup] ?? ($row->subclass_doubleup ?? '');
+            $row->subclass_homeless = $homelessLabel[$row->subclass_homeless] ?? ($row->subclass_homeless ?? '');
+            fputcsv($csv, [
+                $row->interviewed_by ?? '',
+                $row->date_interviewed ?? '',
+                $row->tag_number ?? '',
+                'mayor-endorsed',
+                (($row->is_submitted ?? null) === 2 ? 'assigned' : 'validated'),
+                $ynLabel[$row->previous_client] ?? ($row->previous_client ?? ''),
+                $row->year_inhabited ?? '',
+                $row->classification,
+                $row->subclass_displaced,
+                $row->subclass_doubleup,
+                $row->subclass_homeless,
+                $row->last_name ?? '',
+                $row->first_name ?? '',
+                $row->middle_name ?? '',
+                $row->suffix ?? '',
+                $row->barangay ?? '',
+                $row->purok ?? '',
+                $row->street ?? '',
+                $row->gender ?? '',
+                $row->religion ?? '',
+                $row->birth_place ?? '',
+                $row->birth_date ?? '',
+                $row->person_age ?? '',
+                $row->marital_status ?? '',
+                $row->contact_number ?? '',
+                $row->language_spoken ?? '',
+                $row->tribe ?? '',
+                $row->highest_education ?? '',
+                $row->last_school_name ?? '',
+                $row->year_graduated ?? '',
+                $row->spouse_name ?? '',
+                $row->spouse_religion ?? '',
+                $row->spouse_tribe ?? '',
+                $row->spouse_age ?? '',
+                $row->spouse_gender ?? '',
+                $row->affiliation ?? '',
+                $row->lot_ownership ?? '',
+                $row->house_ownership ?? '',
+                $row->temporary_living_area ?? '',
+                $row->housing_structure ?? '',
+                $row->type_of_toilet ?? '',
+                $row->source_of_water ?? '',
+                $row->source_of_electricity ?? '',
+                $row->main_income_source ?? '',
+                $row->work_status ?? '',
+                $row->work_location_head ?? '',
+                $row->monthly_salary ?? '',
+                $row->combine_monthly_income ?? '',
+                $row->skills_for_living ?? '',
+                $row->specific_skill ?? '',
+                $row->organization_member ?? '',
+                $row->specific_organization ?? '',
+                $row->wanttolearn ?? '',
+                $row->remarks ?? '',
+            ]);
+        }
+        rewind($csv);
+        $out = stream_get_contents($csv);
+        fclose($csv);
+        return response($out, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="mayor_endorsed_beneficiaries.csv"'
         ]);
     }
 
@@ -2188,18 +2532,20 @@ class ValidatorDashboardController extends Controller
             ->leftJoin('household as h','h.survey_id','=','s.survey_id')
             ->leftJoin('economic as e','e.survey_id','=','s.survey_id')
             ->leftJoin('training as t','t.survey_id','=','s.survey_id')
-            ->where('d.barangay',$barangay)
-            ->where('s.validator_id',$validator_id);
+            ->where('d.barangay',$barangay);
         if ($scope === 'submitted') {
             $base->whereIn('s.is_submitted',[1,2]);
         } elseif ($scope === 'survey') {
-            $base->whereNull('s.is_submitted')->orWhere('s.is_submitted',0);
+            $base->where(function($q){
+                $q->whereNull('s.is_submitted')->orWhere('s.is_submitted',0);
+            });
         }
         if ($class !== '') {
             $code = $classMap[strtolower($class)] ?? null;
             if ($code !== null) { $base->where('c.classification',$code); }
         }
         $rows = $base->select(
+                's.interviewed_by','s.date_interviewed','d.tag_number','s.is_submitted',
                 'c.previous_client','c.year_inhabited','c.classification','c.subclass_displaced','c.subclass_doubleup','c.subclass_homeless',
                 'd.last_name','d.first_name','d.middle_name','d.suffix','d.barangay','d.purok','d.street','d.gender','d.religion','d.birth_place','d.birth_date','d.person_age','d.marital_status','d.contact_number','d.language_spoken','d.tribe','d.highest_education','d.last_school_name','d.year_graduated','d.spouse_name','d.spouse_religion','d.spouse_tribe','d.spouse_age','d.spouse_gender','d.affiliation',
                 'h.lot_ownership','h.house_ownership','h.avail_socialized_housing','h.temporary_living_area','h.housing_structure','h.type_of_toilet','h.source_of_water','h.source_of_electricity',
@@ -2211,9 +2557,10 @@ class ValidatorDashboardController extends Controller
             ->orderBy('s.survey_id','desc')
             ->get();
         $csv = fopen('php://temp','w+');
-        $title = ucfirst(str_replace('_',' ',$barangay)).' beneficiary list';
+        $title = ucfirst(str_replace('_',' ',$barangay)).' beneficiaries list';
         fputcsv($csv, [$title]);
         $header = [
+            'interviewed_by','date_interviewed','tag_number','status',
             'previous_client','year_inhabited','classification','subclass_displaced','subclass_doubleup','subclass_homeless',
             'last_name','first_name','middle_name','suffix','barangay','purok','street','gender','religion','birth_place','birth_date','person_age','marital_status','contact_number','language_spoken','tribe','highest_education','last_school_name','year_graduated','spouse_name','spouse_religion','spouse_tribe','spouse_age','spouse_gender','affiliation',
             'lot_ownership','house_ownership','avail_socialized_housing','temporary_living_area','housing_structure','type_of_toilet','source_of_water','source_of_electricity',
@@ -2223,6 +2570,14 @@ class ValidatorDashboardController extends Controller
         fputcsv($csv, $header);
         foreach ($rows as $r) {
             $row = [
+                $r->interviewed_by ?? '',
+                $r->date_interviewed ?? '',
+                $r->tag_number ?? '',
+                (function($s){
+                    if ($s === 1) return 'validated';
+                    if ($s === 2) return 'assigned';
+                    return 'surveyed';
+                })($r->is_submitted ?? null),
                 array_key_exists($r->previous_client, $ynLabel) ? $ynLabel[$r->previous_client] : ($r->previous_client ?? ''),
                 $r->year_inhabited ?? '',
                 array_key_exists($r->classification, $classLabel) ? $classLabel[$r->classification] : ($r->classification ?? ''),
@@ -2930,6 +3285,239 @@ class ValidatorDashboardController extends Controller
             'validator_count' => $validatorCount,
             'validator_sample' => $sample,
         ]);
+    }
+
+    public function adminIndicators(Request $request)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        $barangay = trim((string)$request->get('barangay',''));
+        $classParam = strtolower(trim((string)$request->get('classification','')));
+        $incomeBand = strtolower(trim((string)$request->get('income_band','')));
+        $water = strtolower(trim((string)$request->get('water','')));
+        $electricity = strtolower(trim((string)$request->get('electricity','')));
+
+        $classMap = [
+            'displaced' => 1,
+            'double-up' => 2,
+            'homeless' => 3,
+            'upgrading of land tenure' => 4,
+        ];
+
+        $baseFilter = DB::table('survey as s')
+            ->leftJoin('demographic as d','d.survey_id','=','s.survey_id')
+            ->leftJoin('classification as c','c.survey_id','=','s.survey_id')
+            ->leftJoin('economic as e','e.survey_id','=','s.survey_id')
+            ->leftJoin('household as h','h.survey_id','=','s.survey_id')
+            ->whereIn('s.is_submitted', [1,2]);
+        if ($barangay !== '') {
+            $baseFilter->where('d.barangay', $barangay);
+        }
+        if ($classParam !== '' && array_key_exists($classParam, $classMap)) {
+            $baseFilter->where('c.classification', $classMap[$classParam]);
+        }
+        if ($incomeBand !== '') {
+            switch ($incomeBand) {
+                case 'lt5k':
+                    $baseFilter->whereRaw('(e.combine_monthly_income+0) < 5000');
+                    break;
+                case '5to10k':
+                    $baseFilter->whereRaw('(e.combine_monthly_income+0) >= 5000 AND (e.combine_monthly_income+0) < 10000');
+                    break;
+                case 'gt10k':
+                    $baseFilter->whereRaw('(e.combine_monthly_income+0) >= 10000');
+                    break;
+            }
+        }
+        if ($water === 'has') {
+            $baseFilter->whereRaw("LOWER(IFNULL(h.source_of_water,'')) <> '' AND LOWER(IFNULL(h.source_of_water,'none')) <> 'none'");
+        } elseif ($water === 'none') {
+            $baseFilter->whereRaw("LOWER(IFNULL(h.source_of_water,'')) = '' OR LOWER(IFNULL(h.source_of_water,'')) = 'none'");
+        }
+        if ($electricity === 'has') {
+            $baseFilter->whereRaw("LOWER(IFNULL(h.source_of_electricity,'')) <> '' AND LOWER(IFNULL(h.source_of_electricity,'none')) <> 'none'");
+        } elseif ($electricity === 'none') {
+            $baseFilter->whereRaw("LOWER(IFNULL(h.source_of_electricity,'')) = '' OR LOWER(IFNULL(h.source_of_electricity,'')) = 'none'");
+        }
+
+        $surveyIds = $baseFilter->select('s.survey_id')->pluck('s.survey_id')->all();
+        $baseTotal = count($surveyIds);
+        $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
+        $classRows = DB::table('classification as c')
+            ->join('survey as s','s.survey_id','=','c.survey_id')
+            ->whereIn('c.survey_id', $surveyIds)
+            ->select('c.classification', DB::raw('COUNT(*) AS count'))
+            ->groupBy('c.classification')
+            ->get();
+        $classificationPct = [];
+        foreach ($classRows as $r) {
+            $k = $classLabel[$r->classification] ?? ($r->classification ?: 'Unknown');
+            $classificationPct[$k] = $baseTotal ? round(((int)$r->count / $baseTotal) * 100) : 0;
+        }
+        $houseCount = DB::table('household as h')->whereIn('h.survey_id', $surveyIds)->count();
+        $noLot = DB::table('household as h')->whereIn('h.survey_id', $surveyIds)->whereRaw("LOWER(IFNULL(h.lot_ownership,'')) <> 'yes'")->count();
+        $noHouse = DB::table('household as h')->whereIn('h.survey_id', $surveyIds)->whereRaw("LOWER(IFNULL(h.house_ownership,'')) <> 'yes'")->count();
+        $temporaryLiving = DB::table('household as h')->whereIn('h.survey_id', $surveyIds)->whereRaw("LOWER(IFNULL(h.temporary_living_area,'')) = 'yes'")->count();
+        $hasWater = DB::table('household as h')->whereIn('h.survey_id', $surveyIds)->whereRaw("LOWER(IFNULL(h.source_of_water,'')) <> '' AND LOWER(IFNULL(h.source_of_water,'none')) <> 'none'")->count();
+        $noWater = DB::table('household as h')->whereIn('h.survey_id', $surveyIds)->whereRaw("LOWER(IFNULL(h.source_of_water,'')) = '' OR LOWER(IFNULL(h.source_of_water,'')) = 'none'")->count();
+        $hasElectricity = DB::table('household as h')->whereIn('h.survey_id', $surveyIds)->whereRaw("LOWER(IFNULL(h.source_of_electricity,'')) <> '' AND LOWER(IFNULL(h.source_of_electricity,'none')) <> 'none'")->count();
+        $noElectricity = DB::table('household as h')->whereIn('h.survey_id', $surveyIds)->whereRaw("LOWER(IFNULL(h.source_of_electricity,'')) = '' OR LOWER(IFNULL(h.source_of_electricity,'')) = 'none'")->count();
+
+        $incomeRow = DB::table('economic as e')
+            ->whereIn('e.survey_id', $surveyIds)
+            ->selectRaw("SUM(CASE WHEN (e.combine_monthly_income+0) < 5000 THEN 1 ELSE 0 END) AS lt5k,
+                         SUM(CASE WHEN (e.combine_monthly_income+0) >= 5000 AND (e.combine_monthly_income+0) < 10000 THEN 1 ELSE 0 END) AS btw5to10k,
+                         SUM(CASE WHEN (e.combine_monthly_income+0) >= 10000 THEN 1 ELSE 0 END) AS gt10k,
+                         COUNT(*) AS total")
+            ->first();
+
+        $sizes = DB::table('demographic as d')
+            ->leftJoin(DB::raw('(SELECT survey_id, COUNT(*) AS cnt FROM household_mem GROUP BY survey_id) hm'), function($join){ $join->on('hm.survey_id','=','d.survey_id'); })
+            ->whereIn('d.survey_id', $surveyIds)
+            ->select('d.barangay', DB::raw('AVG(IFNULL(hm.cnt,0)) AS avg_size'))
+            ->groupBy('d.barangay')
+            ->get()
+            ->map(function($r){ $r->avg_size = round((float)$r->avg_size, 1); return $r; })
+            ->sortByDesc('avg_size')
+            ->values()
+            ->take(10);
+
+        $eduRows = DB::table('demographic as d')
+            ->whereIn('d.survey_id', $surveyIds)
+            ->select('d.highest_education', DB::raw('COUNT(*) AS count'))
+            ->groupBy('d.highest_education')
+            ->get();
+        $education = [];
+        foreach ($eduRows as $r) { $key = $r->highest_education ?: 'Unknown'; $education[$key] = (int)$r->count; }
+
+        $skillsTotal = DB::table('training as t')->whereIn('t.survey_id', $surveyIds)->count();
+        $skillsYes = DB::table('training as t')->whereIn('t.survey_id', $surveyIds)->whereRaw("LOWER(IFNULL(t.skills_for_living,'')) = 'yes'")->count();
+        $skillsPct = $skillsTotal ? round(($skillsYes / $skillsTotal) * 100) : 0;
+        $topSkills = DB::table('training as t')
+            ->whereIn('t.survey_id', $surveyIds)
+            ->whereNotNull('t.specific_skill')
+            ->whereRaw("TRIM(IFNULL(t.specific_skill,'')) <> ''")
+            ->select('t.specific_skill', DB::raw('COUNT(*) AS count'))
+            ->groupBy('t.specific_skill')
+            ->orderBy('count','desc')
+            ->limit(5)
+            ->get();
+        $wantRows = DB::table('training as t')
+            ->whereIn('t.survey_id', $surveyIds)
+            ->whereNotNull('t.wanttolearn')
+            ->whereRaw("TRIM(IFNULL(t.wanttolearn,'')) <> ''")
+            ->select('t.wanttolearn', DB::raw('COUNT(*) AS count'))
+            ->groupBy('t.wanttolearn')
+            ->orderBy('count','desc')
+            ->limit(5)
+            ->get();
+
+        return response()->json([
+            'base_total' => $baseTotal,
+            'vulnerability' => [
+                'classification_pct' => $classificationPct,
+                'no_lot_pct' => $houseCount ? round(($noLot / $houseCount) * 100) : 0,
+                'no_house_pct' => $houseCount ? round(($noHouse / $houseCount) * 100) : 0,
+                'temporary_living_pct' => $houseCount ? round(($temporaryLiving / $houseCount) * 100) : 0,
+            ],
+            'service' => [
+                'has_water_pct' => $houseCount ? round(($hasWater / $houseCount) * 100) : 0,
+                'no_water_pct' => $houseCount ? round(($noWater / $houseCount) * 100) : 0,
+                'has_electricity_pct' => $houseCount ? round(($hasElectricity / $houseCount) * 100) : 0,
+                'no_electricity_pct' => $houseCount ? round(($noElectricity / $houseCount) * 100) : 0,
+            ],
+            'economic' => [
+                'bands' => [
+                    'lt5k' => (int)($incomeRow->lt5k ?? 0),
+                    'btw5to10k' => (int)($incomeRow->btw5to10k ?? 0),
+                    'gt10k' => (int)($incomeRow->gt10k ?? 0),
+                    'total' => (int)($incomeRow->total ?? 0)
+                ],
+                'avg_household_size_by_barangay' => $sizes,
+            ],
+            'education_skills' => [
+                'education_breakdown' => $education,
+                'skills_for_living_pct' => $skillsPct,
+                'top_skills' => $topSkills,
+                'top_wanttolearn' => $wantRows,
+            ],
+        ]);
+    }
+
+    public function adminCrosstabIncomeClassification(Request $request)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        $barangay = trim((string)$request->get('barangay',''));
+        $classParam = strtolower(trim((string)$request->get('classification','')));
+        $water = strtolower(trim((string)$request->get('water','')));
+        $electricity = strtolower(trim((string)$request->get('electricity','')));
+        $classMap = [ 'displaced'=>1,'double-up'=>2,'homeless'=>3,'upgrading of land tenure'=>4 ];
+
+        $baseFilter = DB::table('survey as s')
+            ->leftJoin('demographic as d','d.survey_id','=','s.survey_id')
+            ->leftJoin('classification as c','c.survey_id','=','s.survey_id')
+            ->leftJoin('household as h','h.survey_id','=','s.survey_id')
+            ->whereIn('s.is_submitted',[1,2]);
+        if ($barangay !== '') { $baseFilter->where('d.barangay', $barangay); }
+        if ($classParam !== '' && array_key_exists($classParam,$classMap)) { $baseFilter->where('c.classification',$classMap[$classParam]); }
+        if ($water === 'has') { $baseFilter->whereRaw("LOWER(IFNULL(h.source_of_water,'')) <> '' AND LOWER(IFNULL(h.source_of_water,'none')) <> 'none'"); }
+        elseif ($water === 'none') { $baseFilter->whereRaw("LOWER(IFNULL(h.source_of_water,'')) = '' OR LOWER(IFNULL(h.source_of_water,'')) = 'none'"); }
+        if ($electricity === 'has') { $baseFilter->whereRaw("LOWER(IFNULL(h.source_of_electricity,'')) <> '' AND LOWER(IFNULL(h.source_of_electricity,'none')) <> 'none'"); }
+        elseif ($electricity === 'none') { $baseFilter->whereRaw("LOWER(IFNULL(h.source_of_electricity,'')) = '' OR LOWER(IFNULL(h.source_of_electricity,'')) = 'none'"); }
+        $surveyIds = $baseFilter->select('s.survey_id')->pluck('s.survey_id')->all();
+
+        $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
+        $rows = DB::table('classification as c')
+            ->leftJoin('economic as e','e.survey_id','=','c.survey_id')
+            ->whereIn('c.survey_id', $surveyIds)
+            ->select(
+                'c.classification',
+                DB::raw("SUM(CASE WHEN (e.combine_monthly_income+0) < 5000 THEN 1 ELSE 0 END) AS lt5k"),
+                DB::raw("SUM(CASE WHEN (e.combine_monthly_income+0) >= 5000 AND (e.combine_monthly_income+0) < 10000 THEN 1 ELSE 0 END) AS btw5to10k"),
+                DB::raw("SUM(CASE WHEN (e.combine_monthly_income+0) >= 10000 THEN 1 ELSE 0 END) AS gt10k"),
+                DB::raw('COUNT(*) AS total')
+            )
+            ->groupBy('c.classification')
+            ->get()
+            ->map(function($r) use ($classLabel){
+                $r->classification = $classLabel[$r->classification] ?? $r->classification;
+                return $r;
+            });
+        return response()->json(['data' => $rows]);
+    }
+
+    public function adminCrosstabClassificationBarangay(Request $request)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        $barangay = trim((string)$request->get('barangay',''));
+        $classParam = strtolower(trim((string)$request->get('classification','')));
+        $classMap = [ 'displaced'=>1,'double-up'=>2,'homeless'=>3,'upgrading of land tenure'=>4 ];
+
+        $baseFilter = DB::table('survey as s')
+            ->leftJoin('demographic as d','d.survey_id','=','s.survey_id')
+            ->leftJoin('classification as c','c.survey_id','=','s.survey_id')
+            ->whereIn('s.is_submitted',[1,2]);
+        if ($barangay !== '') { $baseFilter->where('d.barangay', $barangay); }
+        if ($classParam !== '' && array_key_exists($classParam,$classMap)) { $baseFilter->where('c.classification',$classMap[$classParam]); }
+        $surveyIds = $baseFilter->select('s.survey_id')->pluck('s.survey_id')->all();
+
+        $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
+        $rows = DB::table('classification as c')
+            ->join('demographic as d','d.survey_id','=','c.survey_id')
+            ->whereIn('c.survey_id', $surveyIds)
+            ->select('d.barangay','c.classification', DB::raw('COUNT(*) AS count'))
+            ->groupBy('d.barangay','c.classification')
+            ->get()
+            ->map(function($r) use ($classLabel){
+                $r->classification = $classLabel[$r->classification] ?? $r->classification;
+                return $r;
+            });
+        return response()->json(['data' => $rows]);
     }
 
     public function adminNotifications(Request $request)
