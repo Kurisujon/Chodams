@@ -88,7 +88,11 @@ export default function AdminProjectSites() {
     try {
       setSavingBoundary(true)
       const geojsonStr = toGeoJSONString(geojsonInput)
-      const res = await axios.post(`/admin/api/project-sites/${selected.project_id}/boundary`, { geojson: geojsonStr })
+      const res = await axios.post(
+        `/admin/api/project-sites/${selected.project_id}/boundary`,
+        { geojson: geojsonStr },
+        { headers: { 'X-CSRF-TOKEN': csrf() } }
+      )
       if (res.data?.ok) {
         setSelected(prev => ({ ...prev, geojson: geojsonStr }))
         setProjects(prev => prev.map(pr => pr.project_id === selected.project_id ? { ...pr, geojson: geojsonStr } : pr))
@@ -178,7 +182,9 @@ export default function AdminProjectSites() {
           fd.append(k, v)
         }
       })
-      const res = await axios.post(`/admin/api/project-sites/${selected.project_id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      const res = await axios.post(`/admin/api/project-sites/${selected.project_id}`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data', 'X-CSRF-TOKEN': csrf() },
+      })
       if (res.data?.ok) {
         setProjects(prev => prev.map(pr => pr.project_id === selected.project_id ? {
           ...pr,
@@ -214,7 +220,7 @@ export default function AdminProjectSites() {
     if (!window.confirm('Delete this project site? This cannot be undone.')) return
     try {
       setDeletingProject(true)
-      const res = await axios.delete(`/admin/api/project-sites/${selected.project_id}`)
+      const res = await axios.delete(`/admin/api/project-sites/${selected.project_id}`, { headers: { 'X-CSRF-TOKEN': csrf() } })
       if (res.data?.ok) {
         setProjects(prev => prev.filter(pr => pr.project_id !== selected.project_id))
         setShowMap(false)
@@ -231,7 +237,7 @@ export default function AdminProjectSites() {
     <div className="flex min-h-screen">
       <aside className="hidden md:block w-64 flex flex-col flex-shrink-0 bg-white text-gray-700 p-6 border-r border-gray-200 h-screen sticky top-0 overflow-hidden">
         <div className="flex items-center gap-3 mb-8">
-          <img src="/icons/appicon1.png" alt="App" className="w-9 h-9 rounded-xl ring-1 ring-emerald-200"/>
+          <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
           <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
         </div>
         <nav className="space-y-2 flex flex-col flex-1">
@@ -273,7 +279,7 @@ export default function AdminProjectSites() {
           <div className="absolute inset-0 bg-black/30" onClick={() => setMobileNavOpen(false)}></div>
           <div className="absolute inset-y-0 left-0 w-72 bg-white p-6 shadow-xl flex flex-col h-full">
             <div className="flex items-center gap-3 mb-8">
-              <img src="/icons/appicon1.png" alt="App" className="w-9 h-9 rounded-xl ring-1 ring-emerald-200"/>
+              <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
               <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
             </div>
             <nav className="space-y-2 flex flex-col flex-1">

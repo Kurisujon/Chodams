@@ -104,12 +104,6 @@ export default function AdminBeneficiaries() {
   const [mayor, setMayor] = useState({ data: [], total: 0, page: 1, per_page: perPageDefault })
   const [activeTab, setActiveTab] = useState('non')
   const [search, setSearch] = useState('')
-<<<<<<< Updated upstream
-  // Simplified filters: keep only search and barangay
-  const [error, setError] = useState('')
-  const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const [barangayFilter, setBarangayFilter] = useState('')
-=======
   const [classFilter, setClassFilter] = useState('')
   const [affType, setAffType] = useState('')
   const [statusFilter, setStatusFilter] = useState('validated')
@@ -134,7 +128,6 @@ export default function AdminBeneficiaries() {
   const [error, setError] = useState('')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const appliedFiltersRef = useRef(appliedFilters)
->>>>>>> Stashed changes
   const barangays = [
     'Aplaya','Balabag','Binaton','Cogon','Colorado','Dawis','Dulangan','Goma','Igpit','Kapatagan','Kiagot','Lungag','Mahayahay','Matti','Ruparan','San_Agustin','San_Jose','San_Miguel','San_Roque','Sinawilan','Soong','Tiguman','Tres_De_Mayo','Zone_1','Zone_2','Zone_3'
   ]
@@ -154,15 +147,6 @@ export default function AdminBeneficiaries() {
   }, [appliedFilters])
 
   useEffect(() => {
-<<<<<<< Updated upstream
-    const t = setTimeout(() => applyFilters(1), 100)
-    return () => clearTimeout(t)
-  }, [activeTab, barangayFilter, search])
-
-  async function fetchValidated(page = 1, search = '', barangay = '') {
-    try {
-      const res = await axios.get('/admin/api/beneficiaries/validated', { params: { page, per_page: validated.per_page, search, barangay } })
-=======
     applyFilters(1, appliedFiltersRef.current)
   }, [activeTab])
 
@@ -206,7 +190,6 @@ export default function AdminBeneficiaries() {
           points_max: filters?.pointsMax || '',
         },
       })
->>>>>>> Stashed changes
       setValidated({ ...validated, ...res.data, page })
       setError('')
     } catch (err) {
@@ -218,11 +201,6 @@ export default function AdminBeneficiaries() {
   }
 
 
-<<<<<<< Updated upstream
-  async function fetchAffiliated(page = 1, search = '', barangay = '') {
-    try {
-      const res = await axios.get('/admin/api/beneficiaries/affiliated', { params: { page, per_page: affiliated.per_page, search, status: 'submitted', barangay } })
-=======
   async function fetchAffiliated(page = 1, filters) {
     try {
       setLoading(true)
@@ -241,7 +219,6 @@ export default function AdminBeneficiaries() {
           points_max: filters?.pointsMax || '',
         },
       })
->>>>>>> Stashed changes
       setAffiliated({ ...affiliated, ...res.data, page })
       setError('')
     } catch (err) {
@@ -252,11 +229,6 @@ export default function AdminBeneficiaries() {
     }
   }
 
-<<<<<<< Updated upstream
-  async function fetchMayorEndorsed(page = 1, search = '', barangay = '') {
-    try {
-      const res = await axios.get('/admin/api/beneficiaries/mayor-endorsed', { params: { page, per_page: mayor.per_page, search, barangay } })
-=======
   async function fetchMayorEndorsed(page = 1, filters) {
     try {
       setLoading(true)
@@ -274,7 +246,6 @@ export default function AdminBeneficiaries() {
           points_max: filters?.pointsMax || '',
         },
       })
->>>>>>> Stashed changes
       setMayor({ ...mayor, ...res.data, page })
       setError('')
     } catch (err) {
@@ -285,14 +256,8 @@ export default function AdminBeneficiaries() {
     }
   }
 
-  async function handleExportValidated() {
+  async function handleExportBarangay() {
     try {
-<<<<<<< Updated upstream
-      const params = {}
-      if (search) params.search = search
-      if (barangayFilter) params.barangay = barangayFilter
-      const res = await axios.get('/admin/api/beneficiaries/validated/export', { params, responseType: 'blob' })
-=======
       const f = currentFilters()
       const b = (f.barangayFilter || '').trim()
       if (!b) {
@@ -309,30 +274,25 @@ export default function AdminBeneficiaries() {
         points_max: f.pointsMax || '',
       }
       const res = await axios.get('/admin/api/export/barangay', { params, responseType: 'blob' })
->>>>>>> Stashed changes
       const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8' })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
+      const fname = `barangay-${b.replace(/\s+/g,'_').toLowerCase()}.csv`
       a.href = url
-      a.download = 'validated_beneficiaries.csv'
+      a.download = fname
       document.body.appendChild(a)
       a.click()
       a.remove()
       window.URL.revokeObjectURL(url)
       setError('')
     } catch (err) {
-      console.error('Export validated failed', err)
-      setError(err?.response?.data?.message || err.message || 'Failed to export validated CSV')
+      console.error('Export failed', err)
+      setError(err?.response?.data?.message || err.message || 'Failed to export CSV')
     }
   }
 
   async function handleExportAffiliated() {
     try {
-<<<<<<< Updated upstream
-      const params = { status: 'submitted' }
-      if (search) params.search = search
-      if (barangayFilter) params.barangay = barangayFilter
-=======
       const f = currentFilters()
       const params = {
         status: f.statusFilter || 'validated',
@@ -345,7 +305,6 @@ export default function AdminBeneficiaries() {
         points_min: f.pointsMin || '',
         points_max: f.pointsMax || '',
       }
->>>>>>> Stashed changes
       const res = await axios.get('/admin/api/beneficiaries/affiliated/export', { params, responseType: 'blob' })
       const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8' })
       const url = window.URL.createObjectURL(blob)
@@ -363,41 +322,9 @@ export default function AdminBeneficiaries() {
     }
   }
 
-<<<<<<< Updated upstream
-  async function handleExportMayor() {
-    try {
-      const params = {}
-      if (search) params.search = search
-      if (barangayFilter) params.barangay = barangayFilter
-      const res = await axios.get('/admin/api/beneficiaries/mayor-endorsed/export', { params, responseType: 'blob' })
-      const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8' })
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'mayor_endorsed_beneficiaries.csv'
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      window.URL.revokeObjectURL(url)
-      setError('')
-    } catch (err) {
-      console.error('Export mayor-endorsed failed', err)
-      setError(err?.response?.data?.message || err.message || 'Failed to export mayor-endorsed CSV')
-    }
-  }
-
-  function applyFilters(page = 1) {
-    if (activeTab === 'non') {
-      fetchValidated(page, search, barangayFilter)
-    } else if (activeTab === 'aff') {
-      fetchAffiliated(page, search, barangayFilter)
-    } else {
-      fetchMayorEndorsed(page, search, barangayFilter)
-=======
   function applyFilters(page = 1, filters = appliedFiltersRef.current, commit = false) {
     if (commit) {
       setAppliedFilters(filters)
->>>>>>> Stashed changes
     }
     if (activeTab === 'non') {
       fetchValidated(page, filters)
@@ -477,7 +404,7 @@ export default function AdminBeneficiaries() {
     <div className="flex min-h-screen">
       <aside className="hidden md:block w-64 flex flex-col flex-shrink-0 bg-white text-gray-700 p-6 border-r border-gray-200 h-screen sticky top-0 overflow-hidden">
         <div className="flex items-center gap-3 mb-8">
-          <img src="/icons/appicon1.png" alt="App" className="w-9 h-9 rounded-xl ring-1 ring-emerald-200"/>
+          <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
           <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
         </div>
         <nav className="space-y-2 flex flex-col flex-1">
@@ -519,7 +446,7 @@ export default function AdminBeneficiaries() {
           <div className="absolute inset-0 bg-black/30" onClick={() => setMobileNavOpen(false)}></div>
           <div className="absolute inset-y-0 left-0 w-72 bg-white p-6 shadow-xl flex flex-col h-full">
             <div className="flex items-center gap-3 mb-8">
-              <img src="/icons/appicon1.png" alt="App" className="w-9 h-9 rounded-xl ring-1 ring-emerald-200"/>
+              <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
               <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
             </div>
             <nav className="space-y-2 flex flex-col flex-1">
@@ -577,7 +504,7 @@ export default function AdminBeneficiaries() {
               <h2 className="text-2xl text-emerald-800 font-semibold">Beneficiaries</h2>
               <div className="text-xs text-gray-500">Validated and affiliated lists</div>
             </div>
-            <img src="/image/greenlogo1.jpg" alt="logo" className="h-10 w-10 rounded-full object-cover"/>
+            <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
           </header>
         </DashboardFade>
 
@@ -652,25 +579,6 @@ export default function AdminBeneficiaries() {
                 </button>
               </div>
             </div>
-<<<<<<< Updated upstream
-            <div className="flex items-center gap-2">
-              {activeTab === 'non' && <button type="button" onClick={handleExportValidated} className="px-3 py-2 bg-emerald-600 text-white rounded-xl">Download CSV</button>}
-              {activeTab === 'aff' && <button type="button" onClick={handleExportAffiliated} className="px-3 py-2 bg-emerald-600 text-white rounded-xl">Download CSV</button>}
-              {activeTab === 'mayor' && <button type="button" onClick={handleExportMayor} className="px-3 py-2 bg-emerald-600 text-white rounded-xl">Download CSV</button>}
-            </div>
-          </div>
-          <form className="flex flex-wrap items-center gap-2 mb-4" onSubmit={e => { e.preventDefault(); applyFilters(1) }}>
-            <input className="border border-gray-300 rounded-xl p-2.5 w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Search" value={search} onChange={e=>setSearch(e.target.value)}/>
-            <select className="border border-gray-300 rounded-xl p-2.5" value={barangayFilter} onChange={e=>setBarangayFilter(e.target.value)}>
-              <option value="">Barangay: All</option>
-              {barangays.map(b => (
-                <option key={b} value={b}>{b.replace(/_/g,' ')}</option>
-              ))}
-            </select>
-            {/* Simplified controls: no classification/affiliation or extra buttons */}
-          </form>
-            {/* Export panel removed as per requirement */}
-=======
 
             <form
               className="flex flex-wrap items-center gap-3"
@@ -913,7 +821,6 @@ export default function AdminBeneficiaries() {
               </div>
             )}
           </div>
->>>>>>> Stashed changes
           <h3 className="text-lg font-semibold text-emerald-800 mb-3">{activeTab === 'non' ? 'Validated Beneficiaries (Non-affiliated)' : activeTab === 'aff' ? 'Affiliated Beneficiaries' : 'Mayor-Endorsed Beneficiaries'}</h3>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
@@ -945,19 +852,6 @@ export default function AdminBeneficiaries() {
               </thead>
               <tbody>
                 {(activeTab === 'non' ? validated.data : activeTab === 'aff' ? affiliated.data : mayor.data).map(b => (
-<<<<<<< Updated upstream
-                  <tr key={b.survey_id} className="even:bg-gray-50">
-                    <td className="p-3">{b.date_interviewed}</td>
-                    <td className="p-3">{String(b.barangay || '').replace(/_/g,' ')}</td>
-                    <td className="p-3">{b.last_name}</td>
-                    {activeTab === 'aff' && <td className="p-3">{String(b.affiliation || '').replace(/_/g,' ')}</td>}
-                    <td className="p-3">{b.classification}</td>
-                    <td className="p-3">{b.subclass_displaced}</td>
-                    <td className="p-3">{b.subclass_doubleup}</td>
-                    <td className="p-3">{b.subclass_homeless}</td>
-                    <td className="p-3 font-semibold text-emerald-800 bg-emerald-50">{b.points}%</td>
-                    <td className="p-3"><Link className="px-3 py-1 border rounded text-sm text-emerald-800 hover:bg-emerald-50" href={`/admin/beneficiaries/${b.survey_id}`}>View Details</Link></td>
-=======
                   <tr
                     key={b.survey_id}
                     className="group border-b border-gray-100 last:border-b-0 transition-colors duration-150 hover:bg-emerald-50"
@@ -1005,7 +899,6 @@ export default function AdminBeneficiaries() {
                         </svg>
                       </Link>
                     </td>
->>>>>>> Stashed changes
                   </tr>
                 ))}
                 {!((activeTab === 'non' ? validated.data.length : activeTab === 'aff' ? affiliated.data.length : mayor.data.length)) && (

@@ -1,5 +1,5 @@
 // resources/js/Pages/ValidatorProfile.jsx
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from '@inertiajs/react';
 
 export default function ValidatorProfile() {
@@ -15,6 +15,7 @@ export default function ValidatorProfile() {
   const [activeTab, setActiveTab] = useState('account');
   const [resetSending, setResetSending] = useState(false);
   const [resetMessage, setResetMessage] = useState('');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
   async function logoutValidator() {
     try {
@@ -54,9 +55,9 @@ export default function ValidatorProfile() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-60 flex-shrink-0 bg-white text-gray-700 p-4 border-r border-gray-200 flex flex-col h-screen sticky top-0 overflow-hidden">
-        <div className="flex items-center gap-2 mb-6">
-          <img src="/icons/appicon1.png" alt="logo" className="w-7 h-7 rounded-xl object-cover"/>
+      <aside className="hidden md:block w-64 flex flex-col flex-shrink-0 bg-white text-gray-700 p-6 border-r border-gray-200 h-screen sticky top-0 overflow-hidden">
+        <div className="flex items-center gap-3 mb-8">
+          <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
           <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
         </div>
         <nav className="space-y-2 flex flex-col flex-1">
@@ -81,58 +82,132 @@ export default function ValidatorProfile() {
         </nav>
       </aside>
 
-      <main className="flex-1 p-6 bg-gray-50">
-        <section className="mt-6 w-full">
-          <div className="bg-white rounded-2xl border border-gray-200 p-2 mb-6">
-            <div className="flex gap-2">
-              <button type="button" onClick={()=>setActiveTab('account')} className={`px-3 py-2 rounded-xl text-sm font-medium ${activeTab==='account' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700'}`}>Account Details</button>
-              <button type="button" onClick={()=>setActiveTab('password')} className={`px-3 py-2 rounded-xl text-sm font-medium ${activeTab==='password' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700'}`}>Change Password</button>
+      {mobileNavOpen && (
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setMobileNavOpen(false)}></div>
+          <div className="absolute inset-y-0 left-0 w-72 bg-white p-6 shadow-xl flex flex-col h-full">
+            <div className="flex items-center gap-3 mb-8">
+              <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
+              <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
             </div>
+            <nav className="space-y-2 flex flex-col flex-1">
+              <Link href="/validator/dashboard" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/validator/dashboard') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+                <img src="/icons/dashboardicon.png" alt="Dashboard" className="w-5 h-5"/>
+                <span className="tracking-wider uppercase text-xs">Dashboard</span>
+              </Link>
+              <Link href="/validator/survey-form" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/validator/survey-form') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+                <img src="/icons/assignmenticon.png" alt="Survey Form" className="w-5 h-5"/>
+                <span className="tracking-wider uppercase text-xs">Survey Form</span>
+              </Link>
+              <Link href="/validator/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/validator/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+                <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
+                <span className="tracking-wider uppercase text-xs">Profile</span>
+              </Link>
+              <div className="mt-auto">
+                <button onClick={logoutValidator} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
+                  <img src="/icons/logouticon.png" alt="Log out" className="w-5 h-5"/>
+                  <span className="tracking-wider uppercase text-xs">Log out</span>
+                </button>
+              </div>
+            </nav>
           </div>
+        </div>
+      )}
 
-          {activeTab === 'account' && (
-            <div className="bg-white rounded-2xl border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-emerald-800">Account</h3>
-                <button type="button" onClick={()=>setActiveTab('password')} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl">Change Password</button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <div className="text-sm text-gray-500">Name</div>
-                  <div className="font-medium text-gray-900">{profile.name || '-'}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500">Username</div>
-                  <div className="font-medium text-gray-900">{profile.username || '-'}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500">Email</div>
-                  <div className="font-medium text-gray-900">{profile.email || '-'}</div>
-                </div>
-              </div>
-              <div className="mt-4">
-                <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-xs">Active</span>
-              </div>
+      <main className="flex-1 h-screen overflow-y-auto p-6 bg-gray-50">
+        <DashboardFade delay={0}>
+          <div>
+            <div className="md:hidden mb-4 flex items-center justify-between">
+              <button onClick={() => setMobileNavOpen(true)} className="px-3 py-2 rounded-2xl bg-white ring-2 ring-emerald-300 text-emerald-700" aria-label="Open Menu">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+              </button>
+              <span className="text-sm font-semibold text-emerald-800">Menu</span>
             </div>
-          )}
 
-          {activeTab === 'password' && (
-            <div className="bg-white rounded-2xl border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-emerald-800">Change Password</h3>
-              </div>
-              <div className="space-y-3">
-                <div className="text-sm text-gray-700">For security, password changes require a reset token. A reset link will be sent to your email.</div>
-                <div className="text-sm"><span className="text-gray-500">Email</span> <span className="font-medium text-gray-900">{profile.email || '-'}</span></div>
-                <div className="flex items-center gap-3">
-                  <button type="button" className="px-4 py-2 bg-emerald-600 text-white rounded-xl" onClick={sendResetLink} disabled={resetSending}>{resetSending ? 'Sending...' : 'Send reset link'}</button>
-                  {resetMessage && <span className="text-sm text-gray-600">{resetMessage}</span>}
+            <section className="mt-6 w-full">
+              <div className="bg-white rounded-2xl border border-gray-200 p-2 mb-6">
+                <div className="flex gap-2">
+                  <button type="button" onClick={()=>setActiveTab('account')} className={`px-3 py-2 rounded-xl text-sm font-medium ${activeTab==='account' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700'}`}>Account Details</button>
+                  <button type="button" onClick={()=>setActiveTab('password')} className={`px-3 py-2 rounded-xl text-sm font-medium ${activeTab==='password' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700'}`}>Change Password</button>
                 </div>
               </div>
-            </div>
-          )}
-        </section>
+
+              {activeTab === 'account' && (
+                <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-emerald-800">Account</h3>
+                    <button type="button" onClick={()=>setActiveTab('password')} className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl">Change Password</button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <div className="text-sm text-gray-500">Name</div>
+                      <div className="font-medium text-gray-900">{profile.name || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Username</div>
+                      <div className="font-medium text-gray-900">{profile.username || '-'}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Email</div>
+                      <div className="font-medium text-gray-900">{profile.email || '-'}</div>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-xs">Active</span>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'password' && (
+                <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-emerald-800">Change Password</h3>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="text-sm text-gray-700">For security, password changes require a reset token. A reset link will be sent to your email.</div>
+                    <div className="text-sm"><span className="text-gray-500">Email</span> <span className="font-medium text-gray-900">{profile.email || '-'}</span></div>
+                    <div className="flex items-center gap-3">
+                      <button type="button" className="px-4 py-2 bg-emerald-600 text-white rounded-xl" onClick={sendResetLink} disabled={resetSending}>{resetSending ? 'Sending...' : 'Send reset link'}</button>
+                      {resetMessage && <span className="text-sm text-gray-600">{resetMessage}</span>}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </section>
+          </div>
+        </DashboardFade>
       </main>
+    </div>
+  );
+}
+
+function DashboardFade({ children, delay = 0 }) {
+  const [isVisible, setIsVisible] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.3 }
+    );
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      className={`transition-all duration-500 ease-in-out transform motion-reduce:transition-none motion-reduce:transform-none ${
+        isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+      }`}
+      style={{ transitionDelay: `${delay}ms` }}
+    >
+      {children}
     </div>
   );
 }

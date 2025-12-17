@@ -614,7 +614,7 @@ export default function AdminDashboard() {
           <div className="absolute inset-0 bg-black/30" onClick={() => setMobileNavOpen(false)}></div>
           <div className="absolute inset-y-0 left-0 w-72 bg-white p-6 shadow-xl flex flex-col h-full">
             <div className="flex items-center gap-3 mb-8">
-              <img src="/icons/appicon1.png" alt="App" className="w-9 h-9 rounded-xl ring-1 ring-emerald-200"/>
+              <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
               <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
             </div>
             <nav className="space-y-2 flex flex-col flex-1">
@@ -803,6 +803,8 @@ export default function AdminDashboard() {
             </div>
           </div>
         </section>
+
+        </DashboardFade>
 
         <DashboardFade delay={400}>
           <section className={`mt-6 bg-white rounded-2xl border border-gray-200 p-6 ${!showBarangay && 'hidden'}`}>

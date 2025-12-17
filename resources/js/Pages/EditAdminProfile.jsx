@@ -60,9 +60,9 @@ export default function EditAdminProfile() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-60 flex-shrink-0 bg-white text-gray-700 p-4 border-r border-gray-200">
-        <div className="flex items-center gap-2 mb-6">
-          <div className="w-7 h-7 rounded-full bg-emerald-600 text-white grid place-items-center font-bold">C</div>
+      <aside className="w-64 flex-shrink-0 bg-white text-gray-700 p-6 border-r border-gray-200">
+        <div className="flex items-center gap-3 mb-8">
+          <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
           <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
         </div>
         <ul className="space-y-1">

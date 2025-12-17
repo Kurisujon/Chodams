@@ -55,16 +55,22 @@ export default function AdminAssignments() {
     }
   }
 
-  async function searchLists() {
+  async function searchPendingList() {
     try {
-      const [p1, p2] = await Promise.all([
-        axios.get('/admin/api/assignments/pending', { params: { search: searchPending } }),
-        axios.get('/admin/api/assignments', { params: { search: searchAssigned } }),
-      ])
+      const p1 = await axios.get('/admin/api/assignments/pending', { params: { search: searchPending } })
       setPending(p1.data.data || [])
-      setAssigned(p2.data.data || [])
       setError('')
       setPendingPage(1)
+    } catch (e) {
+      setError(e?.response?.data?.message || e.message)
+    }
+  }
+
+  async function searchAssignedList() {
+    try {
+      const p2 = await axios.get('/admin/api/assignments', { params: { search: searchAssigned } })
+      setAssigned(p2.data.data || [])
+      setError('')
       setAssignedPage(1)
     } catch (e) {
       setError(e?.response?.data?.message || e.message)
@@ -310,7 +316,7 @@ export default function AdminAssignments() {
     <div className="flex min-h-screen">
       <aside className="hidden md:block w-64 flex flex-col flex-shrink-0 bg-white text-gray-700 p-6 border-r border-gray-200 h-screen sticky top-0 overflow-hidden">
         <div className="flex items-center gap-3 mb-8">
-          <img src="/icons/appicon1.png" alt="App" className="w-9 h-9 rounded-xl ring-1 ring-emerald-200"/>
+          <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
           <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
         </div>
         <nav className="space-y-2 flex flex-col flex-1">
@@ -352,7 +358,7 @@ export default function AdminAssignments() {
           <div className="absolute inset-0 bg-black/30" onClick={() => setMobileNavOpen(false)}></div>
           <div className="absolute inset-y-0 left-0 w-72 bg-white p-6 shadow-xl flex flex-col h-full">
             <div className="flex items-center gap-3 mb-8">
-              <img src="/icons/appicon1.png" alt="App" className="w-9 h-9 rounded-xl ring-1 ring-emerald-200"/>
+              <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
               <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
             </div>
             <nav className="space-y-2 flex flex-col flex-1">
@@ -418,50 +424,79 @@ export default function AdminAssignments() {
 
         <DashboardFade delay={300}>
         <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-6">
-          <form className="flex items-center gap-2 mb-4" onSubmit={e => { e.preventDefault(); searchLists() }}>
-            <input className="border border-gray-300 rounded-xl p-2.5 w-full md:w-64" placeholder="Search pending" value={searchPending} onChange={e=>setSearchPending(e.target.value)} />
-            <input className="border border-gray-300 rounded-xl p-2.5 w-full md:w-64" placeholder="Search assigned" value={searchAssigned} onChange={e=>setSearchAssigned(e.target.value)} />
-            <button className="px-3 py-2 bg-emerald-600 text-white rounded-xl" type="submit">Search</button>
-          </form>
           <h3 className="text-lg font-semibold text-emerald-800 mb-3">Pending Approval Assignments</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead className="bg-emerald-50 text-emerald-800">
-                <tr>
-                  <th className="p-3 text-left">Surname</th>
-                  <th className="p-3 text-left">Barangay</th>
-                  <th className="p-3 text-left">Classification</th>
-                  <th className="p-3 text-left">Project</th>
-                  <th className="p-3 text-left">Block</th>
-                  <th className="p-3 text-left">Lot</th>
-                  <th className="p-3 text-left">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pending.map(r => {
-                  const f = assignForms[r.survey_id] || { project_id: '', block_no: '', lot_no: '' }
-                  return (
-                    <tr key={r.survey_id} className="even:bg-gray-50">
-                      <td className="p-3">{r.last_name}</td>
-                      <td className="p-3">{r.barangay}</td>
-                      <td className="p-3">{r.classification}</td>
-                      <td className="p-3"><ProjectSelect value={f.project_id} onChange={(v)=>setAssignForms(prev=>({ ...prev, [r.survey_id]: { ...prev[r.survey_id], project_id: v } }))} /></td>
-                      <td className="p-3"><input className="border rounded p-2 w-24" value={f.block_no} onChange={e=>setAssignForms(prev=>({ ...prev, [r.survey_id]: { ...prev[r.survey_id], block_no: e.target.value } }))} /></td>
-                      <td className="p-3"><input className="border rounded p-2 w-24" value={f.lot_no} onChange={e=>setAssignForms(prev=>({ ...prev, [r.survey_id]: { ...prev[r.survey_id], lot_no: e.target.value } }))} /></td>
-                      <td className="p-3"><button className="px-3 py-1 border rounded text-sm text-emerald-800 hover:bg-emerald-50" disabled={busyId===r.survey_id} onClick={() => assignRow(r.survey_id, f.project_id, f.block_no, f.lot_no)}>{busyId===r.survey_id?'Assigning...':'Assign'}</button></td>
-                    </tr>
-                  )
-                })}
-                {!pending.length && <tr><td className="p-3" colSpan="7">No pending approved beneficiaries.</td></tr>}
-              </tbody>
-            </table>
-          </div>
+          <form
+            className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2"
+            onSubmit={e => {
+              e.preventDefault()
+              searchPendingList()
+            }}
+          >
+            <div className="flex-1 min-w-[220px]">
+              <div className="relative">
+                <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.3-4.3" />
+                  </svg>
+                </span>
+                <input
+                  className="w-full rounded-full border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                  placeholder="Search pending approvals"
+                  value={searchPending}
+                  onChange={e => setSearchPending(e.target.value)}
+                />
+              </div>
+            </div>
+            <button className="inline-flex items-center justify-center rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700" type="submit">
+              Search
+            </button>
+          </form>
+          <AdminTable
+            columns={pendingColumns}
+            rows={sortedPending}
+            getRowKey={r => r.survey_id}
+            page={pendingPage}
+            pageSize={assignmentsPageSize}
+            onPageChange={setPendingPage}
+            sortKey={pendingSortKey}
+            sortDirection={pendingSortDirection}
+            onSortChange={handlePendingSort}
+            emptyMessage="No pending approved beneficiaries."
+          />
         </section>
         </DashboardFade>
 
         <DashboardFade delay={400}>
         <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-emerald-800 mb-3">Assigned Beneficiaries</h3>
+          <form
+            className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2"
+            onSubmit={e => {
+              e.preventDefault()
+              searchAssignedList()
+            }}
+          >
+            <div className="flex-1 min-w-[220px]">
+              <div className="relative">
+                <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.3-4.3" />
+                  </svg>
+                </span>
+                <input
+                  className="w-full rounded-full border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                  placeholder="Search assigned beneficiaries"
+                  value={searchAssigned}
+                  onChange={e => setSearchAssigned(e.target.value)}
+                />
+              </div>
+            </div>
+            <button className="inline-flex items-center justify-center rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700" type="submit">
+              Search
+            </button>
+          </form>
           <AdminTable
             columns={assignedColumns}
             rows={sortedAssigned}

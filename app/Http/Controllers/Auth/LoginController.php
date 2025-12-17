@@ -51,6 +51,7 @@ class LoginController extends Controller
             $adminPassword = $admin->password;
             $isValid = password_verify($password, $adminPassword) || $password === $adminPassword;
             if ($isValid) {
+                $request->session()->regenerate();
                 session([ 'loggedin' => true, 'role' => 'admin', 'username' => $username ]);
                 return redirect('/admin/dashboard');
             }

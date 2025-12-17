@@ -65,96 +65,94 @@ Route::middleware('auth')->group(function () {
 });
 
 // Admin Dashboard (React)
-Route::get('/admin/dashboard', function () {
-    return Inertia::render('AdminDashboard');
-});
+Route::middleware('admin')->group(function () {
+    Route::get('/admin/dashboard', function () {
+        return Inertia::render('AdminDashboard');
+    });
 
-// Admin Beneficiaries Page (React)
-Route::get('/admin/beneficiaries', function () {
-    return Inertia::render('AdminBeneficiaries');
-});
+    Route::get('/admin/beneficiaries', function () {
+        return Inertia::render('AdminBeneficiaries');
+    });
 
-// Admin Project Sites (React)
-Route::get('/admin/project-sites', function () {
-    return Inertia::render('AdminProjectSites');
-});
-Route::get('/admin/project-sites/add', function () {
-    return Inertia::render('AdminProjectAdd');
-});
+    Route::get('/admin/project-sites', function () {
+        return Inertia::render('AdminProjectSites');
+    });
+    Route::get('/admin/project-sites/add', function () {
+        return Inertia::render('AdminProjectAdd');
+    });
 
-// Admin Assignments (React)
-Route::get('/admin/assignments', function () {
-    return Inertia::render('AdminAssignments');
-});
+    Route::get('/admin/assignments', function () {
+        return Inertia::render('AdminAssignments');
+    });
 
-// Admin Profile (React)
-Route::get('/admin/profile', function () {
-    return Inertia::render('AdminProfile');
-});
-Route::get('/admin/profile/edit', function () {
-    return Inertia::render('EditAdminProfile');
-});
-Route::get('/admin/validators/create', function () {
-    return Inertia::render('ValidatorSignup');
-});
-Route::get('/admin/about', function () {
-    return Inertia::render('AdminAbout');
-});
+    Route::get('/admin/profile', function () {
+        return Inertia::render('AdminProfile');
+    });
+    Route::get('/admin/profile/edit', function () {
+        return Inertia::render('EditAdminProfile');
+    });
+    Route::get('/admin/validators/create', function () {
+        return Inertia::render('ValidatorSignup');
+    });
+    Route::get('/admin/about', function () {
+        return Inertia::render('AdminAbout');
+    });
 
-// Admin Beneficiary Details (reuse SurveyDetails)
-Route::get('/admin/beneficiaries/{survey_id}', function ($survey_id) {
-    return Inertia::render('SurveyDetails', ['survey_id' => $survey_id, 'api_base' => '/admin/api']);
-});
+    Route::get('/admin/beneficiaries/{survey_id}', function ($survey_id) {
+        return Inertia::render('SurveyDetails', ['survey_id' => $survey_id, 'api_base' => '/admin/api']);
+    });
 
-// Admin Logout
-Route::post('/admin/logout', [LoginController::class, 'logout']);
+    Route::post('/admin/logout', [LoginController::class, 'logout']);
 
-// Admin API Routes
-Route::prefix('admin/api')->group(function () {
-    Route::get('/totals', [ValidatorDashboardController::class, 'adminTotals']);
-    Route::get('/barangay', [ValidatorDashboardController::class, 'adminBarangay']);
-    Route::get('/classification', [ValidatorDashboardController::class, 'adminClassification']);
-    Route::get('/subclass-displaced', [ValidatorDashboardController::class, 'adminSubclassDisplaced']);
-    Route::get('/subclass-doubleup', [ValidatorDashboardController::class, 'adminSubclassDoubleUp']);
-    Route::get('/subclass-homeless', [ValidatorDashboardController::class, 'adminSubclassHomeless']);
-    Route::get('/indicators', [ValidatorDashboardController::class, 'adminIndicators']);
-    Route::get('/crosstab/income-classification', [ValidatorDashboardController::class, 'adminCrosstabIncomeClassification']);
-    Route::get('/crosstab/classification-barangay', [ValidatorDashboardController::class, 'adminCrosstabClassificationBarangay']);
-    Route::get('/beneficiaries/validated', [ValidatorDashboardController::class, 'adminBeneficiariesValidated']);
-    Route::get('/beneficiaries/approved', [ValidatorDashboardController::class, 'adminBeneficiariesApproved']);
-    Route::get('/beneficiaries/affiliated', [ValidatorDashboardController::class, 'adminBeneficiariesAffiliated']);
-    Route::get('/beneficiaries/affiliated/export', [ValidatorDashboardController::class, 'adminExportAffiliatedCsv']);
-    Route::get('/beneficiaries/mayor-endorsed', [ValidatorDashboardController::class, 'adminBeneficiariesMayorEndorsed']);
-    Route::get('/beneficiaries/validated/export', [ValidatorDashboardController::class, 'adminExportValidatedCsv']);
-    Route::get('/beneficiaries/mayor-endorsed/export', [ValidatorDashboardController::class, 'adminExportMayorCsv']);
+    Route::prefix('admin/api')->group(function () {
+        Route::get('/totals', [ValidatorDashboardController::class, 'adminTotals']);
+        Route::get('/barangay', [ValidatorDashboardController::class, 'adminBarangay']);
+        Route::get('/classification', [ValidatorDashboardController::class, 'adminClassification']);
+        Route::get('/subclass-displaced', [ValidatorDashboardController::class, 'adminSubclassDisplaced']);
+        Route::get('/subclass-doubleup', [ValidatorDashboardController::class, 'adminSubclassDoubleUp']);
+        Route::get('/subclass-homeless', [ValidatorDashboardController::class, 'adminSubclassHomeless']);
+        Route::get('/indicators', [ValidatorDashboardController::class, 'adminIndicators']);
+        Route::get('/crosstab/income-classification', [ValidatorDashboardController::class, 'adminCrosstabIncomeClassification']);
+        Route::get('/crosstab/classification-barangay', [ValidatorDashboardController::class, 'adminCrosstabClassificationBarangay']);
+        Route::get('/beneficiaries/validated', [ValidatorDashboardController::class, 'adminBeneficiariesValidated']);
+        Route::get('/beneficiaries/approved', [ValidatorDashboardController::class, 'adminBeneficiariesApproved']);
+        Route::get('/beneficiaries/affiliated', [ValidatorDashboardController::class, 'adminBeneficiariesAffiliated']);
+        Route::get('/beneficiaries/affiliated/export', [ValidatorDashboardController::class, 'adminExportAffiliatedCsv']);
+        Route::get('/beneficiaries/mayor-endorsed', [ValidatorDashboardController::class, 'adminBeneficiariesMayorEndorsed']);
+        Route::get('/beneficiaries/validated/export', [ValidatorDashboardController::class, 'adminExportValidatedCsv']);
+        Route::get('/beneficiaries/mayor-endorsed/export', [ValidatorDashboardController::class, 'adminExportMayorCsv']);
 
-    Route::get('/profile', [ValidatorDashboardController::class, 'adminProfile']);
-    Route::post('/profile', [ValidatorDashboardController::class, 'adminProfileUpdate']);
+        Route::get('/profile', [ValidatorDashboardController::class, 'adminProfile']);
+        Route::post('/profile', [ValidatorDashboardController::class, 'adminProfileUpdate']);
 
-    Route::get('/validators', [ValidatorDashboardController::class, 'adminValidators']);
-    Route::post('/validators', [ValidatorDashboardController::class, 'adminValidatorCreate'])->middleware('throttle:6,1');
-    Route::post('/validators/{validator_id}/status', [ValidatorDashboardController::class, 'adminValidatorUpdateStatus']);
+        Route::get('/validators', [ValidatorDashboardController::class, 'adminValidators']);
+        Route::post('/validators', [ValidatorDashboardController::class, 'adminValidatorCreate'])->middleware('throttle:6,1');
+        Route::post('/validators/{validator_id}/status', [ValidatorDashboardController::class, 'adminValidatorUpdateStatus']);
 
-    Route::get('/survey/{survey_id}', [ValidatorDashboardController::class, 'adminSurveyDetails']);
-    Route::get('/survey/{survey_id}/export', [ValidatorDashboardController::class, 'adminExportSurveyCsv']);
-    Route::get('/export/barangay', [ValidatorDashboardController::class, 'adminExportBarangayCsv']);
-    Route::get('/survey/{survey_id}/photo', [ValidatorDashboardController::class, 'adminSurveyPhoto']);
-    Route::get('/survey/{survey_id}/person-photo', [ValidatorDashboardController::class, 'adminSurveyPersonPhoto']);
-    Route::get('/map-points', [ValidatorDashboardController::class, 'adminMapPoints']);
-    Route::post('/approve', [ValidatorDashboardController::class, 'adminApproveSurvey']);
-    Route::get('/db-info', [ValidatorDashboardController::class, 'adminDbInfo']);
+        Route::get('/survey/{survey_id}', [ValidatorDashboardController::class, 'adminSurveyDetails']);
+        Route::get('/survey/{survey_id}/export', [ValidatorDashboardController::class, 'adminExportSurveyCsv']);
+        Route::get('/export/barangay', [ValidatorDashboardController::class, 'adminExportBarangayCsv']);
+        Route::get('/survey/{survey_id}/photo', [ValidatorDashboardController::class, 'adminSurveyPhoto']);
+        Route::get('/survey/{survey_id}/person-photo', [ValidatorDashboardController::class, 'adminSurveyPersonPhoto']);
+        Route::get('/map-points', [ValidatorDashboardController::class, 'adminMapPoints']);
+        Route::post('/approve', [ValidatorDashboardController::class, 'adminApproveSurvey']);
+        Route::get('/db-info', [ValidatorDashboardController::class, 'adminDbInfo']);
 
-    Route::get('/notifications', [ValidatorDashboardController::class, 'adminNotifications']);
-    Route::post('/notifications/read', [ValidatorDashboardController::class, 'adminNotificationRead']);
+        Route::get('/notifications', [ValidatorDashboardController::class, 'adminNotifications']);
+        Route::post('/notifications/read', [ValidatorDashboardController::class, 'adminNotificationRead']);
 
-    // Project Sites API
-    Route::get('/project-sites', [ValidatorDashboardController::class, 'adminProjectSitesList']);
-    Route::post('/project-sites', [ValidatorDashboardController::class, 'adminProjectSitesCreate']);
+        Route::get('/project-sites', [ValidatorDashboardController::class, 'adminProjectSitesList']);
+        Route::post('/project-sites', [ValidatorDashboardController::class, 'adminProjectSitesCreate']);
+        Route::put('/project-sites/{project_id}', [ValidatorDashboardController::class, 'adminProjectSitesUpdate']);
+        Route::delete('/project-sites/{project_id}', [ValidatorDashboardController::class, 'adminProjectSitesDelete']);
+        Route::post('/project-sites/{project_id}/boundary', [ValidatorDashboardController::class, 'adminProjectBoundarySave']);
+        Route::get('/project-sites/{project_id}/blocks', [ValidatorDashboardController::class, 'adminProjectBlocks']);
+        Route::get('/project-sites/{project_id}/blocks/{block_no}/available-lots', [ValidatorDashboardController::class, 'adminProjectBlockAvailableLots']);
 
-    // Assignments API
-    Route::get('/assignments', [ValidatorDashboardController::class, 'adminAssignmentsList']);
-    Route::get('/assignments/pending', [ValidatorDashboardController::class, 'adminAssignmentsPending']);
-    Route::post('/assignments', [ValidatorDashboardController::class, 'adminAssignmentsCreate']);
+        Route::get('/assignments', [ValidatorDashboardController::class, 'adminAssignmentsList']);
+        Route::get('/assignments/pending', [ValidatorDashboardController::class, 'adminAssignmentsPending']);
+        Route::post('/assignments', [ValidatorDashboardController::class, 'adminAssignmentsCreate']);
+    });
 });
 
 // Validator Logout

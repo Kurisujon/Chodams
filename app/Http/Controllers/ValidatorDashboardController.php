@@ -509,7 +509,7 @@ class ValidatorDashboardController extends Controller
         $spouse_age = $allowSpouse ? $normalize($request->input('spouse_age')) : null;
         $spouse_gender = $allowSpouse ? $normalize($request->input('spouse_gender')) : null;
 
-        $survey_id = DB::transaction(function() use ($validator_id, $interviewed_by, $request, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $house_photo_path, $validator_signature, $respondent_signature, $marital_status, $spouse_name, $spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender) {
+        $survey_id = DB::transaction(function() use ($validator_id, $interviewed_by, $request, $normalize, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $house_photo_path, $person_photo_path, $validator_signature, $respondent_signature, $marital_status, $spouse_name, $spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender) {
             $toInt = function($v) { return is_numeric($v) ? (int)$v : null; };
             $yn = function($v) { $s = is_string($v) ? strtolower(trim($v)) : $v; return ($s === 'yes' || $s === 1 || $s === '1') ? 1 : (($s === 'no' || $s === 0 || $s === '0') ? 0 : null); };
             $classMap = [
@@ -648,9 +648,11 @@ class ValidatorDashboardController extends Controller
         $colCivil = in_array('civilStatus', $hmCols) ? 'civilStatus' : 'civil_status';
         $colEdu = in_array('educationalAttainment', $hmCols) ? 'educationalAttainment' : 'educational_attainment';
         $colIncome = in_array('monthlyIncome', $hmCols) ? 'monthlyIncome' : 'monthly_income';
+        $colGender = in_array('gender', $hmCols) ? 'gender' : (in_array('sex', $hmCols) ? 'sex' : null);
         if (is_array($names)) {
             $relationships = $request->input('relationship', []);
             $ages = $request->input('age', []);
+            $genders = $request->input('gender', $request->input('sex', []));
             $civil_statuses = $request->input('civil_status', []);
             $educations = $request->input('educational_attainment', []);
             $occupations = $request->input('occupation', []);
@@ -660,6 +662,7 @@ class ValidatorDashboardController extends Controller
                 $n = $normalize($n);
                 $rel = $normalize($relationships[$i] ?? null);
                 $age = (int) ($ages[$i] ?? 0);
+                $gender = $normalize($genders[$i] ?? null);
                 $civ = $normalize($civil_statuses[$i] ?? null);
                 $edu = $normalize($educations[$i] ?? null);
                 $occ = $normalize($occupations[$i] ?? null);
@@ -674,6 +677,9 @@ class ValidatorDashboardController extends Controller
                     'age' => $age,
                     'occupation' => $occ ?? '',
                 ];
+                if ($colGender) {
+                    $payload[$colGender] = $gender ?? '';
+                }
                 $payload[$colCivil] = $civ ?? '';
                 $payload[$colEdu] = $edu ?? '';
                 $payload[$colIncome] = $inc ?? '';
@@ -694,6 +700,9 @@ class ValidatorDashboardController extends Controller
                     'age' => is_numeric($spouse_age) ? (int)$spouse_age : null,
                     'occupation' => 'N/A',
                 ];
+                if ($colGender) {
+                    $payload[$colGender] = $spouse_gender ?? '';
+                }
                 $payload[$colCivil] = $marital_status;
                 $payload[$colEdu] = 'N/A';
                 $payload[$colIncome] = 'N/A';
@@ -1508,7 +1517,12 @@ class ValidatorDashboardController extends Controller
         $perPage = (int) $request->get('per_page', 10);
         $page = (int) $request->get('page', 1);
         $search = trim((string)$request->get('search', ''));
+        $barangay = trim((string)$request->get('barangay', ''));
         $class = trim((string)$request->get('classification', ''));
+        $dateFrom = $request->get('date_from') ?? $request->get('dateFrom');
+        $dateTo = $request->get('date_to') ?? $request->get('dateTo');
+        $pointsMin = $request->get('points_min') ?? $request->get('pointsMin');
+        $pointsMax = $request->get('points_max') ?? $request->get('pointsMax');
         $offset = ($page - 1) * $perPage;
 
         $base = DB::table('survey as s')
@@ -1537,7 +1551,16 @@ class ValidatorDashboardController extends Controller
             });
         }
 
-        $total = (clone $base)->count();
+        if ($barangay !== '') {
+            $base->where('d.barangay', $barangay);
+        }
+        if ($dateFrom) {
+            $base->whereDate('s.date_interviewed', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $base->whereDate('s.date_interviewed', '<=', $dateTo);
+        }
+
         $rows = $base->select(
                 's.survey_id','s.date_interviewed','d.barangay','d.last_name',
                 'c.classification','c.subclass_displaced','c.subclass_doubleup','c.subclass_homeless',
@@ -4364,36 +4387,43 @@ class ValidatorDashboardController extends Controller
 
     protected function getBarangayCode(string $barangay): string
     {
+        $raw = trim((string)$barangay);
+        $normalized = preg_replace('/\s+/', ' ', str_replace('_', ' ', $raw));
+        $key = strtolower((string)$normalized);
+
         $map = [
-            'Aplaya' => 'A',
-            'Balabag' => 'B',
-            'Binaton' => 'C',
-            'Cogon' => 'D',
-            'Colorado' => 'E',
-            'Dawis' => 'F',
-            'Dulangan' => 'G',
-            'Goma' => 'H',
-            'Igpit' => 'I',
-            'Kapatagan' => 'J',
-            'Kiagot' => 'K',
-            'Lungag' => 'L',
-            'Mahatahay' => 'M',
-            'Matti' => 'N',
-            'Ruparan' => 'O',
-            'San Agustin' => 'P',
-            'San Jose' => 'Q',
-            'San Miguel' => 'R',
-            'San Roque' => 'S',
-            'Sinawilan' => 'T',
-            'Soong' => 'U',
-            'Tiguman' => 'V',
-            'Tres De Mayo' => 'W',
-            'Zone I' => 'X',
-            'Zone II' => 'Y',
-            'Zone III' => 'Z',
+            'aplaya' => 'A',
+            'balabag' => 'B',
+            'binaton' => 'C',
+            'cogon' => 'D',
+            'colorado' => 'E',
+            'dawis' => 'F',
+            'dulangan' => 'G',
+            'goma' => 'H',
+            'igpit' => 'I',
+            'kapatagan' => 'J',
+            'kiagot' => 'K',
+            'lungag' => 'L',
+            'mahayahay' => 'M',
+            'matti' => 'N',
+            'ruparan' => 'O',
+            'san agustin' => 'P',
+            'san jose' => 'Q',
+            'san miguel' => 'R',
+            'san roque' => 'S',
+            'sinawilan' => 'T',
+            'soong' => 'U',
+            'tiguman' => 'V',
+            'tres de mayo' => 'W',
+            'zone 1' => 'X',
+            'zone i' => 'X',
+            'zone 2' => 'Y',
+            'zone ii' => 'Y',
+            'zone 3' => 'Z',
+            'zone iii' => 'Z',
         ];
 
-        return $map[$barangay] ?? 'Z';
+        return $map[$key] ?? 'Z';
     }
 
     protected function generateTagNumber(string $barangay): string
