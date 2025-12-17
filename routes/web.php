@@ -153,6 +153,7 @@ Route::prefix('validator/api')->group(function () {
     Route::get('/totals', [ValidatorDashboardController::class, 'totals']);
     Route::get('/surveys', [ValidatorDashboardController::class, 'surveys']);
     Route::get('/submitted', [ValidatorDashboardController::class, 'submitted']);
+    Route::get('/deleted', [ValidatorDashboardController::class, 'deleted']);
     Route::get('/survey/{survey_id}', [ValidatorDashboardController::class, 'surveyDetails']);
     Route::get('/survey/{survey_id}/export', [ValidatorDashboardController::class, 'exportSurveyCsv']);
     Route::get('/survey/{survey_id}/photo', [ValidatorDashboardController::class, 'surveyPhoto']);
@@ -163,6 +164,9 @@ Route::prefix('validator/api')->group(function () {
     Route::get('/tag-number/preview', [ValidatorDashboardController::class, 'previewTagNumber']);
     Route::post('/survey', [ValidatorDashboardController::class, 'createSurvey']);
     Route::post('/submit', [ValidatorDashboardController::class, 'submitSurvey']);
+    Route::put('/survey/{survey_id}', [ValidatorDashboardController::class, 'updateSurvey']);
+    Route::delete('/survey/{survey_id}', [ValidatorDashboardController::class, 'deleteSurvey']);
+    Route::post('/survey/{survey_id}/restore', [ValidatorDashboardController::class, 'restoreSurvey']);
 });
 
 Route::get('/validator/reset-password', [ValidatorPasswordController::class, 'showResetForm']);

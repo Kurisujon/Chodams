@@ -120,23 +120,42 @@ export default function SurveyDetails() {
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="max-w-6xl mx-auto p-6 print:max-w-none print:p-0 print:m-0">
-        <div className="flex justify-between items-center mb-4 print:hidden">
-          <h1 className="text-2xl font-semibold text-emerald-800">Survey Form Details</h1>
-          <div className="flex gap-2">
-            <Link href={isAdmin ? '/admin/beneficiaries' : '/validator/dashboard'} className="px-4 py-2 border rounded text-emerald-800">Back</Link>
-            <button onClick={() => window.print()} className="px-4 py-2 bg-emerald-600 text-white rounded">Print</button>
-            <a
-              href={`${apiBase}/survey/${surveyId}/export`}
-              className="px-3 py-2 rounded-2xl ring-2 ring-emerald-300 text-emerald-700 inline-flex items-center gap-2 hover:bg-emerald-50"
-              title="Download Excel"
-            >
-              <img src="/icons/downloadicon.png" alt="Download" className="w-5 h-5" />
-            </a>
-            {isAdmin && survey?.is_submitted !== 2 && (
-              <button onClick={handleApprove} className="px-4 py-2 bg-emerald-600 text-white rounded">Approve</button>
-            )}
+          <div className="flex justify-between items-center mb-4 print:hidden">
+            <h1 className="text-2xl font-semibold text-emerald-800">Survey Form Details</h1>
+            <div className="flex gap-2">
+              <Link href={isAdmin ? '/admin/beneficiaries' : '/validator/dashboard'} className="px-4 py-2 border rounded text-emerald-800">Back</Link>
+              <button onClick={() => window.print()} className="px-4 py-2 bg-emerald-600 text-white rounded">Print</button>
+              <a
+                href={`${apiBase}/survey/${surveyId}/export`}
+                className="px-3 py-2 rounded-2xl ring-2 ring-emerald-300 text-emerald-700 inline-flex items-center gap-2 hover:bg-emerald-50"
+                title="Download Excel"
+              >
+                <img src="/icons/downloadicon.png" alt="Download" className="w-5 h-5" />
+              </a>
+              {isAdmin && survey?.is_submitted !== 2 && (
+                <button onClick={handleApprove} className="px-4 py-2 bg-emerald-600 text-white rounded">Approve</button>
+              )}
+              {!isAdmin && (survey?.is_submitted === 0) && (
+                <>
+                  <Link href={`/validator/survey-form?survey_id=${surveyId}`} className="px-4 py-2 border rounded text-emerald-800">Edit</Link>
+                  <button
+                    onClick={async () => {
+                      if (!confirm('Delete this survey? You can restore it later.')) return
+                      try {
+                        await axios.delete(`/validator/api/survey/${surveyId}`)
+                        window.location.href = '/validator/dashboard'
+                      } catch (e) {
+                        alert(e?.response?.data?.message || 'Delete failed')
+                      }
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white rounded"
+                  >
+                    Delete
+                  </button>
+                </>
+              )}
+            </div>
           </div>
-        </div>
         <style>{`
           @page { size: 8.5in 13in; margin: 0in; }
           @media print {

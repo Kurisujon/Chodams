@@ -22,18 +22,30 @@ class ValidatorDashboardController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
-        $total_surveyed = DB::table('survey as s')
+        $hasDeletedAt = Schema::hasTable('survey') && Schema::hasColumn('survey', 'deleted_at');
+
+        $surveyedQuery = DB::table('survey as s')
+            ->join('demographic as d', 'd.survey_id', '=', 's.survey_id')
+            ->join('classification as c', 'c.survey_id', '=', 's.survey_id')
+            ->where('s.validator_id', $validator_id);
+        if ($hasDeletedAt) {
+            $surveyedQuery->whereNull('s.deleted_at');
+        }
+
+        $submittedQuery = DB::table('survey as s')
             ->join('demographic as d', 'd.survey_id', '=', 's.survey_id')
             ->join('classification as c', 'c.survey_id', '=', 's.survey_id')
             ->where('s.validator_id', $validator_id)
+            ->whereIn('s.is_submitted', [1, 2]);
+        if ($hasDeletedAt) {
+            $submittedQuery->whereNull('s.deleted_at');
+        }
+
+        $total_surveyed = $surveyedQuery
             ->distinct('s.survey_id')
             ->count('s.survey_id');
 
-        $total_submitted = DB::table('survey as s')
-            ->join('demographic as d', 'd.survey_id', '=', 's.survey_id')
-            ->join('classification as c', 'c.survey_id', '=', 's.survey_id')
-            ->where('s.validator_id', $validator_id)
-            ->whereIn('s.is_submitted', [1,2])
+        $total_submitted = $submittedQuery
             ->distinct('s.survey_id')
             ->count('s.survey_id');
 
@@ -55,20 +67,32 @@ class ValidatorDashboardController extends Controller
         $page = (int) $request->get('page', 1);
         $offset = ($page - 1) * $perPage;
 
-        $total = DB::table('survey AS s')
-            ->where('s.validator_id', $validator_id)
-            ->count();
+        $hasDeletedAt = Schema::hasTable('survey') && Schema::hasColumn('survey', 'deleted_at');
 
-        $rows = DB::table('survey AS s')
+        $totalQuery = DB::table('survey AS s')
+            ->where('s.validator_id', $validator_id)
+            ->where('s.is_submitted', 0);
+        if ($hasDeletedAt) {
+            $totalQuery->whereNull('s.deleted_at');
+        }
+        $total = $totalQuery->count();
+
+        $rowsQuery = DB::table('survey AS s')
             ->join('demographic AS d', 'd.survey_id', '=', 's.survey_id')
             ->join('classification AS c', 'c.survey_id', '=', 's.survey_id')
             ->select('s.survey_id','s.date_interviewed','d.barangay','d.purok','d.last_name','c.classification','c.subclass_displaced','c.subclass_doubleup')
             ->where('s.validator_id', $validator_id)
+            ->where('s.is_submitted', 0)
             ->orderBy('d.barangay','asc')
             ->orderBy('c.classification','asc')
             ->orderBy('s.survey_id','desc')
             ->offset($offset)
             ->limit($perPage)
+            ;
+        if ($hasDeletedAt) {
+            $rowsQuery->whereNull('s.deleted_at');
+        }
+        $rows = $rowsQuery
             ->get()
             ->map(function($row){
                 $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
@@ -103,22 +127,32 @@ class ValidatorDashboardController extends Controller
         $page = (int) $request->get('page', 1);
         $offset = ($page - 1) * $perPage;
 
-        $total = DB::table('survey AS s')
-            ->where('s.validator_id', $validator_id)
-            ->whereIn('s.is_submitted', [1,2])
-            ->count();
+        $hasDeletedAt = Schema::hasTable('survey') && Schema::hasColumn('survey', 'deleted_at');
 
-        $rows = DB::table('survey AS s')
+        $totalQuery = DB::table('survey AS s')
+            ->where('s.validator_id', $validator_id)
+            ->whereIn('s.is_submitted', [1, 2]);
+        if ($hasDeletedAt) {
+            $totalQuery->whereNull('s.deleted_at');
+        }
+        $total = $totalQuery->count();
+
+        $rowsQuery = DB::table('survey AS s')
             ->join('demographic AS d', 'd.survey_id', '=', 's.survey_id')
             ->join('classification AS c', 'c.survey_id', '=', 's.survey_id')
             ->select('s.survey_id','s.date_interviewed','d.barangay','d.purok','d.last_name','c.classification','c.subclass_displaced','c.subclass_doubleup')
             ->where('s.validator_id', $validator_id)
-            ->whereIn('s.is_submitted', [1,2])
+            ->whereIn('s.is_submitted', [1, 2])
             ->orderBy('d.barangay','asc')
             ->orderBy('c.classification','asc')
             ->orderBy('s.survey_id','desc')
             ->offset($offset)
             ->limit($perPage)
+            ;
+        if ($hasDeletedAt) {
+            $rowsQuery->whereNull('s.deleted_at');
+        }
+        $rows = $rowsQuery
             ->get()
             ->map(function($row){
                 $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
@@ -154,12 +188,64 @@ class ValidatorDashboardController extends Controller
             return response()->json(['message' => 'Missing survey_id'], 400);
         }
 
-        $updated = DB::table('survey')
+        $hasDeletedAt = Schema::hasTable('survey') && Schema::hasColumn('survey', 'deleted_at');
+        $updateQuery = DB::table('survey')
             ->where('survey_id', $survey_id)
             ->where('validator_id', $validator_id)
-            ->update(['is_submitted' => 1]);
+            ->where('is_submitted', 0);
+        if ($hasDeletedAt) {
+            $updateQuery->whereNull('deleted_at');
+        }
+        $updated = $updateQuery->update(['is_submitted' => 1]);
 
         return response()->json(['updated' => (bool)$updated]);
+    }
+
+    public function deleted(Request $request)
+    {
+        $validator_id = session('validator_id');
+        if (!$validator_id) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        if (!Schema::hasTable('survey') || !Schema::hasColumn('survey', 'deleted_at')) {
+            return response()->json([
+                'data' => [],
+                'total' => 0,
+                'per_page' => (int) $request->get('per_page', 10),
+                'page' => (int) $request->get('page', 1)
+            ]);
+        }
+        $perPage = (int) $request->get('per_page', 10);
+        $page = (int) $request->get('page', 1);
+        $offset = ($page - 1) * $perPage;
+        $total = DB::table('survey AS s')
+            ->where('s.validator_id', $validator_id)
+            ->whereNotNull('s.deleted_at')
+            ->count();
+        $rows = DB::table('survey AS s')
+            ->join('demographic AS d', 'd.survey_id', '=', 's.survey_id')
+            ->join('classification AS c', 'c.survey_id', '=', 's.survey_id')
+            ->select('s.survey_id','s.date_interviewed','d.barangay','d.purok','d.last_name','c.classification','c.subclass_displaced','c.subclass_doubleup','s.deleted_at')
+            ->where('s.validator_id', $validator_id)
+            ->whereNotNull('s.deleted_at')
+            ->orderBy('s.deleted_at','desc')
+            ->offset($offset)
+            ->limit($perPage)
+            ->get()
+            ->map(function($row){
+                $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
+                $displacedLabel = [
+                    1=>'Coastal Areas',2=>'Drought',3=>'Earthquake Affected',4=>'Flood Affected',5=>'Sea Level Rise',
+                    6=>'Threat of Eviction',7=>'Eviction/Demolition Order',8=>'Human Induced Disaster',9=>'Infra Projects',10=>'Landslide Affected',11=>'Near Waterways'
+                ];
+                $doubleupLabel = [1=>'Renter/Tenant',2=>'Rent-free/Sharer',3=>'Caretaker'];
+                $row->classification = $classLabel[$row->classification] ?? $row->classification;
+                $row->subclass_displaced = $displacedLabel[$row->subclass_displaced] ?? ($row->subclass_displaced ?: '');
+                $row->subclass_doubleup = $doubleupLabel[$row->subclass_doubleup] ?? ($row->subclass_doubleup ?: '');
+                return $row;
+            });
+        return response()->json(['data' => $rows, 'total' => $total, 'per_page' => $perPage, 'page' => $page]);
     }
 
     public function surveyDetails(Request $request, $survey_id)
@@ -169,10 +255,15 @@ class ValidatorDashboardController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
-        $s = DB::table('survey as s')
+        $hasDeletedAt = Schema::hasTable('survey') && Schema::hasColumn('survey', 'deleted_at');
+
+        $sQuery = DB::table('survey as s')
             ->where('s.survey_id', $survey_id)
-            ->where('s.validator_id', $validator_id)
-            ->first();
+            ->where('s.validator_id', $validator_id);
+        if ($hasDeletedAt) {
+            $sQuery->whereNull('s.deleted_at');
+        }
+        $s = $sQuery->first();
         if (!$s) {
             return response()->json(['message' => 'Not found'], 404);
         }
@@ -509,7 +600,11 @@ class ValidatorDashboardController extends Controller
         $spouse_age = $allowSpouse ? $normalize($request->input('spouse_age')) : null;
         $spouse_gender = $allowSpouse ? $normalize($request->input('spouse_gender')) : null;
 
-        $survey_id = DB::transaction(function() use ($validator_id, $interviewed_by, $request, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $house_photo_path, $person_photo_path, $validator_signature, $respondent_signature, $marital_status, $spouse_name, $spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender, $normalize) {
+        $msInput = trim((string)$request->input('monthly_salary'));
+        if ($msInput === '') {
+            return response()->json(['message' => 'Monthly salary is required'], 422);
+        }
+        $survey_id = DB::transaction(function() use ($validator_id, $interviewed_by, $request, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $house_photo_path, $person_photo_path, $validator_signature, $respondent_signature, $marital_status, $spouse_name, $spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender, $normalize, $msInput) {
             $toInt = function($v) { return is_numeric($v) ? (int)$v : null; };
             $yn = function($v) { $s = is_string($v) ? strtolower(trim($v)) : $v; return ($s === 'yes' || $s === 1 || $s === '1') ? 1 : (($s === 'no' || $s === 0 || $s === '0') ? 0 : null); };
             $classMap = [
@@ -621,7 +716,7 @@ class ValidatorDashboardController extends Controller
                 'main_income_source' => $main_income_source,
                 'work_status' => $work_status,
                 'work_location_head' => trim((string)$request->input('work_location_head')),
-                'monthly_salary' => trim((string)$request->input('monthly_salary')),
+                'monthly_salary' => $msInput,
                 'combine_monthly_income' => trim((string)$request->input('combine_monthly_income')),
             ]);
 
@@ -648,6 +743,7 @@ class ValidatorDashboardController extends Controller
         $colCivil = in_array('civilStatus', $hmCols) ? 'civilStatus' : 'civil_status';
         $colEdu = in_array('educationalAttainment', $hmCols) ? 'educationalAttainment' : 'educational_attainment';
         $colIncome = in_array('monthlyIncome', $hmCols) ? 'monthlyIncome' : 'monthly_income';
+        $colCode = in_array('code', $hmCols) ? 'code' : null;
         if (is_array($names)) {
             $relationships = $request->input('relationship', []);
             $ages = $request->input('age', []);
@@ -655,6 +751,7 @@ class ValidatorDashboardController extends Controller
             $educations = $request->input('educational_attainment', []);
             $occupations = $request->input('occupation', []);
             $incomes = $request->input('monthly_income', []);
+            $codes = $request->input('code', []);
 
             foreach ($names as $i => $n) {
                 $n = $normalize($n);
@@ -664,6 +761,7 @@ class ValidatorDashboardController extends Controller
                 $edu = $normalize($educations[$i] ?? null);
                 $occ = $normalize($occupations[$i] ?? null);
                 $inc = $normalize($incomes[$i] ?? null);
+                $code = $normalize($codes[$i] ?? null);
 
                 if (empty($n) && empty($rel) && empty($age)) continue;
 
@@ -677,6 +775,7 @@ class ValidatorDashboardController extends Controller
                 $payload[$colCivil] = $civ ?? '';
                 $payload[$colEdu] = $edu ?? '';
                 $payload[$colIncome] = $inc ?? '';
+                if ($colCode) { $payload[$colCode] = $code ?? ''; }
                 DB::table('household_mem')->insert($payload);
             }
         }
@@ -704,6 +803,218 @@ class ValidatorDashboardController extends Controller
         return response()->json(['survey_id' => $survey_id, 'tag_number' => DB::table('demographic')->where('survey_id', $survey_id)->value('tag_number')]);
         }
 
+    public function updateSurvey(Request $request, $survey_id)
+    {
+        $validator_id = session('validator_id');
+        if (!$validator_id) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $hasDeletedAt = Schema::hasTable('survey') && Schema::hasColumn('survey', 'deleted_at');
+
+        $s = DB::table('survey')->where('survey_id', (int)$survey_id)->where('validator_id', $validator_id)->first();
+        if (!$s) return response()->json(['message' => 'Not found'], 404);
+        if ((int)($s->is_submitted ?? 0) !== 0) return response()->json(['message' => 'Cannot edit after submission'], 403);
+        if ($hasDeletedAt && !empty($s->deleted_at)) return response()->json(['message' => 'Cannot edit a deleted survey'], 403);
+
+        $normalize = function ($v) {
+            if ($v === null) return null;
+            $v = is_string($v) ? trim($v) : $v;
+            return is_string($v) ? str_replace('_', ' ', $v) : $v;
+        };
+
+        $classification = $normalize($request->input('classification'));
+        $subclass_displaced = $normalize($request->input('sub_class_displaced'));
+        $subclass_doubleup = $normalize($request->input('sub_class_double_up'));
+        $subclass_homeless = $normalize($request->input('sub_class_homeless'));
+        if ($classification === 'Homeless') { $subclass_displaced = null; $subclass_doubleup = null; }
+        elseif ($classification === 'Upgrading of Land Tenure') { $subclass_displaced = null; $subclass_doubleup = null; $subclass_homeless = null; }
+        elseif ($classification === 'Displaced') { $subclass_doubleup = null; $subclass_homeless = null; }
+        elseif ($classification === 'Double-up') { $subclass_displaced = null; $subclass_homeless = null; }
+
+        $skills_for_living = $normalize($request->input('skills_for_living'));
+        $specific_skill = null;
+        if ($skills_for_living === 'Yes') {
+            $specific_skill = $normalize($request->input('specific_skill'));
+            if ($specific_skill === 'others') { $specific_skill = $normalize($request->input('other_skill')); }
+        } else { $specific_skill = ''; }
+
+        $organization_member = $normalize($request->input('organization_member'));
+        $specific_organization = null;
+        if ($organization_member === 'Yes') {
+            $specific_organization = $normalize($request->input('specific_organization'));
+            if ($specific_organization === 'others') { $specific_organization = $normalize($request->input('other_organization')); }
+        } else { $specific_organization = ''; }
+
+        $housing_structure = $normalize($request->input('housing_structure'));
+        if ($housing_structure === 'Others') { $housing_structure = $normalize($request->input('other_housing_structure')); }
+        $type_of_toilet = $normalize($request->input('type_of_toilet'));
+        if ($type_of_toilet === 'Others') { $type_of_toilet = $normalize($request->input('other_type_of_toilet')); }
+        $source_of_water = $normalize($request->input('source_of_water'));
+        if ($source_of_water === 'Others') { $source_of_water = $normalize($request->input('other_source_of_water')); }
+        $source_of_electricity = $normalize($request->input('source_of_electricity'));
+        if ($source_of_electricity === 'Others') { $source_of_electricity = $normalize($request->input('other_source_of_electricity')); }
+
+        $main_income_source = $normalize($request->input('main_income_source'));
+        if ($main_income_source === 'others') { $main_income_source = $normalize($request->input('other_main_income_source')); }
+        $work_status = $normalize($request->input('work_status'));
+        if ($work_status === 'others') { $work_status = $normalize($request->input('other_work_status')); }
+
+        $validator_signature = null; // no change via edit
+        $respondent_signature = null; // no change via edit
+        $marital_status = $normalize($request->input('marital_status'));
+        $allowSpouse = in_array($marital_status, ['Married','Live-in','Widow/Widower','Separated','Annulled']);
+        $spouse_name = $allowSpouse ? $normalize($request->input('spouse_name')) : null;
+        $spouse_religion = $allowSpouse ? $normalize($request->input('spouse_religion')) : null;
+        $spouse_tribe = $allowSpouse ? $normalize($request->input('spouse_tribe')) : null;
+        $spouse_age = $allowSpouse ? $normalize($request->input('spouse_age')) : null;
+        $spouse_gender = $allowSpouse ? $normalize($request->input('spouse_gender')) : null;
+
+        DB::transaction(function() use ($survey_id, $request, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $respondent_signature, $marital_status, $spouse_name, $spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender) {
+            $toInt = function($v) { return is_numeric($v) ? (int)$v : null; };
+            $classMap = ['displaced'=>1,'double-up'=>2,'homeless'=>3,'upgrading of land tenure'=>4,'upgrading_of_land_tenure'=>4];
+            $displacedMap = ['coastal areas'=>1,'drought'=>2,'earthquake affected'=>3,'flood affected'=>4,'sea level rise'=>5,'threat of eviction'=>6,'eviction/demolition order'=>7,'human induced disaster'=>8,'infra projects'=>9,'landslide affected'=>10,'near waterways'=>11];
+            $doubleupMap = ['renter/tenant'=>1,'rent-free/sharer'=>2,'caretaker'=>3];
+            $homelessMap = ['public - living in tent'=>1,'private - living in tent'=>2];
+            $spouseGenderStr = is_string($spouse_gender) ? $spouse_gender : null;
+
+            DB::table('survey')->where('survey_id', $survey_id)->update([
+                'date_interviewed' => trim((string)$request->input('date_interviewed')),
+            ]);
+            DB::table('classification')->where('survey_id', $survey_id)->update([
+                'previous_client' => $toInt($request->input('previous_client')),
+                'year_inhabited' => $toInt($request->input('year_inhabited')),
+                'classification' => $classMap[strtolower((string)$classification)] ?? null,
+                'subclass_displaced' => $subclass_displaced ? ($displacedMap[strtolower((string)$subclass_displaced)] ?? null) : null,
+                'subclass_doubleup' => $subclass_doubleup ? ($doubleupMap[strtolower((string)$subclass_doubleup)] ?? null) : null,
+                'subclass_homeless' => $subclass_homeless ? ($homelessMap[strtolower((string)$subclass_homeless)] ?? null) : null,
+            ]);
+            DB::table('demographic')->where('survey_id', $survey_id)->update([
+                'interview_person' => trim((string)$request->input('interview_person')),
+                'last_name' => trim((string)$request->input('last_name')),
+                'first_name' => trim((string)$request->input('first_name')),
+                'middle_name' => trim((string)$request->input('middle_name')),
+                'suffix' => trim((string)$request->input('suffix')),
+                'barangay' => trim((string)$request->input('barangay')),
+                'purok' => trim((string)$request->input('purok')),
+                'street' => trim((string)$request->input('street')),
+                'gender' => trim((string)$request->input('gender')),
+                'religion' => trim((string)$request->input('religion')),
+                'birth_place' => trim((string)$request->input('birth_place')),
+                'birth_date' => trim((string)$request->input('birth_date')),
+                'person_age' => $toInt($request->input('person_age')),
+                'marital_status' => trim((string)$request->input('marital_status')),
+                'contact_number' => trim((string)$request->input('contact_number')),
+                'language_spoken' => trim((string)$request->input('language_spoken')),
+                'tribe' => trim((string)$request->input('tribe')),
+                'highest_education' => trim((string)$request->input('highest_education')),
+                'last_school_name' => trim((string)$request->input('last_school_attended')),
+                'year_graduated' => $toInt($request->input('year_graduated')),
+                'spouse_name' => $spouse_name,
+                'spouse_religion' => $spouse_religion,
+                'spouse_tribe' => $spouse_tribe,
+                'spouse_age' => $toInt($spouse_age),
+                'spouse_gender' => $spouseGenderStr,
+            ]);
+            DB::table('household')->where('survey_id', $survey_id)->update([
+                'lot_ownership' => trim((string)$request->input('lot_ownership')),
+                'house_ownership' => trim((string)$request->input('house_ownership')),
+                'avail_socialized_housing' => trim((string)$request->input('avail_socialized_housing')),
+                'temporary_living_area' => trim((string)$request->input('temporary_living_area')),
+                'housing_structure' => $housing_structure,
+                'type_of_toilet' => $type_of_toilet,
+                'source_of_water' => $source_of_water,
+                'source_of_electricity' => $source_of_electricity,
+            ]);
+            $msInput = trim((string)$request->input('monthly_salary'));
+            if ($msInput === '') { throw new \Exception('Monthly salary is required'); }
+            DB::table('economic')->where('survey_id', $survey_id)->update([
+                'main_income_source' => $main_income_source,
+                'work_status' => $work_status,
+                'work_location_head' => trim((string)$request->input('work_location_head')),
+                'monthly_salary' => $msInput,
+                'combine_monthly_income' => trim((string)$request->input('combine_monthly_income')),
+            ]);
+            DB::table('training')->where('survey_id', $survey_id)->update([
+                'skills_for_living' => $skills_for_living,
+                'specific_skill' => $specific_skill,
+                'organization_member' => $organization_member,
+                'specific_organization' => $specific_organization,
+                'wanttolearn' => trim((string)$request->input('wanttolearn')),
+                'remarks' => trim((string)$request->input('remarks')),
+            ]);
+            DB::table('household_mem')->where('survey_id', $survey_id)->delete();
+            $hmCols = Schema::getColumnListing('household_mem');
+            $colCivil = in_array('civilStatus', $hmCols) ? 'civilStatus' : 'civil_status';
+            $colEdu = in_array('educationalAttainment', $hmCols) ? 'educationalAttainment' : 'educational_attainment';
+            $colIncome = in_array('monthlyIncome', $hmCols) ? 'monthlyIncome' : 'monthly_income';
+            $colCode = in_array('code', $hmCols) ? 'code' : null;
+            $names = $request->input('name', []);
+            $relationships = $request->input('relationship', []);
+            $ages = $request->input('age', []);
+            $civil_statuses = $request->input('civil_status', []);
+            $educations = $request->input('educational_attainment', []);
+            $occupations = $request->input('occupation', []);
+            $incomes = $request->input('monthly_income', []);
+            $codes = $request->input('code', []);
+            foreach ($names as $i => $n) {
+                $n = $normalize($n);
+                $rel = $normalize($relationships[$i] ?? null);
+                $age = (int) ($ages[$i] ?? 0);
+                $civ = $normalize($civil_statuses[$i] ?? null);
+                $edu = $normalize($educations[$i] ?? null);
+                $occ = $normalize($occupations[$i] ?? null);
+                $inc = $normalize($incomes[$i] ?? null);
+                $code = $normalize($codes[$i] ?? null);
+                if (empty($n) && empty($rel) && empty($age)) continue;
+                $payload = [ 'survey_id' => $survey_id, 'name' => $n, 'relationship' => $rel, 'age' => $age, 'occupation' => $occ ?? '' ];
+                $payload[$colCivil] = $civ ?? '';
+                $payload[$colEdu] = $edu ?? '';
+                $payload[$colIncome] = $inc ?? '';
+                if ($colCode) { $payload[$colCode] = $code ?? ''; }
+                DB::table('household_mem')->insert($payload);
+            }
+        });
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function deleteSurvey(Request $request, $survey_id)
+    {
+        $validator_id = session('validator_id');
+        if (!$validator_id) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        if (!Schema::hasTable('survey') || !Schema::hasColumn('survey', 'deleted_at')) {
+            return response()->json(['message' => 'Soft delete not enabled'], 409);
+        }
+
+        $s = DB::table('survey')->where('survey_id', (int)$survey_id)->where('validator_id', $validator_id)->first();
+        if (!$s) return response()->json(['message' => 'Not found'], 404);
+        if ((int)($s->is_submitted ?? 0) !== 0) return response()->json(['message' => 'Cannot delete after submission'], 403);
+        if (!empty($s->deleted_at)) return response()->json(['message' => 'Already deleted'], 409);
+        DB::table('survey')->where('survey_id', (int)$survey_id)->update(['deleted_at' => now()]);
+        return response()->json(['ok' => true]);
+    }
+
+    public function restoreSurvey(Request $request, $survey_id)
+    {
+        $validator_id = session('validator_id');
+        if (!$validator_id) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        if (!Schema::hasTable('survey') || !Schema::hasColumn('survey', 'deleted_at')) {
+            return response()->json(['message' => 'Soft delete not enabled'], 409);
+        }
+
+        $s = DB::table('survey')->where('survey_id', (int)$survey_id)->where('validator_id', $validator_id)->first();
+        if (!$s) return response()->json(['message' => 'Not found'], 404);
+        if (empty($s->deleted_at)) return response()->json(['message' => 'Not deleted'], 409);
+        DB::table('survey')->where('survey_id', (int)$survey_id)->update(['deleted_at' => null]);
+        return response()->json(['ok' => true]);
+    }
     public function profile(Request $request)
     {
         $validator_id = session('validator_id');
@@ -2526,13 +2837,19 @@ class ValidatorDashboardController extends Controller
         $homelessLabel = [1=>'Public - living in tent',2=>'Private - living in tent'];
         $ynLabel = [0=>'No',1=>'Yes'];
         $classMap = ['displaced'=>1,'double-up'=>2,'homeless'=>3,'upgrading of land tenure'=>4];
+
+        $hasDeletedAt = Schema::hasTable('survey') && Schema::hasColumn('survey', 'deleted_at');
         $base = DB::table('survey as s')
             ->join('demographic as d','d.survey_id','=','s.survey_id')
             ->leftJoin('classification as c','c.survey_id','=','s.survey_id')
             ->leftJoin('household as h','h.survey_id','=','s.survey_id')
             ->leftJoin('economic as e','e.survey_id','=','s.survey_id')
             ->leftJoin('training as t','t.survey_id','=','s.survey_id')
+            ->where('s.validator_id', $validator_id)
             ->where('d.barangay',$barangay);
+        if ($hasDeletedAt) {
+            $base->whereNull('s.deleted_at');
+        }
         if ($scope === 'submitted') {
             $base->whereIn('s.is_submitted',[1,2]);
         } elseif ($scope === 'survey') {

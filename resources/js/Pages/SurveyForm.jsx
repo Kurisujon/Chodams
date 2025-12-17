@@ -145,7 +145,7 @@ export default function SurveyForm() {
     </div>
   ) }
 
-  const [members, setMembers] = useState([{ name:'', age:'', relationship:'', civil_status:'', educational_attainment:'', occupation:'', monthly_income:'' }])
+  const [members, setMembers] = useState([{ name:'', age:'', relationship:'', civil_status:'', educational_attainment:'', occupation:'', monthly_income:'', code:'' }])
   const [tagNum, setTagNum] = useState('')
   const [affSelections, setAffSelections] = useState([])
 
@@ -161,10 +161,87 @@ export default function SurveyForm() {
     organization_member:'', specific_organization:'', other_organization:'', wanttolearn:'', remarks:'', interviewed_by: validatorName, date_interviewed:''
   })
 
+  const incomeChoices = ['0 - 2,999 PHP','3,000 - 5,999 PHP','6,000 - 8,999 PHP','9,000 - 12,999 PHP','13,000 and above']
+  const relationshipChoices = ['Spouse','Son','Daughter','Father','Mother','Brother','Sister','Grandfather','Grandmother','Cousin','Relative']
+  const educationChoices = ['none','Elementary_Level_(Incomplete)','Elementary_Graduate','High_School_Level (Incomplete)','High_School_Graduate','Vocational/Technical_Education','College_Level_(Incomplete)','College_Graduate','Postgraduate_Level','ALS']
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const b = params.get('barangay')
     if (b) setData(d => ({ ...d, barangay: b }))
+    const sid = params.get('survey_id')
+    if (sid) {
+      axios.get(`/validator/api/survey/${sid}`).then(res => {
+        const sv = res.data?.survey
+        const mem = res.data?.members || []
+        if (sv) {
+          setData(d => ({
+            ...d,
+            previous_client: sv.previous_client || d.previous_client,
+            year_inhabited: sv.year_inhabited || d.year_inhabited,
+            classification: sv.classification || d.classification,
+            sub_class_displaced: sv.subclass_displaced || d.sub_class_displaced,
+            sub_class_double_up: sv.subclass_doubleup || d.sub_class_double_up,
+            sub_class_homeless: sv.subclass_homeless || d.sub_class_homeless,
+            interview_person: sv.interview_person || d.interview_person,
+            last_name: sv.last_name || d.last_name,
+            first_name: sv.first_name || d.first_name,
+            middle_name: sv.middle_name || d.middle_name,
+            suffix: sv.suffix || d.suffix,
+            barangay: sv.barangay || d.barangay,
+            purok: sv.purok || d.purok,
+            street: sv.street || d.street,
+            gender: sv.gender || d.gender,
+            religion: sv.religion || d.religion,
+            birth_place: sv.birth_place || d.birth_place,
+            birth_date: sv.birth_date || d.birth_date,
+            person_age: sv.person_age || d.person_age,
+            marital_status: sv.marital_status || d.marital_status,
+            contact_number: sv.contact_number || d.contact_number,
+            language_spoken: sv.language_spoken || d.language_spoken,
+            tribe: sv.tribe || d.tribe,
+            highest_education: sv.highest_education || d.highest_education,
+            last_school_attended: sv.last_school_name || d.last_school_attended,
+            year_graduated: sv.year_graduated || d.year_graduated,
+            spouse_name: sv.spouse_name || d.spouse_name,
+            spouse_religion: sv.spouse_religion || d.spouse_religion,
+            spouse_tribe: sv.spouse_tribe || d.spouse_tribe,
+            spouse_age: sv.spouse_age || d.spouse_age,
+            spouse_gender: sv.spouse_gender || d.spouse_gender,
+            lot_ownership: sv.lot_ownership || d.lot_ownership,
+            house_ownership: sv.house_ownership || d.house_ownership,
+            avail_socialized_housing: sv.avail_socialized_housing || d.avail_socialized_housing,
+            temporary_living_area: sv.temporary_living_area || d.temporary_living_area,
+            housing_structure: sv.housing_structure || d.housing_structure,
+            type_of_toilet: sv.type_of_toilet || d.type_of_toilet,
+            source_of_water: sv.source_of_water || d.source_of_water,
+            source_of_electricity: sv.source_of_electricity || d.source_of_electricity,
+            main_income_source: sv.main_income_source || d.main_income_source,
+            work_status: sv.work_status || d.work_status,
+            work_location_head: sv.work_location_head || d.work_location_head,
+            monthly_salary: sv.monthly_salary || d.monthly_salary,
+            combine_monthly_income: sv.combine_monthly_income || d.combine_monthly_income,
+            skills_for_living: sv.skills_for_living || d.skills_for_living,
+            specific_skill: sv.specific_skill || d.specific_skill,
+            organization_member: sv.organization_member || d.organization_member,
+            specific_organization: sv.specific_organization || d.specific_organization,
+            wanttolearn: sv.wanttolearn || d.wanttolearn,
+            remarks: sv.remarks || d.remarks,
+            date_interviewed: sv.date_interviewed || d.date_interviewed,
+          }))
+          setMembers(mem.map(m => ({
+            name: m.name || '',
+            age: m.age || '',
+            relationship: m.relationship || '',
+            civil_status: m.civilStatus || m.civil_status || '',
+            educational_attainment: m.educationalAttainment || m.educational_attainment || '',
+            occupation: m.occupation || '',
+            monthly_income: m.monthlyIncome || m.monthly_income || '',
+            code: m.code || '',
+          })))
+        }
+      }).catch(()=>{})
+    }
   }, [])
 
   const spouseEnabled = useMemo(() => {
@@ -180,6 +257,17 @@ export default function SurveyForm() {
       window.location.href = '/'
     }
   }
+
+  useEffect(() => {
+    const bd = data.birth_date
+    if (!bd) return
+    const now = new Date()
+    const d = new Date(bd)
+    let age = now.getFullYear() - d.getFullYear()
+    const m = now.getMonth() - d.getMonth()
+    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age = age - 1
+    if (!Number.isNaN(age) && age >= 0) setData(prev => ({ ...prev, person_age: String(age) }))
+  }, [data.birth_date])
 
   useEffect(() => {
     if (data.barangay) {
@@ -230,7 +318,7 @@ export default function SurveyForm() {
     ctx.clearRect(0,0,ref.current.width, ref.current.height)
   }
 
-  const addMember = () => setMembers(m => [...m, { name:'', age:'', relationship:'', civil_status:'', educational_attainment:'', occupation:'', monthly_income:'' }])
+  const addMember = () => setMembers(m => [...m, { name:'', age:'', relationship:'', civil_status:'', educational_attainment:'', occupation:'', monthly_income:'', code:'' }])
 
   const updateMember = (idx, key, val) => setMembers(m => {
     const copy = [...m]; copy[idx] = {...copy[idx], [key]: val}; return copy
@@ -240,6 +328,7 @@ export default function SurveyForm() {
     setSubmitting(true)
     setError('')
     try {
+      if (!data.monthly_salary) { setError('Monthly salary is required'); setSubmitting(false); return }
       const fd = new FormData()
       Object.entries(data).forEach(([k,v]) => fd.append(k, v ?? ''))
       if (housePhoto) fd.append('house_photo', housePhoto)
@@ -256,8 +345,15 @@ export default function SurveyForm() {
         fd.append('educational_attainment[]', m.educational_attainment ?? '')
         fd.append('occupation[]', m.occupation ?? '')
         fd.append('monthly_income[]', m.monthly_income ?? '')
+        fd.append('code[]', m.code ?? '')
       })
-      await axios.post('/validator/api/survey', fd, { headers: { 'X-CSRF-TOKEN': csrf() } })
+      const sid = new URLSearchParams(window.location.search).get('survey_id')
+      if (sid) {
+        fd.append('_method', 'PUT')
+        await axios.post(`/validator/api/survey/${sid}`, fd, { headers: { 'X-CSRF-TOKEN': csrf() } })
+      } else {
+        await axios.post('/validator/api/survey', fd, { headers: { 'X-CSRF-TOKEN': csrf() } })
+      }
       window.location.href = '/validator/dashboard'
     } catch (e) {
       setError(e.response?.data?.message || 'Submission failed')
@@ -444,7 +540,25 @@ export default function SurveyForm() {
                 <div><div className="text-sm text-gray-500">Contact Number</div><input className={inputClass} value={data.contact_number} onChange={e=>setData({...data, contact_number:e.target.value})}/></div>
                 <div>
                   <div className="text-sm text-gray-500">Language</div>
-                  <select className={selectClass} value={data.language_spoken} onChange={e=>setData({...data, language_spoken:e.target.value})}><option value="">- select here -</option><option value="Cebuano">Cebuano</option><option value="Tagalog">Tagalog</option><option value="English">English</option></select>
+                  <select className={selectClass} value={data.language_spoken} onChange={e=>setData({...data, language_spoken:e.target.value})}>
+                    <option value="">- select here -</option>
+                    <option value="Cebuano">Cebuano</option>
+                    <option value="Tagalog">Tagalog</option>
+                    <option value="English">English</option>
+                    <option value="Maguindanaon">Maguindanaon</option>
+                    <option value="Meranaw">Meranaw</option>
+                    <option value="Tausug">Tausug</option>
+                    <option value="Hiligaynon">Hiligaynon</option>
+                    <option value="Ilocano">Ilocano</option>
+                    <option value="Chavacano">Chavacano</option>
+                    <option value="Bagobo">Bagobo</option>
+                    <option value="B'laan">B'laan</option>
+                    <option value="Mandaya">Mandaya</option>
+                    <option value="Mansaka">Mansaka</option>
+                    <option value="Kaagan">Kaagan (Kalagan)</option>
+                    <option value="Subanen">Subanen</option>
+                    <option value="Others">Others</option>
+                  </select>
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Tribe</div>
@@ -513,6 +627,7 @@ export default function SurveyForm() {
                         <th className="p-2 text-left">Education</th>
                         <th className="p-2 text-left">Occupation</th>
                         <th className="p-2 text-left">Monthly Income</th>
+                        <th className="p-2 text-left">Code</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -520,15 +635,38 @@ export default function SurveyForm() {
                         <tr key={i} className="even:bg-gray-50">
                           <td className="p-2"><input className={inputClass} value={m.name} onChange={e=>updateMember(i,'name',e.target.value)}/></td>
                           <td className="p-2"><input type="number" className={inputClass} value={m.age} onChange={e=>updateMember(i,'age',e.target.value)}/></td>
-                          <td className="p-2"><input className={inputClass} value={m.relationship} onChange={e=>updateMember(i,'relationship',e.target.value)}/></td>
                           <td className="p-2">
-                            <select className={selectClass} value={m.civil_status} onChange={e=>updateMember(i,'civil_status',e.target.value)}>
-                              <option value="">- select here -</option><option value="Single">Single</option><option value="Married">Married</option><option value="Live-in">Live-in</option>
+                            <select className={selectClass} value={m.relationship} onChange={e=>updateMember(i,'relationship',e.target.value)}>
+                              <option value="">- select here -</option>
+                              {relationshipChoices.map(opt => (<option key={`rel-${opt}`} value={opt}>{opt}</option>))}
                             </select>
                           </td>
-                          <td className="p-2"><input className={inputClass} value={m.educational_attainment} onChange={e=>updateMember(i,'educational_attainment',e.target.value)}/></td>
+                          <td className="p-2">
+                            <select className={selectClass} value={m.civil_status} onChange={e=>updateMember(i,'civil_status',e.target.value)}>
+                              <option value="">- select here -</option>
+                              <option value="Single">Single</option>
+                              <option value="Married">Married</option>
+                              <option value="Live-in">Live-in</option>
+                              <option value="Widow/Widower">Widow/Widower</option>
+                              <option value="Annulled">Annulled</option>
+                              <option value="Separated">Separated</option>
+                              <option value="Unknown">Unknown</option>
+                            </select>
+                          </td>
+                          <td className="p-2">
+                            <select className={selectClass} value={m.educational_attainment} onChange={e=>updateMember(i,'educational_attainment',e.target.value)}>
+                              <option value="">- select here -</option>
+                              {educationChoices.map(opt => (<option key={`edu-${opt}`} value={opt}>{opt.replace(/_/g,' ')}</option>))}
+                            </select>
+                          </td>
                           <td className="p-2"><input className={inputClass} value={m.occupation} onChange={e=>updateMember(i,'occupation',e.target.value)}/></td>
-                          <td className="p-2"><input type="number" className={inputClass} value={m.monthly_income} onChange={e=>updateMember(i,'monthly_income',e.target.value)}/></td>
+                          <td className="p-2">
+                            <select className={selectClass} value={m.monthly_income} onChange={e=>updateMember(i,'monthly_income',e.target.value)}>
+                              <option value="">- select here -</option>
+                              {incomeChoices.map(opt => (<option key={`inc-${opt}`} value={opt}>{opt}</option>))}
+                            </select>
+                          </td>
+                          <td className="p-2"><input className={inputClass} value={m.code} onChange={e=>updateMember(i,'code',e.target.value)}/></td>
                         </tr>
                       ))}
                     </tbody>
@@ -626,12 +764,16 @@ export default function SurveyForm() {
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Monthly Salary</div>
-                  <input className={inputClass} value={data.monthly_salary} onChange={e=>setData({...data, monthly_salary:e.target.value})}/>
+                  <select className={selectClass} value={data.monthly_salary} onChange={e=>setData({...data, monthly_salary:e.target.value})}>
+                    <option value="">- select here -</option>
+                    {incomeChoices.map(opt => (<option key={`ms-${opt}`} value={opt}>{opt}</option>))}
+                  </select>
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Combined Household Income</div>
                   <select className={selectClass} value={data.combine_monthly_income} onChange={e=>setData({...data, combine_monthly_income:e.target.value})}>
-                    <option value="">- select here -</option><option value="0 - 2,999 PHP">0 - 2,999 PHP</option><option value="3,000 - 5,999 PHP">3,000 - 5,999 PHP</option><option value="6,000 - 8,999 PHP">6,000 - 8,999 PHP</option><option value="9,000 - 12,999_PHP">9,000 - 12,999 PHP</option><option value="13,000 and above">13,000 and above</option>
+                    <option value="">- select here -</option>
+                    {incomeChoices.map(opt => (<option key={`ci-${opt}`} value={opt}>{opt}</option>))}
                   </select>
                 </div>
               </div>
