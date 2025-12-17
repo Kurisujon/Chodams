@@ -415,9 +415,12 @@ export default function SurveyDetails() {
                   <td className="border border-gray-300 px-3 py-2">{String(survey.language_spoken || '-').replace(/_/g,' ')}</td>
                 </tr>
                 <tr className="bg-gray-100 text-gray-900 font-semibold">
-                  <td className="border border-gray-300 px-3 py-2">Ethnicity/Tribe</td>
-                  <td className="border border-gray-300 px-3 py-2">Highest Educational Attainment</td>
-                  <td className="border border-gray-300 px-3 py-2">Name of School Last Attended</td>
+                  <td className="border border-gray-300 px-3 py-2">Affiliation</td>
+                  <td className="border border-gray-300 px-3 py-2" colSpan={3}>{survey.affiliation || survey.affiliations || '-'}</td>
+                </tr>
+                <tr className="bg-gray-100 text-gray-900 font-semibold">
+                  <td className="border border-gray-300 px-3 py-2" colSpan={2}>Highest Educational Attainment</td>
+                  <td className="border border-gray-300 px-3 py-2">Name of the School Last Attended</td>
                   <td className="border border-gray-300 px-3 py-2">Year Graduated</td>
                 </tr>
                 <tr>

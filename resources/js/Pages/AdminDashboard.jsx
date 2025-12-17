@@ -27,6 +27,7 @@ export default function AdminDashboard() {
   const [showAllNotifs, setShowAllNotifs] = useState(false)
   const [notifModal, setNotifModal] = useState({ open: false, item: null })
   const [showNotifPanel, setShowNotifPanel] = useState(false)
+  const [activeNotifId, setActiveNotifId] = useState(null)
 
   const [showBarangay, setShowBarangay] = useState(false)
   const [showClassification, setShowClassification] = useState(true)
@@ -40,6 +41,7 @@ export default function AdminDashboard() {
   const [rangeYears, setRangeYears] = useState(3)
   const [periodBarangayData, setPeriodBarangayData] = useState([])
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   const barangayRef = useRef(null)
   const classificationRef = useRef(null)
@@ -124,6 +126,10 @@ export default function AdminDashboard() {
       window.location.href = '/'
     }
   }
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     fetchTotals()
@@ -225,6 +231,19 @@ export default function AdminDashboard() {
       const res = await axios.get('/admin/api/profile')
       setProfile(res.data.profile)
     } catch (e) {}
+  }
+
+  function toggleNotifPanel() {
+    setShowNotifPanel(v => !v)
+  }
+
+  function handleNotificationClick(item) {
+    setActiveNotifId(item.id)
+    setNotifModal({ open: true, item })
+    markNotificationRead(item.id)
+    setTimeout(() => {
+      setActiveNotifId(null)
+    }, 150)
   }
 
   useEffect(() => {
@@ -550,10 +569,10 @@ export default function AdminDashboard() {
   
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className={`flex h-screen overflow-hidden transition-opacity duration-500 ease-in-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
       <aside className="hidden md:block w-64 flex flex-col flex-shrink-0 bg-white text-gray-700 p-6 border-r border-gray-200 h-screen sticky top-0 overflow-hidden">
         <div className="flex items-center gap-3 mb-8">
-          <img src="/icons/appicon1.png" alt="App" className="w-9 h-9 rounded-xl ring-1 ring-emerald-200"/>
+          <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
           <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
         </div>
         <nav className="space-y-2 flex flex-col flex-1">
@@ -635,75 +654,127 @@ export default function AdminDashboard() {
       )}
 
       <main className="flex-1 h-screen overflow-y-auto p-6 bg-gray-50">
-        <div className="md:hidden mb-4 flex items-center justify-between">
-          <button onClick={() => setMobileNavOpen(true)} className="px-3 py-2 rounded-2xl bg-white ring-2 ring-emerald-300 text-emerald-700" aria-label="Open Menu">
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-          </button>
-          <span className="text-sm font-semibold text-emerald-800">Menu</span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-          <div className="md:col-span-9 relative">
-            <input type="text" placeholder="Search" className="w-full rounded-2xl bg-white text-gray-900 px-4 py-3 pl-12 ring-2 ring-emerald-300 focus:ring-2 focus:ring-emerald-400 outline-none shadow-sm" />
-            <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <DashboardFade delay={0}>
+          <div className="md:hidden mb-4 flex items-center justify-between">
+            <button onClick={() => setMobileNavOpen(true)} className="px-3 py-2 rounded-2xl bg-white ring-2 ring-emerald-300 text-emerald-700" aria-label="Open Menu">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <span className="text-sm font-semibold text-emerald-800">Menu</span>
           </div>
-          <div className="md:col-span-3 flex md:justify-end">
-            <div className="relative">
-              <button onClick={() => setShowNotifPanel(v => !v)} className="px-3 py-3 rounded-2xl bg-white ring-2 ring-emerald-300 text-emerald-700 hover:ring-emerald-400 flex items-center gap-2 shadow-sm relative" aria-label="Notifications">
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-                {notifications.some(n => !n.read) && (<span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>)}
-              </button>
-              {showNotifPanel && (
-                <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-2xl shadow-lg p-3 z-10">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold text-emerald-800">Notifications</div>
-                    <button className="p-2 rounded-full hover:bg-emerald-50 text-emerald-700" onClick={() => setShowNotifPanel(false)} aria-label="Close">
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 18L18 6M6 6l12 12"/></svg>
-                    </button>
-                  </div>
-                  <div className="space-y-2 mt-2">
-                    {(showAllNotifs ? notifications : notifications.slice(0,5)).map(item => (
-                      <button
-                        key={item.id}
-                        onClick={() => { setNotifModal({ open: true, item }); markNotificationRead(item.id) }}
-                        className={`w-full flex items-center gap-3 text-left rounded-xl p-2 ${item.read ? 'bg-white' : 'bg-gray-100'}`}
-                      >
-                        <img src={'/icons/appicon1.png'} alt="alert" className="w-9 h-9 rounded-xl object-cover"/>
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium text-gray-900 truncate">{item.title}</div>
-                          <div className="text-xs text-gray-500">{new Date(item.created_at).toLocaleString()}</div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
+        </DashboardFade>
+
+        <div className="relative z-[2000]"> 
+          <DashboardFade delay={100}>
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+              <div className="md:col-span-9 relative">
+                <input type="text" placeholder="Search" className="w-full rounded-2xl bg-white text-gray-900 px-4 py-3 pl-12 ring-2 ring-emerald-300 focus:ring-2 focus:ring-emerald-400 outline-none shadow-sm" />
+                <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+              </div>
+              <div className="md:col-span-3 flex md:justify-end">
+                <div className="relative z-[1000]">
                   <button
-                    onClick={() => { const next = !showAllNotifs; setShowAllNotifs(next); if (next) fetchNotifications(50); }}
-                    className="w-full mt-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-normal"
+                    onClick={toggleNotifPanel}
+                    className="px-3 py-3 rounded-2xl bg-white ring-2 ring-emerald-300 text-emerald-700 hover:ring-emerald-400 flex items-center gap-2 shadow-sm relative transition-colors"
+                    aria-label="Notifications"
+                    aria-haspopup="true"
+                    aria-expanded={showNotifPanel}
+                    aria-controls="admin-notifications-panel"
                   >
-                    {showAllNotifs ? 'Show fewer' : 'Show more'}
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+                    {notifications.some(n => !n.read) && (<span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>)}
                   </button>
+                  <div
+                    id="admin-notifications-panel"
+                    className={`absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-lg p-3 z-[9999] transform origin-top transition-all duration-300 ease-in-out ${
+                      showNotifPanel ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto' : 'opacity-0 -translate-y-2 scale-95 pointer-events-none'
+                    }`}
+                    role="region"
+                    aria-label="Notifications"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-semibold text-emerald-800">Notifications</div>
+                      <button
+                        className="p-2 rounded-full hover:bg-emerald-50 text-emerald-700 transition-colors"
+                        onClick={toggleNotifPanel}
+                        aria-label="Close notifications"
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 18L18 6M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                    <div
+                      id="admin-notification-list"
+                      className="space-y-2 mt-2 overflow-y-auto transition-[max-height] duration-300 ease-in-out"
+                      style={{ maxHeight: showAllNotifs ? '420px' : '220px' }}
+                      role="list"
+                      aria-live="polite"
+                    >
+                      {(showAllNotifs ? notifications : notifications.slice(0,5)).map(item => (
+                        <button
+                          key={item.id}
+                          onClick={() => handleNotificationClick(item)}
+                          className={`w-full flex items-center gap-3 text-left rounded-xl p-2 transition-transform duration-150 ${item.read ? 'bg-white' : 'bg-gray-100'}`}
+                          style={{ transform: activeNotifId === item.id ? 'scale(1.02)' : 'scale(1)' }}
+                          role="listitem"
+                        >
+                          <img src={'/icons/appicon1.png'} alt="alert" className="w-9 h-9 rounded-xl object-cover"/>
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium text-gray-900 truncate">{item.title}</div>
+                            <div className="text-xs text-gray-500">{new Date(item.created_at).toLocaleString()}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        onClick={() => {
+                          const next = !showAllNotifs
+                          setShowAllNotifs(next)
+                          if (next) fetchNotifications(50)
+                        }}
+                        className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors"
+                        aria-label={showAllNotifs ? 'Show fewer notifications' : 'Show more notifications'}
+                        aria-expanded={showAllNotifs}
+                        aria-controls="admin-notification-list"
+                      >
+                        <svg
+                          className={`w-4 h-4 transform transition-transform duration-200 ${showAllNotifs ? 'rotate-180' : 'rotate-0'}`}
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
-          </div>
-        </div>
-        <div className="mt-4 relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm opacity-90">Welcome back, Admin!</div>
-              <div className="mt-2 text-xs opacity-85">Today is {new Date().toLocaleDateString()}. You have <span className="font-semibold">{totals.total_validated}</span> new validated forms awaiting your review.</div>
-            </div>
-            <div className="hidden md:flex items-center gap-3 text-white/90">
-              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="14" rx="3"/><path d="M7 8h10M7 12h6"/></svg>
-              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20l9-16H3l9 16z"/></svg>
-            </div>
-          </div>
+          </DashboardFade>
         </div>
 
+        <DashboardFade delay={200}>
+          <div className="mt-4 relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm opacity-90">Welcome back, Admin!</div>
+                <div className="mt-2 text-xs opacity-85">Today is {new Date().toLocaleDateString()}. You have <span className="font-semibold">{totals.total_validated}</span> new validated forms awaiting your review.</div>
+              </div>
+              <div className="hidden md:flex items-center gap-3 text-white/90">
+                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="14" rx="3"/><path d="M7 8h10M7 12h6"/></svg>
+                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20l9-16H3l9 16z"/></svg>
+              </div>
+            </div>
+          </div>
+        </DashboardFade>
 
-        <section className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button type="button" onClick={() => setShowBarangay(v => !v)} className="text-left bg-white rounded-2xl border border-gray-200 shadow-sm p-6 min-h-[160px] w-full">
+        <DashboardFade delay={300}>
+          <section className="mt-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <button type="button" onClick={() => setShowBarangay(v => !v)} className="text-left bg-white rounded-2xl border border-gray-200 shadow-sm p-6 min-h-[160px] w-full">
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="14" rx="3"/><path d="M7 8h10M7 12h6"/></svg>
               </div>
@@ -733,293 +804,161 @@ export default function AdminDashboard() {
           </div>
         </section>
 
-        {indicators && (
-          <section className="mt-6">
-            <div className="mb-3 bg-white rounded-2xl border border-gray-200 p-4">
-              <div className="text-sm font-medium text-emerald-800 mb-2">Filters</div>
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                <select className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300" value={filterBarangay} onChange={e=>setFilterBarangay(e.target.value)}>
-                  <option value="">All barangays</option>
-                  {barangays.map(b => (<option key={b} value={b}>{b.replace(/_/g,' ')}</option>))}
-                </select>
-                <select className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300" value={filterClass} onChange={e=>setFilterClass(e.target.value)}>
-                  <option value="">All classifications</option>
-                  <option value="Displaced">Displaced</option>
-                  <option value="Double-up">Double-up</option>
-                  <option value="Homeless">Homeless</option>
-                  <option value="Upgrading of Land Tenure">Upgrading of Land Tenure</option>
-                </select>
-                <select className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300" value={filterIncome} onChange={e=>setFilterIncome(e.target.value)}>
-                  <option value="">All income</option>
-                  <option value="lt5k">&lt; 5k</option>
-                  <option value="5to10k">5–10k</option>
-                  <option value="gt10k">&gt; 10k</option>
-                </select>
-                <select className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300" value={filterWater} onChange={e=>setFilterWater(e.target.value)}>
-                  <option value="">Water: All</option>
-                  <option value="has">Has</option>
-                  <option value="none">None</option>
-                </select>
-                <select className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300" value={filterElectricity} onChange={e=>setFilterElectricity(e.target.value)}>
-                  <option value="">Electricity: All</option>
-                  <option value="has">Has</option>
-                  <option value="none">None</option>
-                </select>
-                <div className="ml-auto">
-                  <button type="button" onClick={()=>{setFilterBarangay('');setFilterClass('');setFilterIncome('');setFilterWater('');setFilterElectricity('')}} className="text-xs px-2 py-1 rounded-xl bg-gray-100 hover:bg-gray-200">Clear</button>
-                </div>
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {filterBarangay && (
-                  <button onClick={()=>setFilterBarangay('')} className="px-2 py-1 text-xs rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
-                    Barangay: {String(filterBarangay).replace(/_/g,' ')} ×
-                  </button>
+        <DashboardFade delay={400}>
+          <section className={`mt-6 bg-white rounded-2xl border border-gray-200 p-6 ${!showBarangay && 'hidden'}`}>
+            <div className="max-w-3xl mx-auto">
+              <h3 className="text-lg font-semibold text-emerald-800 mb-4">Overall Overview</h3>
+              <canvas ref={overallClassificationRef} style={{ height: 160 }} />
+              <div className="mt-3 text-center">
+                <button
+                  onClick={() => setShowBarangayDesc(v => !v)}
+                  className="text-xs text-emerald-600 hover:text-emerald-700 font-medium inline-flex items-center gap-1"
+                  aria-expanded={showBarangayDesc}
+                  aria-controls="barangay-summary"
+                >
+                  {showBarangayDesc ? 'Hide summary' : 'Show summary'}
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+                </button>
+                {showBarangayDesc && (
+                  <p id="barangay-summary" className="mt-2 text-sm text-gray-700">
+                    {describeBarangay(barangayData)}
+                  </p>
                 )}
-                {filterClass && (
-                  <button onClick={()=>setFilterClass('')} className="px-2 py-1 text-xs rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
-                    Classification: {filterClass} ×
-                  </button>
-                )}
-                {filterIncome && (
-                  <button onClick={()=>setFilterIncome('')} className="px-2 py-1 text-xs rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
-                    Income: {filterIncome==='lt5k'?'< 5k':filterIncome==='5to10k'?'5–10k':'> 10k'} ×
-                  </button>
-                )}
-                {filterWater && (
-                  <button onClick={()=>setFilterWater('')} className="px-2 py-1 text-xs rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
-                    Water: {filterWater==='has'?'Has':'None'} ×
-                  </button>
-                )}
-                {filterElectricity && (
-                  <button onClick={()=>setFilterElectricity('')} className="px-2 py-1 text-xs rounded-full bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
-                    Electricity: {filterElectricity==='has'?'Has':'None'} ×
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-                <div className="text-sm font-medium text-emerald-800">Vulnerability</div>
-                <div className="mt-3 grid grid-cols-3 gap-3">
-                  {['Displaced','Double-up','Homeless'].map(k => (
-                    <div key={k} className="text-center">
-                      <div className="text-2xl font-semibold text-gray-900">{Math.round(indicators.vulnerability.classification_pct[k]||0)}%</div>
-                      <div className="text-xs text-gray-600">{k}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 grid grid-cols-3 gap-3">
-                  <div className="text-center">
-                    <div className="text-xl font-semibold text-gray-900">{indicators.vulnerability.no_lot_pct}%</div>
-                    <div className="text-xs text-gray-600">No lot</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xl font-semibold text-gray-900">{indicators.vulnerability.no_house_pct}%</div>
-                    <div className="text-xs text-gray-600">No house</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xl font-semibold text-gray-900">{indicators.vulnerability.temporary_living_pct}%</div>
-                    <div className="text-xs text-gray-600">Temporary living</div>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-                <div className="text-sm font-medium text-emerald-800">Service Access</div>
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  <div className="text-center">
-                    <div className="text-2xl font-semibold text-gray-900">{indicators.service.has_water_pct}%</div>
-                    <div className="text-xs text-gray-600">Has water</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-semibold text-gray-900">{indicators.service.has_electricity_pct}%</div>
-                    <div className="text-xs text-gray-600">Has electricity</div>
-                  </div>
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div className="text-center">
-                    <div className="text-xl font-semibold text-gray-900">{indicators.service.no_water_pct}%</div>
-                    <div className="text-xs text-gray-600">No water</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xl font-semibold text-gray-900">{indicators.service.no_electricity_pct}%</div>
-                    <div className="text-xs text-gray-600">No electricity</div>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-                <div className="text-sm font-medium text-emerald-800">Skills</div>
-                <div className="mt-3">
-                  <div className="text-2xl font-semibold text-gray-900">{indicators.education_skills.skills_for_living_pct}%</div>
-                  <div className="text-xs text-gray-600">With livelihood skills</div>
-                </div>
-                <div className="mt-4">
-                  <div className="text-xs font-medium text-gray-700 mb-2">Top skills requested</div>
-                  <ul className="space-y-1 text-sm text-gray-700">
-                    {(indicators.education_skills.top_skills||[]).map((s,i)=> (
-                      <li key={`${s.specific_skill}-${i}`} className="flex justify-between"><span>{s.specific_skill}</span><span className="text-gray-500">{s.count}</span></li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </div>
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                <div className="mb-2 font-medium text-emerald-800">Income Bands</div>
-                <canvas ref={incomeRef} />
-              </div>
-              <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                <div className="mb-2 font-medium text-emerald-800">Education</div>
-                <canvas ref={educationRef} />
-              </div>
-              <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                <div className="mb-2 font-medium text-emerald-800">Avg Household Size</div>
-                <canvas ref={householdRef} />
               </div>
             </div>
           </section>
-        )}
+        </DashboardFade>
 
-        <section className={`mt-6 bg-white rounded-2xl border border-gray-200 p-6 ${!showBarangay && 'hidden'}`}>
-          <div className="max-w-3xl mx-auto">
-            <h3 className="text-lg font-semibold text-emerald-800 mb-4">Overall Overview</h3>
-            <canvas ref={overallClassificationRef} style={{ height: 160 }} />
-            <div className="mt-3 text-center">
-              <button
-                onClick={() => setShowBarangayDesc(v => !v)}
-                className="text-xs text-emerald-600 hover:text-emerald-700 font-medium inline-flex items-center gap-1"
-              >
-                {showBarangayDesc ? 'Hide summary' : 'Show summary'}
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-              </button>
-              {showBarangayDesc && (
-                <p className="mt-2 text-sm text-gray-700">
-                  {describeBarangay(barangayData)}
-                </p>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className={`bg-white rounded-2xl border border-gray-200 p-6 min-h-[340px] ${!showClassification && 'hidden'}`}>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-lg font-semibold text-emerald-800">By Year Summary ({rangeMode === 'past' ? `Past ${rangeYears} years` : `${classificationPeriod.start} - ${classificationPeriod.end}`})</h3>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={rangeMode}
-                    onChange={(e) => setRangeMode(e.target.value)}
-                    className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300"
-                  >
-                    <option value="past">Past years</option>
-                    <option value="custom">Custom range</option>
-                  </select>
-                  {rangeMode === 'past' ? (
+        <DashboardFade delay={500}>
+          <section className="mt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className={`bg-white rounded-2xl border border-gray-200 p-6 min-h-[340px] ${!showClassification && 'hidden'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-lg font-semibold text-emerald-800">By Year Summary ({rangeMode === 'past' ? `Past ${rangeYears} years` : `${classificationPeriod.start} - ${classificationPeriod.end}`})</h3>
+                  <div className="flex items-center gap-2">
                     <select
-                      value={String(rangeYears)}
-                      onChange={(e) => setRangeYears(Number(e.target.value))}
+                      value={rangeMode}
+                      onChange={(e) => setRangeMode(e.target.value)}
                       className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300"
                     >
-                      <option value="1">Past 1 year</option>
-                      <option value="2">Past 2 years</option>
-                      <option value="3">Past 3 years</option>
+                      <option value="past">Past years</option>
+                      <option value="custom">Custom range</option>
                     </select>
-                  ) : (
-                    <div className="flex items-center gap-2">
+                    {rangeMode === 'past' ? (
                       <select
-                        value={String(classificationPeriod.start)}
-                        onChange={(e) => setClassificationPeriod(p => ({ ...p, start: Number(e.target.value) }))}
+                        value={String(rangeYears)}
+                        onChange={(e) => setRangeYears(Number(e.target.value))}
                         className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300"
                       >
-                        {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(y => (
-                          <option key={`s-${y}`} value={y}>{y}</option>
-                        ))}
+                        <option value="1">Past 1 year</option>
+                        <option value="2">Past 2 years</option>
+                        <option value="3">Past 3 years</option>
                       </select>
-                      <span className="text-xs text-gray-500">to</span>
-                      <select
-                        value={String(classificationPeriod.end)}
-                        onChange={(e) => setClassificationPeriod(p => ({ ...p, end: Number(e.target.value) }))}
-                        className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300"
-                      >
-                        {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(y => (
-                          <option key={`e-${y}`} value={y}>{y}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={String(classificationPeriod.start)}
+                          onChange={(e) => setClassificationPeriod(p => ({ ...p, start: Number(e.target.value) }))}
+                          className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300"
+                        >
+                          {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                            <option key={`s-${y}`} value={y}>{y}</option>
+                          ))}
+                        </select>
+                        <span className="text-xs text-gray-500">to</span>
+                        <select
+                          value={String(classificationPeriod.end)}
+                          onChange={(e) => setClassificationPeriod(p => ({ ...p, end: Number(e.target.value) }))}
+                          className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300"
+                        >
+                          {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                            <option key={`e-${y}`} value={y}>{y}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
                 </div>
+                <canvas ref={classificationRef} style={{ height: 200 }} />
+                
               </div>
-              <canvas ref={classificationRef} style={{ height: 200 }} />
-              
-            </div>
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 min-h-[340px]">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-emerald-800">Map</h3>
-                <div className="flex items-center gap-1 bg-emerald-50 p-1 rounded-xl ring-1 ring-emerald-100">
-                  <button onClick={() => setMapScope('all')} className={`px-3 py-1 rounded-lg text-xs ${mapScope==='all' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200' : 'text-emerald-700 hover:bg-emerald-100'}`}>All</button>
-                  <button onClick={() => setMapScope('validated')} className={`px-3 py-1 rounded-lg text-xs ${mapScope==='validated' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200' : 'text-emerald-700 hover:bg-emerald-100'}`}>Validated</button>
-                  <button onClick={() => setMapScope('assigned')} className={`px-3 py-1 rounded-lg text-xs ${mapScope==='assigned' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200' : 'text-emerald-700 hover:bg-emerald-100'}`}>Assigned</button>
+              <div className="bg-white rounded-2xl border border-gray-200 p-6 min-h-[340px]">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-emerald-800">Map</h3>
+                  <div className="flex items-center gap-1 bg-emerald-50 p-1 rounded-xl ring-1 ring-emerald-100">
+                    <button onClick={() => setMapScope('all')} className={`px-3 py-1 rounded-lg text-xs ${mapScope==='all' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200' : 'text-emerald-700 hover:bg-emerald-100'}`}>All</button>
+                    <button onClick={() => setMapScope('validated')} className={`px-3 py-1 rounded-lg text-xs ${mapScope==='validated' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200' : 'text-emerald-700 hover:bg-emerald-100'}`}>Validated</button>
+                    <button onClick={() => setMapScope('assigned')} className={`px-3 py-1 rounded-lg text-xs ${mapScope==='assigned' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200' : 'text-emerald-700 hover:bg-emerald-100'}`}>Assigned</button>
+                  </div>
                 </div>
+                <div
+                  ref={mapRef}
+                  className="mt-4 aspect-square w-full rounded-xl overflow-hidden border"
+                />
               </div>
-              <div
-                ref={mapRef}
-                className="mt-4 aspect-square w-full rounded-xl overflow-hidden border"
-              />
             </div>
-          </div>
-        </section>
+          </section>
+        </DashboardFade>
 
-        <section className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-2xl border border-gray-200 p-6">
-            <div className="mb-2 font-medium text-emerald-800">Subclass Displaced</div>
-            <canvas ref={displacedRef} />
-            <div className="mt-3">
-              <button
-                onClick={() => setShowDisplacedDesc(v => !v)}
-                className="text-xs text-emerald-600 hover:text-emerald-700 font-medium inline-flex items-center gap-1"
-              >
-                {showDisplacedDesc ? 'Hide summary' : 'Show summary'}
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-              </button>
-              {showDisplacedDesc && (
-                <p className="mt-2 text-sm text-gray-700">{describeDisplaced(subclassDisplacedData)}</p>
-              )}
+        <DashboardFade delay={600}>
+          <section className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <div className="mb-2 font-medium text-emerald-800">Subclass Displaced</div>
+              <canvas ref={displacedRef} />
+              <div className="mt-3">
+                <button
+                  onClick={() => setShowDisplacedDesc(v => !v)}
+                  className="text-xs text-emerald-600 hover:text-emerald-700 font-medium inline-flex items-center gap-1"
+                  aria-expanded={showDisplacedDesc}
+                  aria-controls="subclass-displaced-summary"
+                >
+                  {showDisplacedDesc ? 'Hide summary' : 'Show summary'}
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+                </button>
+                {showDisplacedDesc && (
+                  <p id="subclass-displaced-summary" className="mt-2 text-sm text-gray-700">{describeDisplaced(subclassDisplacedData)}</p>
+                )}
+              </div>
             </div>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-200 p-6">
-            <div className="mb-2 font-medium text-emerald-800">Subclass Double-Up</div>
-            <canvas ref={doubleUpRef} />
-            <div className="mt-3">
-              <button
-                onClick={() => setShowDoubleUpDesc(v => !v)}
-                className="text-xs text-emerald-600 hover:text-emerald-700 font-medium inline-flex items-center gap-1"
-              >
-                {showDoubleUpDesc ? 'Hide summary' : 'Show summary'}
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-              </button>
-              {showDoubleUpDesc && (
-                <p className="mt-2 text-sm text-gray-700">{describeDoubleUp(subclassDoubleUpData)}</p>
-              )}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <div className="mb-2 font-medium text-emerald-800">Subclass Double-Up</div>
+              <canvas ref={doubleUpRef} />
+              <div className="mt-3">
+                <button
+                  onClick={() => setShowDoubleUpDesc(v => !v)}
+                  className="text-xs text-emerald-600 hover:text-emerald-700 font-medium inline-flex items-center gap-1"
+                  aria-expanded={showDoubleUpDesc}
+                  aria-controls="subclass-doubleup-summary"
+                >
+                  {showDoubleUpDesc ? 'Hide summary' : 'Show summary'}
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+                </button>
+                {showDoubleUpDesc && (
+                  <p id="subclass-doubleup-summary" className="mt-2 text-sm text-gray-700">{describeDoubleUp(subclassDoubleUpData)}</p>
+                )}
+              </div>
             </div>
-          </div>
-          <div className="bg-white rounded-2xl border border-gray-200 p-6">
-            <div className="mb-2 font-medium text-emerald-800">Subclass Homeless</div>
-            <canvas ref={homelessRef} />
-            <div className="mt-3">
-              <button
-                onClick={() => setShowHomelessDesc(v => !v)}
-                className="text-xs text-emerald-600 hover:text-emerald-700 font-medium inline-flex items-center gap-1"
-              >
-                {showHomelessDesc ? 'Hide summary' : 'Show summary'}
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-              </button>
-              {showHomelessDesc && (
-                <p className="mt-2 text-sm text-gray-700">{describeHomeless(subclassHomelessData)}</p>
-              )}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <div className="mb-2 font-medium text-emerald-800">Subclass Homeless</div>
+              <canvas ref={homelessRef} />
+              <div className="mt-3">
+                <button
+                  onClick={() => setShowHomelessDesc(v => !v)}
+                  className="text-xs text-emerald-600 hover:text-emerald-700 font-medium inline-flex items-center gap-1"
+                  aria-expanded={showHomelessDesc}
+                  aria-controls="subclass-homeless-summary"
+                >
+                  {showHomelessDesc ? 'Hide summary' : 'Show summary'}
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+                </button>
+                {showHomelessDesc && (
+                  <p id="subclass-homeless-summary" className="mt-2 text-sm text-gray-700">{describeHomeless(subclassHomelessData)}</p>
+                )}
+              </div>
             </div>
-          </div>
-          
-        </section>
+            
+          </section>
+        </DashboardFade>
       </main>
 
       {false && (
@@ -1041,6 +980,38 @@ export default function AdminDashboard() {
     </div>
   )
 }
+
+function DashboardFade({ children, delay = 0 }) {
+  const [isVisible, setIsVisible] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.3 }
+    )
+    if (ref.current) observer.observe(ref.current)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div
+      ref={ref}
+      className={`transition-all duration-500 ease-in-out transform motion-reduce:transition-none motion-reduce:transform-none ${
+        isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+      }`}
+      style={{ transitionDelay: `${delay}ms` }}
+    >
+      {children}
+    </div>
+  )
+}
+
   function emeraldColors(n) {
     const baseHue = 158
     return Array.from({ length: n }, (_, i) => `hsl(${baseHue},70%,${60 - i * (30 / Math.max(n, 1))}%)`)

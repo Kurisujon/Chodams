@@ -70,9 +70,10 @@ export default function Landing() {
             <Reveal>
               <div>
                 <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-gray-900 leading-tight">
-                  Innovative Housing for Digos City -
+                  City Housing Data Management System
                 </h1>
                 <p className="mt-4 md:mt-6 text-gray-600 max-w-xl text-base md:text-lg">
+                 Innovative Housing for Digos City - 
                  Lifting Communities, Creating Lasting Change.
                 </p>
                 <div className="mt-6 md:mt-8 flex items-center gap-4">
@@ -84,25 +85,13 @@ export default function Landing() {
                     Download App
                   </a>
                 </div>
-                <div className="mt-8 md:mt-10">
-                  <div className="flex items-center gap-3 text-sm text-gray-500">
-                    <span>Used by Thriving Brands</span>
-                    <span className="w-12 h-px bg-gray-300"></span>
-                  </div>
-                  <div className="mt-4 flex items-center gap-6 grayscale opacity-70">
-                     {/* Placeholder logos to match the vibe */}
-                    <span className="font-bold text-xl flex items-center gap-1"><div className="w-6 h-6 bg-gray-800 rounded-full"></div>Ayro UI</span>
-                    <span className="font-bold text-xl flex items-center gap-1"><div className="w-6 h-6 bg-gray-400"></div>GrayGrids</span>
-                    <span className="font-bold text-xl flex items-center gap-1"><div className="w-6 h-6 border-2 border-gray-600 rounded"></div>UIdeck</span>
-                  </div>
-                </div>
               </div>
             </Reveal>
             <Reveal delay={200}>
               <div className="relative md:pl-6 mt-8 md:mt-0">
                 <div className="relative z-10 rounded-tl-[100px] rounded-tr-[20px] rounded-br-[20px] rounded-bl-[20px] overflow-hidden shadow-lg">
                   <img
-                    src="https://images.unsplash.com/photo-1543269865-cbf427effbad?q=80&w=1200&auto=format&fit=crop"
+                    src="https://upload.wikimedia.org/wikipedia/en/b/b7/Digos_City_Hall_%28Rizal_Avenue%2C_Digos%2C_Davao_Del_Sur%3B_08-17-2023%29.jpg"
                     alt="Working at laptop"
                     className="w-full aspect-[16/9] sm:aspect-[4/3] md:aspect-[3/2] object-cover hover:scale-105 transition-transform duration-500 ease-out"
                   />

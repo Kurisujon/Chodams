@@ -509,7 +509,7 @@ class ValidatorDashboardController extends Controller
         $spouse_age = $allowSpouse ? $normalize($request->input('spouse_age')) : null;
         $spouse_gender = $allowSpouse ? $normalize($request->input('spouse_gender')) : null;
 
-        $survey_id = DB::transaction(function() use ($validator_id, $interviewed_by, $request, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $house_photo_path, $person_photo_path, $validator_signature, $respondent_signature, $marital_status, $spouse_name, $spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender, $normalize) {
+        $survey_id = DB::transaction(function() use ($validator_id, $interviewed_by, $request, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $house_photo_path, $validator_signature, $respondent_signature, $marital_status, $spouse_name, $spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender) {
             $toInt = function($v) { return is_numeric($v) ? (int)$v : null; };
             $yn = function($v) { $s = is_string($v) ? strtolower(trim($v)) : $v; return ($s === 'yes' || $s === 1 || $s === '1') ? 1 : (($s === 'no' || $s === 0 || $s === '0') ? 0 : null); };
             $classMap = [
@@ -878,6 +878,12 @@ class ValidatorDashboardController extends Controller
         $barangay = trim((string)$request->get('barangay', ''));
         $aff = trim((string)$request->get('affiliation', ''));
         $class = trim((string)$request->get('classification', ''));
+        $status = strtolower(trim((string)$request->get('status', 'validated')));
+        $barangay = trim((string)$request->get('barangay', ''));
+        $dateFrom = $request->get('date_from') ?? $request->get('dateFrom');
+        $dateTo = $request->get('date_to') ?? $request->get('dateTo');
+        $pointsMin = $request->get('points_min') ?? $request->get('pointsMin');
+        $pointsMax = $request->get('points_max') ?? $request->get('pointsMax');
         $offset = ($page - 1) * $perPage;
         $pointsExpr = "(
             CASE WHEN classification = 'Displaced' THEN
@@ -981,11 +987,18 @@ class ValidatorDashboardController extends Controller
             ->join('classification as c','c.survey_id','=','s.survey_id')
             ->leftJoin('household as h','h.survey_id','=','s.survey_id')
             ->leftJoin('economic as e','e.survey_id','=','s.survey_id')
-            ->whereIn('s.is_submitted', [1,2])
+            ->where('s.is_submitted', 1)
             ->where(function($q){
                 $q->whereNull('d.endorsed_by_mayor')
                   ->orWhere('d.endorsed_by_mayor', 0);
             });
+        if ($status === 'validated') {
+            $base->where('s.is_submitted', 1);
+        } elseif ($status === 'approved') {
+            $base->where('s.is_submitted', 2);
+        } elseif ($status === 'submitted') {
+            $base->whereIn('s.is_submitted', [1,2]);
+        }
         if ($aff === '') {
             $base->where(function($q){
                 $q->whereNull('d.affiliation')
@@ -996,6 +1009,15 @@ class ValidatorDashboardController extends Controller
         } elseif ($aff !== '') {
             $affStr = str_replace('_',' ', $aff);
             $base->where('d.affiliation', $affStr);
+        }
+        if ($barangay !== '') {
+            $base->where('d.barangay', $barangay);
+        }
+        if ($dateFrom) {
+            $base->whereNotNull('s.date_interviewed')->whereDate('s.date_interviewed', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $base->whereNotNull('s.date_interviewed')->whereDate('s.date_interviewed', '<=', $dateTo);
         }
         if ($class !== '') {
             $lc = strtolower($class);
@@ -1049,6 +1071,18 @@ class ValidatorDashboardController extends Controller
                 return $row;
             })
             ->all();
+        if (is_numeric($pointsMin)) {
+            $min = (float)$pointsMin;
+            $rows = array_values(array_filter($rows, function($r) use ($min) {
+                return isset($r->points) && $r->points >= $min;
+            }));
+        }
+        if (is_numeric($pointsMax)) {
+            $max = (float)$pointsMax;
+            $rows = array_values(array_filter($rows, function($r) use ($max) {
+                return isset($r->points) && $r->points <= $max;
+            }));
+        }
         usort($rows, function($a,$b){
             $bg = strcmp((string)$a->barangay, (string)$b->barangay);
             if ($bg !== 0) return $bg;
@@ -1250,6 +1284,11 @@ class ValidatorDashboardController extends Controller
         $barangay = trim((string)$request->get('barangay', ''));
         $aff = trim((string)$request->get('affiliation', ''));
         $class = trim((string)$request->get('classification', ''));
+        $barangay = trim((string)$request->get('barangay', ''));
+        $dateFrom = $request->get('date_from') ?? $request->get('dateFrom');
+        $dateTo = $request->get('date_to') ?? $request->get('dateTo');
+        $pointsMin = $request->get('points_min') ?? $request->get('pointsMin');
+        $pointsMax = $request->get('points_max') ?? $request->get('pointsMax');
         $offset = ($page - 1) * $perPage;
 
         $pointsExpr = "(
@@ -1372,6 +1411,15 @@ class ValidatorDashboardController extends Controller
             $affStr = str_replace('_',' ', $aff);
             $base->where('d.affiliation', $affStr);
         }
+        if ($barangay !== '') {
+            $base->where('d.barangay', $barangay);
+        }
+        if ($dateFrom) {
+            $base->whereNotNull('s.date_interviewed')->whereDate('s.date_interviewed', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $base->whereNotNull('s.date_interviewed')->whereDate('s.date_interviewed', '<=', $dateTo);
+        }
         if ($class !== '') {
             $lc = strtolower($class);
             $code = $classMap[$lc] ?? null;
@@ -1428,6 +1476,18 @@ class ValidatorDashboardController extends Controller
                 return $row;
             })
             ->all();
+        if (is_numeric($pointsMin)) {
+            $min = (float)$pointsMin;
+            $rows = array_values(array_filter($rows, function($r) use ($min) {
+                return isset($r->points) && $r->points >= $min;
+            }));
+        }
+        if (is_numeric($pointsMax)) {
+            $max = (float)$pointsMax;
+            $rows = array_values(array_filter($rows, function($r) use ($max) {
+                return isset($r->points) && $r->points <= $max;
+            }));
+        }
         usort($rows, function($a,$b){
             $bg = strcmp((string)$a->barangay, (string)$b->barangay);
             if ($bg !== 0) return $bg;
@@ -1449,7 +1509,6 @@ class ValidatorDashboardController extends Controller
         $page = (int) $request->get('page', 1);
         $search = trim((string)$request->get('search', ''));
         $class = trim((string)$request->get('classification', ''));
-        $barangay = trim((string)$request->get('barangay', ''));
         $offset = ($page - 1) * $perPage;
 
         $base = DB::table('survey as s')
@@ -1458,7 +1517,7 @@ class ValidatorDashboardController extends Controller
             ->leftJoin('household as h','h.survey_id','=','s.survey_id')
             ->leftJoin('economic as e','e.survey_id','=','s.survey_id')
             ->where('d.endorsed_by_mayor', 1)
-            ->whereIn('s.is_submitted', [1,2]);
+            ->where('s.is_submitted', 1);
 
         $classMap = [
             'displaced' => 1,
@@ -1470,9 +1529,6 @@ class ValidatorDashboardController extends Controller
             $lc = strtolower($class);
             $code = $classMap[$lc] ?? null;
             if ($code !== null) { $base->where('c.classification', $code); }
-        }
-        if ($barangay !== '') {
-            $base->where('d.barangay', $barangay);
         }
         if ($search !== '') {
             $base->where(function($q) use ($search) {
@@ -1519,6 +1575,18 @@ class ValidatorDashboardController extends Controller
                 return $row;
             })
             ->all();
+        if (is_numeric($pointsMin)) {
+            $min = (float)$pointsMin;
+            $rows = array_values(array_filter($rows, function($r) use ($min) {
+                return isset($r->points) && $r->points >= $min;
+            }));
+        }
+        if (is_numeric($pointsMax)) {
+            $max = (float)$pointsMax;
+            $rows = array_values(array_filter($rows, function($r) use ($max) {
+                return isset($r->points) && $r->points <= $max;
+            }));
+        }
         usort($rows, function($a,$b){
             $bg = strcmp((string)$a->barangay, (string)$b->barangay);
             if ($bg !== 0) return $bg;
@@ -1951,6 +2019,10 @@ class ValidatorDashboardController extends Controller
         }
         $status = strtolower(trim((string)$request->get('status','submitted')));
         $class = trim((string)$request->get('classification',''));
+        $dateFrom = $request->get('date_from') ?? $request->get('dateFrom');
+        $dateTo = $request->get('date_to') ?? $request->get('dateTo');
+        $pointsMin = $request->get('points_min') ?? $request->get('pointsMin');
+        $pointsMax = $request->get('points_max') ?? $request->get('pointsMax');
         $affLabel = [0=>'None',1=>'SSS',2=>'GSIS',3=>'PhilHealth',4=>'PagIbig',5=>'PWD',6=>'Senior_Citizen',7=>'Solo_Parent',8=>'4Ps'];
         $classLabel = [1=>'Displaced',2=>'Double-up',3=>'Homeless',4=>'Upgrading of Land Tenure'];
         $displacedLabel = [1=>'Coastal Areas',2=>'Drought',3=>'Earthquake Affected',4=>'Flood Affected',5=>'Sea Level Rise',6=>'Threat of Eviction',7=>'Eviction/Demolition Order',8=>'Human Induced Disaster',9=>'Infra Projects',10=>'Landslide Affected',11=>'Near Waterways'];
@@ -1976,6 +2048,12 @@ class ValidatorDashboardController extends Controller
             $code = $classMap[strtolower($class)] ?? null;
             if ($code !== null) { $base->where('c.classification',$code); }
         }
+        if ($dateFrom) {
+            $base->whereNotNull('s.date_interviewed')->whereDate('s.date_interviewed', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $base->whereNotNull('s.date_interviewed')->whereDate('s.date_interviewed', '<=', $dateTo);
+        }
         $rows = $base->select(
                 'c.previous_client','c.year_inhabited','c.classification','c.subclass_displaced','c.subclass_doubleup','c.subclass_homeless',
                 'd.last_name','d.first_name','d.middle_name','d.suffix','d.barangay','d.purok','d.street','d.gender','d.religion','d.birth_place','d.birth_date','d.person_age','d.marital_status','d.contact_number','d.language_spoken','d.tribe','d.highest_education','d.last_school_name','d.year_graduated','d.spouse_name','d.spouse_religion','d.spouse_tribe','d.spouse_age','d.spouse_gender','d.affiliation',
@@ -1999,13 +2077,34 @@ class ValidatorDashboardController extends Controller
         ];
         fputcsv($csv, $header);
         foreach ($rows as $r) {
+            $classificationName = array_key_exists($r->classification, $classLabel) ? $classLabel[$r->classification] : ($r->classification ?? '');
+            $subDis = array_key_exists($r->subclass_displaced, $displacedLabel) ? $displacedLabel[$r->subclass_displaced] : ($r->subclass_displaced ?? '');
+            $subDou = array_key_exists($r->subclass_doubleup, $doubleupLabel) ? $doubleupLabel[$r->subclass_doubleup] : ($r->subclass_doubleup ?? '');
+            $subHom = array_key_exists($r->subclass_homeless, $homelessLabel) ? $homelessLabel[$r->subclass_homeless] : ($r->subclass_homeless ?? '');
+            $arr = [
+                'classification' => $classificationName,
+                'subclass_displaced' => $subDis,
+                'subclass_doubleup' => $subDou,
+                'subclass_homeless' => $subHom,
+                'combine_monthly_income' => $r->combine_monthly_income,
+                'lot_ownership' => $r->lot_ownership,
+                'house_ownership' => $r->house_ownership,
+                'temporary_living_area' => $r->temporary_living_area,
+                'housing_structure' => $r->housing_structure,
+                'type_of_toilet' => $r->type_of_toilet,
+                'source_of_water' => $r->source_of_water,
+                'source_of_electricity' => $r->source_of_electricity,
+            ];
+            $points = $this->computePoints($arr);
+            if (is_numeric($pointsMin) && $points < (float)$pointsMin) { continue; }
+            if (is_numeric($pointsMax) && $points > (float)$pointsMax) { continue; }
             $row = [
                 array_key_exists($r->previous_client, $ynLabel) ? $ynLabel[$r->previous_client] : ($r->previous_client ?? ''),
                 $r->year_inhabited ?? '',
-                array_key_exists($r->classification, $classLabel) ? $classLabel[$r->classification] : ($r->classification ?? ''),
-                array_key_exists($r->subclass_displaced, $displacedLabel) ? $displacedLabel[$r->subclass_displaced] : ($r->subclass_displaced ?? ''),
-                array_key_exists($r->subclass_doubleup, $doubleupLabel) ? $doubleupLabel[$r->subclass_doubleup] : ($r->subclass_doubleup ?? ''),
-                array_key_exists($r->subclass_homeless, $homelessLabel) ? $homelessLabel[$r->subclass_homeless] : ($r->subclass_homeless ?? ''),
+                $classificationName,
+                $subDis,
+                $subDou,
+                $subHom,
                 $r->last_name ?? '',
                 $r->first_name ?? '',
                 $r->middle_name ?? '',
@@ -2073,6 +2172,11 @@ class ValidatorDashboardController extends Controller
         $aff = trim((string)$request->get('affiliation', ''));
         $class = trim((string)$request->get('classification', ''));
         $status = strtolower(trim((string)$request->get('status', 'submitted')));
+        $barangay = trim((string)$request->get('barangay', ''));
+        $dateFrom = $request->get('date_from') ?? $request->get('dateFrom');
+        $dateTo = $request->get('date_to') ?? $request->get('dateTo');
+        $pointsMin = $request->get('points_min') ?? $request->get('pointsMin');
+        $pointsMax = $request->get('points_max') ?? $request->get('pointsMax');
 
         $affMap = [
             'none'=>0,'n/a'=>0,
@@ -2113,6 +2217,15 @@ class ValidatorDashboardController extends Controller
         if ($aff !== '') {
             $affStr = str_replace('_',' ', $aff);
             $base->where('d.affiliation', $affStr);
+        }
+        if ($barangay !== '') {
+            $base->where('d.barangay', $barangay);
+        }
+        if ($dateFrom) {
+            $base->whereNotNull('s.date_interviewed')->whereDate('s.date_interviewed', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $base->whereNotNull('s.date_interviewed')->whereDate('s.date_interviewed', '<=', $dateTo);
         }
         if ($class !== '') {
             $lc = strtolower($class);
@@ -2159,6 +2272,21 @@ class ValidatorDashboardController extends Controller
             $row->subclass_doubleup = $doubleupLabel[$row->subclass_doubleup] ?? ($row->subclass_doubleup ?? '');
             $row->subclass_homeless = $homelessLabel[$row->subclass_homeless] ?? ($row->subclass_homeless ?? '');
             $row->affiliation = is_string($row->affiliation) ? $row->affiliation : ($affLabel[$row->affiliation] ?? $row->affiliation);
+            $arr = [
+                'classification' => $row->classification,
+                'subclass_displaced' => $row->subclass_displaced,
+                'subclass_doubleup' => $row->subclass_doubleup,
+                'subclass_homeless' => $row->subclass_homeless,
+                'combine_monthly_income' => $row->combine_monthly_income,
+                'lot_ownership' => $row->lot_ownership,
+                'house_ownership' => $row->house_ownership,
+                'temporary_living_area' => $row->temporary_living_area,
+                'housing_structure' => $row->housing_structure,
+                'type_of_toilet' => $row->type_of_toilet,
+                'source_of_water' => $row->source_of_water,
+                'source_of_electricity' => $row->source_of_electricity,
+            ];
+            $points = $this->computePoints($arr);
             fputcsv($csv, [
                 $row->interviewed_by ?? '',
                 $row->date_interviewed ?? '',
@@ -3981,7 +4109,9 @@ class ValidatorDashboardController extends Controller
         $spouse_age = $allowSpouse ? $val('spouse_age') : null;
         $spouse_gender = $allowSpouse ? $val('spouse_gender') : null;
 
-        $result = DB::transaction(function() use ($data, $val, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $house_photo_path, $person_photo_path, $marital_status, $spouse_name, $spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender, $validator_signature, $respondent_signature) {
+        $affiliationsRaw = $val('affiliations') ?: $val('affiliation');
+
+        $result = DB::transaction(function() use ($data, $val, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $house_photo_path, $person_photo_path, $marital_status, $spouse_name, $spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender, $validator_signature, $respondent_signature, $affiliationsRaw) {
             $toInt = function($v) { return is_numeric($v) ? (int)$v : null; };
             $yn = function($v) { $s = is_string($v) ? strtolower(trim($v)) : $v; return ($s === 'yes' || $s === 1 || $s === '1') ? 1 : (($s === 'no' || $s === 0 || $s === '0') ? 0 : null); };
             $classMap = [
@@ -4013,21 +4143,37 @@ class ValidatorDashboardController extends Controller
                 'public - living in tent' => 1,
                 'private - living in tent' => 2,
             ];
-            $genderMap = ['male'=>1,'female'=>2];
-            $affMap = [
-                'none'=>0,'n/a'=>0,
-                'sss'=>1,'gsis'=>2,'philhealth'=>3,'pagibig'=>4,
-                'pwd'=>5,'senior_citizen'=>6,'solo_parent'=>7,'4ps'=>8,
-            ];
+            $normalize = function($v) {
+                if (!is_string($v)) return null;
+                $t = trim($v);
+                return $t === '' ? null : $t;
+            };
 
             $classificationCode = $classMap[strtolower((string)$classification)] ?? null;
             $subDisplacedCode = $subclass_displaced ? ($displacedMap[strtolower((string)$subclass_displaced)] ?? null) : null;
             $subDoubleupCode = $subclass_doubleup ? ($doubleupMap[strtolower((string)$subclass_doubleup)] ?? null) : null;
             $subHomelessCode = $subclass_homeless ? ($homelessMap[strtolower((string)$subclass_homeless)] ?? null) : null;
             $prevClientCode = $yn($val('previous_client'));
-            $spouseGenderCode = $genderMap[strtolower((string)$spouse_gender)] ?? null;
-            $affRaw = strtolower(str_replace(' ', '_', (string)$val('affiliation')));
-            $affCode = $affMap[$affRaw] ?? 0;
+
+            $spouseGenderStr = is_string($spouse_gender) ? $spouse_gender : null;
+
+            $affiliationsStr = is_string($affiliationsRaw) ? trim($affiliationsRaw) : '';
+            $affPrimary = null;
+            if ($affiliationsStr !== '') {
+                $parts = array_values(array_filter(array_map('trim', explode(',', $affiliationsStr)), function($v) {
+                    return $v !== '';
+                }));
+                if (!empty($parts)) {
+                    $primary = $parts[0];
+                    if (strcasecmp($primary, 'None') === 0 && count($parts) > 1) {
+                        $primary = $parts[1];
+                    }
+                    $affPrimary = $normalize($primary);
+                }
+            }
+            if ($affPrimary === null) {
+                $affPrimary = $normalize($val('affiliation'));
+            }
 
             $sid = DB::table('survey')->insertGetId([
                 'validator_id' => (int)($data['validator_id'] ?? 1),
@@ -4076,8 +4222,9 @@ class ValidatorDashboardController extends Controller
                 'spouse_religion' => $spouse_religion,
                 'spouse_tribe' => $spouse_tribe,
                 'spouse_age' => $toInt($spouse_age),
-                'spouse_gender' => $spouseGenderCode,
-                'affiliation' => $affCode,
+                'spouse_gender' => $spouseGenderStr,
+                'affiliation' => $affPrimary,
+                'affiliations' => $affiliationsStr,
                 'tag_number' => $tagNumber,
             ]);
 

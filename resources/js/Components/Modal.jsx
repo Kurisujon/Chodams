@@ -23,7 +23,7 @@ export default function Modal({ children, show = false, maxWidth = '2xl', closea
     }[maxWidth];
 
     return (
-        <Transition show={show} as={Fragment} leave="duration-200">
+        <Transition show={show} as={Fragment} leave="duration-300">
             <Dialog
                 as="div"
                 id="modal"
@@ -32,10 +32,10 @@ export default function Modal({ children, show = false, maxWidth = '2xl', closea
             >
                 <Transition.Child
                     as={Fragment}
-                    enter="ease-out duration-300"
+                    enter="ease-out duration-400"
                     enterFrom="opacity-0"
                     enterTo="opacity-100"
-                    leave="ease-in duration-200"
+                    leave="ease-in duration-300"
                     leaveFrom="opacity-100"
                     leaveTo="opacity-0"
                 >
@@ -44,15 +44,15 @@ export default function Modal({ children, show = false, maxWidth = '2xl', closea
 
                 <Transition.Child
                     as={Fragment}
-                    enter="ease-out duration-300"
+                    enter="ease-out duration-400"
                     enterFrom="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                     enterTo="opacity-100 translate-y-0 sm:scale-100"
-                    leave="ease-in duration-200"
+                    leave="ease-in duration-300"
                     leaveFrom="opacity-100 translate-y-0 sm:scale-100"
                     leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                 >
                     <Dialog.Panel
-                        className={`${maxWidth === 'full' ? 'w-full h-full m-0 rounded-none max-h-full' : `mb-6 rounded-lg ${maxWidthClass}`} bg-white overflow-hidden shadow-xl transform transition-all sm:w-full ${maxWidth === 'full' ? '' : 'sm:mx-auto'}`}
+                        className={`${maxWidth === 'full' ? 'w-full h-full m-0 rounded-none max-h-full' : `mb-6 rounded-lg ${maxWidthClass}`} bg-white overflow-hidden shadow-2xl transform transition-all sm:w-full ${maxWidth === 'full' ? '' : 'sm:mx-auto'}`}
                     >
                         {children}
                     </Dialog.Panel>

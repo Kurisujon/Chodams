@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import axios from 'axios'
 import { Link } from '@inertiajs/react'
+import AdminTable from '../Components/AdminTable'
 
 export default function AdminAssignments() {
   const [pending, setPending] = useState([])
@@ -14,6 +15,15 @@ export default function AdminAssignments() {
   const [busyId, setBusyId] = useState(null)
   const [assignForms, setAssignForms] = useState({})
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+
+  const [pendingPage, setPendingPage] = useState(1)
+  const [assignedPage, setAssignedPage] = useState(1)
+  const [pendingSortKey, setPendingSortKey] = useState('surname')
+  const [pendingSortDirection, setPendingSortDirection] = useState('asc')
+  const [assignedSortKey, setAssignedSortKey] = useState('surname')
+  const [assignedSortDirection, setAssignedSortDirection] = useState('asc')
+
+  const assignmentsPageSize = 10
 
   const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
 
@@ -38,6 +48,8 @@ export default function AdminAssignments() {
       setAssigned(p2.data.data || [])
       setProjects(p3.data.data || [])
       setError('')
+      setPendingPage(1)
+      setAssignedPage(1)
     } catch (e) {
       setError(e?.response?.data?.message || e.message)
     }
@@ -52,6 +64,8 @@ export default function AdminAssignments() {
       setPending(p1.data.data || [])
       setAssigned(p2.data.data || [])
       setError('')
+      setPendingPage(1)
+      setAssignedPage(1)
     } catch (e) {
       setError(e?.response?.data?.message || e.message)
     }
@@ -101,6 +115,196 @@ export default function AdminAssignments() {
       setBusyId(null)
     }
   }
+
+  function handlePendingSort(id) {
+    if (pendingSortKey === id) {
+      setPendingSortDirection(pendingSortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setPendingSortKey(id)
+      setPendingSortDirection('asc')
+    }
+    setPendingPage(1)
+  }
+
+  function handleAssignedSort(id) {
+    if (assignedSortKey === id) {
+      setAssignedSortDirection(assignedSortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setAssignedSortKey(id)
+      setAssignedSortDirection('asc')
+    }
+    setAssignedPage(1)
+  }
+
+  function getPendingSortValue(r, key) {
+    if (key === 'surname') return r.last_name || ''
+    if (key === 'barangay') return r.barangay || ''
+    if (key === 'classification') return r.classification || ''
+    return ''
+  }
+
+  function getAssignedSortValue(r, key) {
+    if (key === 'surname') return r.last_name || ''
+    if (key === 'barangay') return r.barangay || ''
+    if (key === 'project') return r.project_name || ''
+    if (key === 'assigned') return r.date_assigned || ''
+    return ''
+  }
+
+  const sortedPending = [...pending].sort((a, b) => {
+    const av = getPendingSortValue(a, pendingSortKey)
+    const bv = getPendingSortValue(b, pendingSortKey)
+    if (av < bv) return pendingSortDirection === 'asc' ? -1 : 1
+    if (av > bv) return pendingSortDirection === 'asc' ? 1 : -1
+    return 0
+  })
+
+  const sortedAssigned = [...assigned].sort((a, b) => {
+    const av = getAssignedSortValue(a, assignedSortKey)
+    const bv = getAssignedSortValue(b, assignedSortKey)
+    if (av < bv) return assignedSortDirection === 'asc' ? -1 : 1
+    if (av > bv) return assignedSortDirection === 'asc' ? 1 : -1
+    return 0
+  })
+
+  const pendingColumns = [
+    {
+      id: 'surname',
+      header: 'Surname',
+      sortable: true,
+      render: r => r.last_name,
+      cellClassName: 'text-gray-900 font-medium',
+    },
+    {
+      id: 'barangay',
+      header: 'Barangay',
+      sortable: true,
+      render: r => r.barangay,
+    },
+    {
+      id: 'classification',
+      header: 'Classification',
+      sortable: true,
+      render: r => r.classification,
+    },
+    {
+      id: 'project',
+      header: 'Project',
+      sortable: false,
+      render: r => {
+        const f = assignForms[r.survey_id] || { project_id: '', block_no: '', lot_no: '' }
+        return (
+          <ProjectSelect
+            value={f.project_id}
+            onChange={v =>
+              setAssignForms(prev => ({
+                ...prev,
+                [r.survey_id]: { ...prev[r.survey_id], project_id: v },
+              }))
+            }
+          />
+        )
+      },
+    },
+    {
+      id: 'block',
+      header: 'Block',
+      sortable: false,
+      render: r => {
+        const f = assignForms[r.survey_id] || { project_id: '', block_no: '', lot_no: '' }
+        return (
+          <input
+            className="border rounded p-2 w-24"
+            value={f.block_no}
+            onChange={e =>
+              setAssignForms(prev => ({
+                ...prev,
+                [r.survey_id]: { ...prev[r.survey_id], block_no: e.target.value },
+              }))
+            }
+          />
+        )
+      },
+    },
+    {
+      id: 'lot',
+      header: 'Lot',
+      sortable: false,
+      render: r => {
+        const f = assignForms[r.survey_id] || { project_id: '', block_no: '', lot_no: '' }
+        return (
+          <input
+            className="border rounded p-2 w-24"
+            value={f.lot_no}
+            onChange={e =>
+              setAssignForms(prev => ({
+                ...prev,
+                [r.survey_id]: { ...prev[r.survey_id], lot_no: e.target.value },
+              }))
+            }
+          />
+        )
+      },
+    },
+    {
+      id: 'action',
+      header: 'Action',
+      sortable: false,
+      render: r => {
+        const f = assignForms[r.survey_id] || { project_id: '', block_no: '', lot_no: '' }
+        const disabled = busyId === r.survey_id
+        return (
+          <button
+            className="px-3 py-1 border rounded text-sm text-emerald-800 hover:bg-emerald-50 disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled={disabled}
+            onClick={() => assignRow(r.survey_id, f.project_id, f.block_no, f.lot_no)}
+          >
+            {disabled ? 'Assigning...' : 'Assign'}
+          </button>
+        )
+      },
+    },
+  ]
+
+  const assignedColumns = [
+    {
+      id: 'surname',
+      header: 'Surname',
+      sortable: true,
+      render: a => a.last_name,
+      cellClassName: 'text-gray-900 font-medium',
+    },
+    {
+      id: 'barangay',
+      header: 'Barangay',
+      sortable: true,
+      render: a => a.barangay,
+    },
+    {
+      id: 'project',
+      header: 'Project',
+      sortable: true,
+      render: a => a.project_name,
+    },
+    {
+      id: 'block',
+      header: 'Block',
+      sortable: false,
+      render: a => a.block_no,
+    },
+    {
+      id: 'lot',
+      header: 'Lot',
+      sortable: false,
+      render: a => a.lot_no,
+    },
+    {
+      id: 'assigned',
+      header: 'Assigned',
+      sortable: true,
+      render: a => a.date_assigned,
+    },
+  ]
 
   return (
     <div className="flex min-h-screen">
@@ -188,24 +392,31 @@ export default function AdminAssignments() {
       )}
 
       <main className="flex-1 p-6 bg-gray-50">
-        <div className="md:hidden mb-4 flex items-center justify-between">
-          <button onClick={() => setMobileNavOpen(true)} className="px-3 py-2 rounded-2xl bg-white ring-2 ring-emerald-300 text-emerald-700" aria-label="Open Menu">
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-          </button>
-          <span className="text-sm font-semibold text-emerald-800">Menu</span>
-        </div>
-        {error && <div className="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700">{error}</div>}
-        <header className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-200">
-          <div>
-            <div className="text-sm text-gray-500">Hello Admin!</div>
-            <h2 className="text-2xl text-emerald-800 font-semibold">Assignments</h2>
-            <div className="text-xs text-gray-500">Assign approved beneficiaries to project sites</div>
+        <DashboardFade delay={0}>
+          <div className="md:hidden mb-4 flex items-center justify-between">
+            <button onClick={() => setMobileNavOpen(true)} className="px-3 py-2 rounded-2xl bg-white ring-2 ring-emerald-300 text-emerald-700" aria-label="Open Menu">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <span className="text-sm font-semibold text-emerald-800">Menu</span>
           </div>
-          <div className="flex items-center gap-2">
-            <Link href="/admin/project-sites" className="px-3 py-2 border rounded-xl text-emerald-800">Manage Projects</Link>
-          </div>
-        </header>
+        </DashboardFade>
+        <DashboardFade delay={100}>
+          {error && <div className="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700">{error}</div>}
+        </DashboardFade>
+        <DashboardFade delay={200}>
+          <header className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-200">
+            <div>
+              <div className="text-sm text-gray-500">Hello Admin!</div>
+              <h2 className="text-2xl text-emerald-800 font-semibold">Assignments</h2>
+              <div className="text-xs text-gray-500">Assign approved beneficiaries to project sites</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link href="/admin/project-sites" className="px-3 py-2 border rounded-xl text-emerald-800">Manage Projects</Link>
+            </div>
+          </header>
+        </DashboardFade>
 
+        <DashboardFade delay={300}>
         <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-6">
           <form className="flex items-center gap-2 mb-4" onSubmit={e => { e.preventDefault(); searchLists() }}>
             <input className="border border-gray-300 rounded-xl p-2.5 w-full md:w-64" placeholder="Search pending" value={searchPending} onChange={e=>setSearchPending(e.target.value)} />
@@ -229,40 +440,14 @@ export default function AdminAssignments() {
               <tbody>
                 {pending.map(r => {
                   const f = assignForms[r.survey_id] || { project_id: '', block_no: '', lot_no: '' }
-                  const blocks = f.project_id ? (blocksMap[f.project_id] || []) : []
-                  const lotsKey = `${f.project_id}#${f.block_no}`
-                  const lots = (lotsMap[lotsKey] || [])
                   return (
                     <tr key={r.survey_id} className="even:bg-gray-50">
                       <td className="p-3">{r.last_name}</td>
                       <td className="p-3">{r.barangay}</td>
                       <td className="p-3">{r.classification}</td>
-                      <td className="p-3">
-                        <ProjectSelect value={f.project_id} onChange={(v)=>{
-                          setAssignForms(prev=>({ ...prev, [r.survey_id]: { ...prev[r.survey_id], project_id: v, block_no: '', lot_no: '' } }))
-                          loadBlocks(v)
-                        }} />
-                      </td>
-                      <td className="p-3">
-                        <select className="border rounded p-2 w-28" value={f.block_no} disabled={!f.project_id || blocks.length===0}
-                          onChange={e=>{
-                            const bn = e.target.value
-                            setAssignForms(prev=>({ ...prev, [r.survey_id]: { ...prev[r.survey_id], block_no: bn, lot_no: '' } }))
-                            loadAvailableLots(f.project_id, bn)
-                          }}>
-                          <option value="">Select Block</option>
-                          {blocks.map(b => (
-                            <option key={`b-${b.block_no}`} value={b.block_no}>Block {b.block_no} (avail {b.available_lots})</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="p-3">
-                        <select className="border rounded p-2 w-28" value={f.lot_no} disabled={!f.project_id || !f.block_no || lots.length===0}
-                          onChange={e=>setAssignForms(prev=>({ ...prev, [r.survey_id]: { ...prev[r.survey_id], lot_no: e.target.value } }))}>
-                          <option value="">Select Lot</option>
-                          {lots.map(n => (<option key={`l-${n}`} value={n}>Lot {n}</option>))}
-                        </select>
-                      </td>
+                      <td className="p-3"><ProjectSelect value={f.project_id} onChange={(v)=>setAssignForms(prev=>({ ...prev, [r.survey_id]: { ...prev[r.survey_id], project_id: v } }))} /></td>
+                      <td className="p-3"><input className="border rounded p-2 w-24" value={f.block_no} onChange={e=>setAssignForms(prev=>({ ...prev, [r.survey_id]: { ...prev[r.survey_id], block_no: e.target.value } }))} /></td>
+                      <td className="p-3"><input className="border rounded p-2 w-24" value={f.lot_no} onChange={e=>setAssignForms(prev=>({ ...prev, [r.survey_id]: { ...prev[r.survey_id], lot_no: e.target.value } }))} /></td>
                       <td className="p-3"><button className="px-3 py-1 border rounded text-sm text-emerald-800 hover:bg-emerald-50" disabled={busyId===r.survey_id} onClick={() => assignRow(r.survey_id, f.project_id, f.block_no, f.lot_no)}>{busyId===r.survey_id?'Assigning...':'Assign'}</button></td>
                     </tr>
                   )
@@ -272,39 +457,58 @@ export default function AdminAssignments() {
             </table>
           </div>
         </section>
+        </DashboardFade>
 
+        <DashboardFade delay={400}>
         <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-emerald-800 mb-3">Assigned Beneficiaries</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead className="bg-emerald-50 text-emerald-800">
-                <tr>
-                  <th className="p-3 text-left">Surname</th>
-                  <th className="p-3 text-left">Barangay</th>
-                  <th className="p-3 text-left">Project</th>
-                  <th className="p-3 text-left">Block</th>
-                  <th className="p-3 text-left">Lot</th>
-                  <th className="p-3 text-left">Assigned</th>
-                </tr>
-              </thead>
-              <tbody>
-                {assigned.map(a => (
-                  <tr key={a.assignment_id} className="even:bg-gray-50">
-                    <td className="p-3">{a.last_name}</td>
-                    <td className="p-3">{a.barangay}</td>
-                    <td className="p-3">{a.project_name}</td>
-                    <td className="p-3">{a.block_no}</td>
-                    <td className="p-3">{a.lot_no}</td>
-                    <td className="p-3">{a.date_assigned}</td>
-                  </tr>
-                ))}
-                {!assigned.length && <tr><td className="p-3" colSpan="6">No assignments yet.</td></tr>}
-              </tbody>
-            </table>
-          </div>
+          <AdminTable
+            columns={assignedColumns}
+            rows={sortedAssigned}
+            getRowKey={a => a.assignment_id}
+            page={assignedPage}
+            pageSize={assignmentsPageSize}
+            onPageChange={setAssignedPage}
+            sortKey={assignedSortKey}
+            sortDirection={assignedSortDirection}
+            onSortChange={handleAssignedSort}
+            emptyMessage="No assignments yet."
+          />
         </section>
+        </DashboardFade>
 
       </main>
+    </div>
+  )
+}
+
+function DashboardFade({ children, delay = 0 }) {
+  const [isVisible, setIsVisible] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.3 }
+    )
+    if (ref.current) observer.observe(ref.current)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div
+      ref={ref}
+      className={`transition-all duration-500 ease-in-out transform motion-reduce:transition-none motion-reduce:transform-none ${
+        isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+      }`}
+      style={{ transitionDelay: `${delay}ms` }}
+    >
+      {children}
     </div>
   )
 }

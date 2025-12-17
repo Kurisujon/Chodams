@@ -313,24 +313,31 @@ export default function AdminProjectSites() {
       )}
 
       <main className="flex-1 p-6 bg-gray-50">
-        <div className="md:hidden mb-4 flex items-center justify-between">
-          <button onClick={() => setMobileNavOpen(true)} className="px-3 py-2 rounded-2xl bg-white ring-2 ring-emerald-300 text-emerald-700" aria-label="Open Menu">
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-          </button>
-          <span className="text-sm font-semibold text-emerald-800">Menu</span>
-        </div>
-        {error && <div className="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700">{error}</div>}
-        <header className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-200">
-          <div>
-            <div className="text-sm text-gray-500">Hello Admin!</div>
-            <h2 className="text-2xl text-emerald-800 font-semibold">Project Sites</h2>
-            <div className="text-xs text-gray-500">Existing projects and site details</div>
+        <DashboardFade delay={0}>
+          <div className="md:hidden mb-4 flex items-center justify-between">
+            <button onClick={() => setMobileNavOpen(true)} className="px-3 py-2 rounded-2xl bg-white ring-2 ring-emerald-300 text-emerald-700" aria-label="Open Menu">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <span className="text-sm font-semibold text-emerald-800">Menu</span>
           </div>
-          <div className="flex items-center gap-2">
-            <Link href="/admin/project-sites/add" className="px-3 py-2 bg-emerald-600 text-white rounded-xl">Add Project</Link>
-          </div>
-        </header>
+        </DashboardFade>
+        <DashboardFade delay={100}>
+          {error && <div className="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700">{error}</div>}
+        </DashboardFade>
+        <DashboardFade delay={200}>
+          <header className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-200">
+            <div>
+              <div className="text-sm text-gray-500">Hello Admin!</div>
+              <h2 className="text-2xl text-emerald-800 font-semibold">Project Sites</h2>
+              <div className="text-xs text-gray-500">Existing projects and site details</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link href="/admin/project-sites/add" className="px-3 py-2 bg-emerald-600 text-white rounded-xl">Add Project</Link>
+            </div>
+          </header>
+        </DashboardFade>
 
+        <DashboardFade delay={300}>
         <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-6">
           <form className="flex items-center gap-2 mb-4" onSubmit={e => { e.preventDefault(); load(search) }}>
             <input className="border border-gray-300 rounded-xl p-2.5 w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Search projects" value={search} onChange={e=>setSearch(e.target.value)}/>
@@ -376,6 +383,7 @@ export default function AdminProjectSites() {
             </div>
           )}
         </section>
+        </DashboardFade>
 
         {showMap && selected && (
           <div className="fixed inset-0 z-50">
@@ -466,6 +474,37 @@ export default function AdminProjectSites() {
           </div>
         )}
       </main>
+    </div>
+  )
+}
+
+function DashboardFade({ children, delay = 0 }) {
+  const [isVisible, setIsVisible] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.3 }
+    )
+    if (ref.current) observer.observe(ref.current)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div
+      ref={ref}
+      className={`transition-all duration-500 ease-in-out transform motion-reduce:transition-none motion-reduce:transform-none ${
+        isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+      }`}
+      style={{ transitionDelay: `${delay}ms` }}
+    >
+      {children}
     </div>
   )
 }

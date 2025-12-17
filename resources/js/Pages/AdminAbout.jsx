@@ -1,5 +1,5 @@
 // resources/js/Pages/AdminAbout.jsx
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Link } from '@inertiajs/react'
 
 export default function AdminAbout() {
@@ -98,57 +98,94 @@ export default function AdminAbout() {
       )}
 
       <main className="flex-1 p-6 bg-gray-50">
-        <div className="md:hidden mb-4 flex items-center justify-between">
-          <button onClick={() => setMobileNavOpen(true)} className="px-3 py-2 rounded-2xl bg-white ring-2 ring-emerald-300 text-emerald-700" aria-label="Open Menu">
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-          </button>
-          <span className="text-sm font-semibold text-emerald-800">Menu</span>
-        </div>
-        <header className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-200">
-          <div>
-            <div className="text-sm text-gray-500">Hello Admin!</div>
-            <h2 className="text-2xl text-emerald-800 font-semibold">About</h2>
-            <div className="text-xs text-gray-500">System overview and features</div>
+        <DashboardFade delay={0}>
+          <div className="md:hidden mb-4 flex items-center justify-between">
+            <button onClick={() => setMobileNavOpen(true)} className="px-3 py-2 rounded-2xl bg-white ring-2 ring-emerald-300 text-emerald-700" aria-label="Open Menu">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <span className="text-sm font-semibold text-emerald-800">Menu</span>
           </div>
-          <img src="/image/greenlogo1.jpg" alt="logo" className="h-10 w-10 rounded-full object-cover"/>
-        </header>
+        </DashboardFade>
+        <DashboardFade delay={100}>
+          <header className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-200">
+            <div>
+              <div className="text-sm text-gray-500">Hello Admin!</div>
+              <h2 className="text-2xl text-emerald-800 font-semibold">About</h2>
+              <div className="text-xs text-gray-500">System overview and features</div>
+            </div>
+            <img src="/image/greenlogo1.jpg" alt="logo" className="h-10 w-10 rounded-full object-cover"/>
+          </header>
+        </DashboardFade>
 
-        <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-6 space-y-6">
-          <div>
-            <h3 className="text-lg font-semibold text-emerald-800">Overview</h3>
-            <p className="mt-2 text-gray-700">
-              ChoDaMs is the City Housing Data Management System that streamlines validator surveys, beneficiary management,
-              and admin oversight. It centralizes data entry, approval workflows, and reporting.
-            </p>
-          </div>
+        <DashboardFade delay={200}>
+          <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-6 space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold text-emerald-800">Overview</h3>
+              <p className="mt-2 text-gray-700">
+                ChoDaMs is the City Housing Data Management System that streamlines validator surveys, beneficiary management,
+                and admin oversight. It centralizes data entry, approval workflows, and reporting.
+              </p>
+            </div>
 
-          <div>
-            <h3 className="text-lg font-semibold text-emerald-800">Key Features</h3>
-            <ul className="mt-2 list-disc list-inside text-gray-700">
-              <li>Validator surveys with submission and approval tracking</li>
-              <li>Beneficiaries list with point-based prioritization</li>
-              <li>Charts and descriptive reports for barangay and classifications</li>
-              <li>Admin profile and employee account management</li>
-            </ul>
-          </div>
+            <div>
+              <h3 className="text-lg font-semibold text-emerald-800">Key Features</h3>
+              <ul className="mt-2 list-disc list-inside text-gray-700">
+                <li>Validator surveys with submission and approval tracking</li>
+                <li>Beneficiaries list with point-based prioritization</li>
+                <li>Charts and descriptive reports for barangay and classifications</li>
+                <li>Admin profile and employee account management</li>
+              </ul>
+            </div>
 
-          <div>
-            <h3 className="text-lg font-semibold text-emerald-800">Technologies</h3>
-            <ul className="mt-2 list-disc list-inside text-gray-700">
-              <li>Laravel + Inertia + React + Tailwind CSS</li>
-              <li>Chart.js for visualizations</li>
-              <li>MySQL for storage</li>
-            </ul>
-          </div>
+            <div>
+              <h3 className="text-lg font-semibold text-emerald-800">Technologies</h3>
+              <ul className="mt-2 list-disc list-inside text-gray-700">
+                <li>Laravel + Inertia + React + Tailwind CSS</li>
+                <li>Chart.js for visualizations</li>
+                <li>MySQL for storage</li>
+              </ul>
+            </div>
 
-          <div>
-            <h3 className="text-lg font-semibold text-emerald-800">Contact</h3>
-            <p className="mt-2 text-gray-700">
-              For support or inquiries, please reach out to the system administrator.
-            </p>
-          </div>
-        </section>
+            <div>
+              <h3 className="text-lg font-semibold text-emerald-800">Contact</h3>
+              <p className="mt-2 text-gray-700">
+                For support or inquiries, please reach out to the system administrator.
+              </p>
+            </div>
+          </section>
+        </DashboardFade>
       </main>
+    </div>
+  )
+}
+
+function DashboardFade({ children, delay = 0 }) {
+  const [isVisible, setIsVisible] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.3 }
+    )
+    if (ref.current) observer.observe(ref.current)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div
+      ref={ref}
+      className={`transition-all duration-500 ease-in-out transform motion-reduce:transition-none motion-reduce:transform-none ${
+        isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+      }`}
+      style={{ transitionDelay: `${delay}ms` }}
+    >
+      {children}
     </div>
   )
 }
