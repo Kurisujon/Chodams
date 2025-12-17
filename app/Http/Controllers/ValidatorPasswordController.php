@@ -43,7 +43,7 @@ class ValidatorPasswordController extends Controller
             DB::table('password_resets')->where('email',$row->email)->delete();
             return response()->json(['success' => false, 'message' => 'Token expired'], 422);
         }
-        $updated = DB::table('validator')->where('email',$row->email)->update(['password' => Hash::make($request->input('password'))]);
+        $updated = DB::table('validator')->where('email',$row->email)->update(['password' => password_hash($request->input('password'), PASSWORD_BCRYPT)]);
         DB::table('password_resets')->where('email',$row->email)->delete();
         if ($updated) {
             $v = DB::table('validator')->select('validator_id','name','email')->where('email',$row->email)->first();
@@ -84,7 +84,7 @@ class ValidatorPasswordController extends Controller
             DB::table('password_resets')->where('email',$row->email)->delete();
             return redirect()->back()->withErrors(['token' => 'Token expired']);
         }
-        DB::table('validator')->where('email',$row->email)->update(['password' => Hash::make($request->input('password'))]);
+        DB::table('validator')->where('email',$row->email)->update(['password' => password_hash($request->input('password'), PASSWORD_BCRYPT)]);
         DB::table('password_resets')->where('email',$row->email)->delete();
         $v = DB::table('validator')->select('validator_id','name','email')->where('email',$row->email)->first();
         DB::table('notifications')->insert([

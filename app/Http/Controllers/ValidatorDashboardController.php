@@ -14,6 +14,13 @@ use Carbon\Carbon;
 
 class ValidatorDashboardController extends Controller
 {
+    protected function normalizeBarangay(string $barangay): string
+    {
+        $b = str_replace('_', ' ', $barangay);
+        $b = preg_replace('/\s+/', ' ', trim($b));
+        return $b;
+    }
+
     // Return totals
     public function totals(Request $request)
     {
@@ -646,7 +653,6 @@ class ValidatorDashboardController extends Controller
             $spouseGenderStr = is_string($spouse_gender) ? $spouse_gender : null;
             $affPrimary = $normalize($request->input('affiliation'));
             $barangayVal = trim((string)$request->input('barangay'));
-            $tagNumber = $this->generateTagNumber($barangayVal);
             $affiliations = trim((string)$request->input('affiliations'));
             $sid = DB::table('survey')->insertGetId([
                 'validator_id' => $validator_id,
@@ -666,38 +672,53 @@ class ValidatorDashboardController extends Controller
                 'subclass_homeless' => $subHomelessCode,
             ]);
 
-            DB::table('demographic')->insert([
-                'survey_id' => $sid,
-                'interview_person' => trim((string)$request->input('interview_person')),
-                'last_name' => trim((string)$request->input('last_name')),
-                'first_name' => trim((string)$request->input('first_name')),
-                'middle_name' => trim((string)$request->input('middle_name')),
-                'suffix' => trim((string)$request->input('suffix')),
-                'barangay' => $barangayVal,
-                'purok' => trim((string)$request->input('purok')),
-                'street' => trim((string)$request->input('street')),
-                'gender' => trim((string)$request->input('gender')),
-                'religion' => trim((string)$request->input('religion')),
-                'birth_place' => trim((string)$request->input('birth_place')),
-                'birth_date' => trim((string)$request->input('birth_date')),
-                'person_age' => $toInt($request->input('person_age')),
-                'marital_status' => $marital_status,
-                'contact_number' => trim((string)$request->input('contact_number')),
-                'language_spoken' => trim((string)$request->input('language_spoken')),
-                'tribe' => trim((string)$request->input('tribe')),
-                'highest_education' => trim((string)$request->input('highest_education')),
-                'last_school_name' => trim((string)$request->input('last_school_attended')),
-                'year_graduated' => $toInt($request->input('year_graduated')),
-                'spouse_name' => $spouse_name,
-                'spouse_religion' => $spouse_religion,
-                'spouse_tribe' => $spouse_tribe,
-                'spouse_age' => $toInt($spouse_age),
-                'spouse_gender' => $spouseGenderStr,
-                'affiliation' => $affPrimary,
-                'affiliations' => $affiliations,
-                'endorsed_by_mayor' => $yn($request->input('endorsed_by_mayor')),
-                'tag_number' => $tagNumber,
-            ]);
+            $attempts = 0;
+            while (true) {
+                $attempts++;
+                $tagNumber = $this->generateTagNumber($barangayVal);
+                try {
+                    DB::table('demographic')->insert([
+                        'survey_id' => $sid,
+                        'interview_person' => trim((string)$request->input('interview_person')),
+                        'last_name' => trim((string)$request->input('last_name')),
+                        'first_name' => trim((string)$request->input('first_name')),
+                        'middle_name' => trim((string)$request->input('middle_name')),
+                        'suffix' => trim((string)$request->input('suffix')),
+                        'barangay' => $barangayVal,
+                        'purok' => trim((string)$request->input('purok')),
+                        'street' => trim((string)$request->input('street')),
+                        'gender' => trim((string)$request->input('gender')),
+                        'religion' => trim((string)$request->input('religion')),
+                        'birth_place' => trim((string)$request->input('birth_place')),
+                        'birth_date' => trim((string)$request->input('birth_date')),
+                        'person_age' => $toInt($request->input('person_age')),
+                        'marital_status' => $marital_status,
+                        'contact_number' => trim((string)$request->input('contact_number')),
+                        'language_spoken' => trim((string)$request->input('language_spoken')),
+                        'tribe' => trim((string)$request->input('tribe')),
+                        'highest_education' => trim((string)$request->input('highest_education')),
+                        'last_school_name' => trim((string)$request->input('last_school_attended')),
+                        'year_graduated' => $toInt($request->input('year_graduated')),
+                        'spouse_name' => $spouse_name,
+                        'spouse_religion' => $spouse_religion,
+                        'spouse_tribe' => $spouse_tribe,
+                        'spouse_age' => $toInt($spouse_age),
+                        'spouse_gender' => $spouseGenderStr,
+                        'affiliation' => $affPrimary,
+                        'affiliations' => $affiliations,
+                        'endorsed_by_mayor' => $yn($request->input('endorsed_by_mayor')),
+                        'tag_number' => $tagNumber,
+                    ]);
+                    break;
+                } catch (\Illuminate\Database\QueryException $e) {
+                    $err = $e->errorInfo;
+                    $isDuplicate = is_array($err) && isset($err[1]) && (int) $err[1] === 1062;
+                    if ($isDuplicate && $attempts < 5) {
+                        continue;
+                    }
+                    throw $e;
+                }
+            }
 
             DB::table('household')->insert([
                 'survey_id' => $sid,
@@ -743,10 +764,12 @@ class ValidatorDashboardController extends Controller
         $colCivil = in_array('civilStatus', $hmCols) ? 'civilStatus' : 'civil_status';
         $colEdu = in_array('educationalAttainment', $hmCols) ? 'educationalAttainment' : 'educational_attainment';
         $colIncome = in_array('monthlyIncome', $hmCols) ? 'monthlyIncome' : 'monthly_income';
+        $colSex = in_array('gender', $hmCols) ? 'gender' : (in_array('sex', $hmCols) ? 'sex' : null);
         $colCode = in_array('code', $hmCols) ? 'code' : null;
         if (is_array($names)) {
             $relationships = $request->input('relationship', []);
             $ages = $request->input('age', []);
+            $sexes = $request->input('sex', []);
             $civil_statuses = $request->input('civil_status', []);
             $educations = $request->input('educational_attainment', []);
             $occupations = $request->input('occupation', []);
@@ -757,6 +780,7 @@ class ValidatorDashboardController extends Controller
                 $n = $normalize($n);
                 $rel = $normalize($relationships[$i] ?? null);
                 $age = (int) ($ages[$i] ?? 0);
+                $sex = $normalize($sexes[$i] ?? null);
                 $civ = $normalize($civil_statuses[$i] ?? null);
                 $edu = $normalize($educations[$i] ?? null);
                 $occ = $normalize($occupations[$i] ?? null);
@@ -772,6 +796,9 @@ class ValidatorDashboardController extends Controller
                     'age' => $age,
                     'occupation' => $occ ?? '',
                 ];
+                if ($colSex) {
+                    $payload[$colSex] = $sex ?? '';
+                }
                 $payload[$colCivil] = $civ ?? '';
                 $payload[$colEdu] = $edu ?? '';
                 $payload[$colIncome] = $inc ?? '';
@@ -793,6 +820,9 @@ class ValidatorDashboardController extends Controller
                     'age' => is_numeric($spouse_age) ? (int)$spouse_age : null,
                     'occupation' => 'N/A',
                 ];
+                if ($colSex) {
+                    $payload[$colSex] = $spouseGenderStr ?? '';
+                }
                 $payload[$colCivil] = $marital_status;
                 $payload[$colEdu] = 'N/A';
                 $payload[$colIncome] = 'N/A';
@@ -859,9 +889,60 @@ class ValidatorDashboardController extends Controller
         if ($main_income_source === 'others') { $main_income_source = $normalize($request->input('other_main_income_source')); }
         $work_status = $normalize($request->input('work_status'));
         if ($work_status === 'others') { $work_status = $normalize($request->input('other_work_status')); }
-
-        $validator_signature = null; // no change via edit
-        $respondent_signature = null; // no change via edit
+        
+        $yn = function($v) {
+            $s = is_string($v) ? strtolower(trim($v)) : $v;
+            return ($s === 'yes' || $s === 1 || $s === '1') ? 1 : (($s === 'no' || $s === 0 || $s === '0') ? 0 : null);
+        };
+        $house_photo_path = null;
+        $file = $request->file('house_photo');
+        if ($file) {
+            if ($file->getSize() > 5 * 1024 * 1024) {
+                return response()->json(['message' => 'File too large'], 422);
+            }
+            $allowed = ['image/jpeg','image/png','image/gif','image/jpg'];
+            if (!in_array($file->getMimeType(), $allowed)) {
+                return response()->json(['message' => 'Invalid file type'], 422);
+            }
+            $ext = $file->getClientOriginalExtension() ?: 'jpg';
+            $filename = uniqid('house_').'.'.$ext;
+            \Illuminate\Support\Facades\Storage::disk('public')->putFileAs('house_photos', $file, $filename);
+            $house_photo_path = 'storage/house_photos/'.$filename;
+        }
+        $person_photo_path = null;
+        $personFile = $request->file('person_photo');
+        if ($personFile) {
+            if ($personFile->getSize() > 5 * 1024 * 1024) {
+                return response()->json(['message' => 'File too large'], 422);
+            }
+            $allowed = ['image/jpeg','image/png','image/gif','image/jpg'];
+            if (!in_array($personFile->getMimeType(), $allowed)) {
+                return response()->json(['message' => 'Invalid file type'], 422);
+            }
+            $ext = $personFile->getClientOriginalExtension() ?: 'jpg';
+            $filename = uniqid('person_').'.'.$ext;
+            \Illuminate\Support\Facades\Storage::disk('public')->putFileAs('person_photos', $personFile, $filename);
+            $person_photo_path = 'storage/person_photos/'.$filename;
+        }
+        $saveSignature = function ($input) {
+            if (!$input) return null;
+            $s = is_string($input) ? trim($input) : '';
+            if ($s === '') return null;
+            if (strpos($s, ',') !== false) {
+                $parts = explode(',', $s, 2);
+                if (count($parts) !== 2) return null;
+                $data = base64_decode($parts[1]);
+                if ($data === false) return null;
+                $path = 'signatures/'.uniqid().'.png';
+                \Illuminate\Support\Facades\Storage::disk('public')->put($path, $data);
+                return $path;
+            }
+            return $s;
+        };
+        $validator_signature = null;
+        $respondent_signature = $saveSignature($request->input('respondent_signature'));
+        $lat = trim((string)$request->input('latitude'));
+        $lon = trim((string)$request->input('longitude'));
         $marital_status = $normalize($request->input('marital_status'));
         $allowSpouse = in_array($marital_status, ['Married','Live-in','Widow/Widower','Separated','Annulled']);
         $spouse_name = $allowSpouse ? $normalize($request->input('spouse_name')) : null;
@@ -870,7 +951,7 @@ class ValidatorDashboardController extends Controller
         $spouse_age = $allowSpouse ? $normalize($request->input('spouse_age')) : null;
         $spouse_gender = $allowSpouse ? $normalize($request->input('spouse_gender')) : null;
 
-        DB::transaction(function() use ($survey_id, $request, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $respondent_signature, $marital_status, $spouse_name, $spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender) {
+        DB::transaction(function() use ($survey_id, $request, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $respondent_signature, $house_photo_path, $person_photo_path, $lat, $lon, $marital_status, $spouse_name, $spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender, $normalize, $yn) {
             $toInt = function($v) { return is_numeric($v) ? (int)$v : null; };
             $classMap = ['displaced'=>1,'double-up'=>2,'homeless'=>3,'upgrading of land tenure'=>4,'upgrading_of_land_tenure'=>4];
             $displacedMap = ['coastal areas'=>1,'drought'=>2,'earthquake affected'=>3,'flood affected'=>4,'sea level rise'=>5,'threat of eviction'=>6,'eviction/demolition order'=>7,'human induced disaster'=>8,'infra projects'=>9,'landslide affected'=>10,'near waterways'=>11];
@@ -882,7 +963,7 @@ class ValidatorDashboardController extends Controller
                 'date_interviewed' => trim((string)$request->input('date_interviewed')),
             ]);
             DB::table('classification')->where('survey_id', $survey_id)->update([
-                'previous_client' => $toInt($request->input('previous_client')),
+                'previous_client' => $yn($request->input('previous_client')),
                 'year_inhabited' => $toInt($request->input('year_inhabited')),
                 'classification' => $classMap[strtolower((string)$classification)] ?? null,
                 'subclass_displaced' => $subclass_displaced ? ($displacedMap[strtolower((string)$subclass_displaced)] ?? null) : null,
@@ -935,23 +1016,31 @@ class ValidatorDashboardController extends Controller
                 'monthly_salary' => $msInput,
                 'combine_monthly_income' => trim((string)$request->input('combine_monthly_income')),
             ]);
-            DB::table('training')->where('survey_id', $survey_id)->update([
+            $trainingUpdate = [
                 'skills_for_living' => $skills_for_living,
                 'specific_skill' => $specific_skill,
                 'organization_member' => $organization_member,
                 'specific_organization' => $specific_organization,
                 'wanttolearn' => trim((string)$request->input('wanttolearn')),
                 'remarks' => trim((string)$request->input('remarks')),
-            ]);
+                'latitude' => $lat,
+                'longitude' => $lon,
+            ];
+            if ($house_photo_path) { $trainingUpdate['house_photo'] = $house_photo_path; }
+            if ($person_photo_path) { $trainingUpdate['person_photo'] = $person_photo_path; }
+            if ($respondent_signature) { $trainingUpdate['respondent_signature'] = $respondent_signature; }
+            DB::table('training')->where('survey_id', $survey_id)->update($trainingUpdate);
             DB::table('household_mem')->where('survey_id', $survey_id)->delete();
             $hmCols = Schema::getColumnListing('household_mem');
             $colCivil = in_array('civilStatus', $hmCols) ? 'civilStatus' : 'civil_status';
             $colEdu = in_array('educationalAttainment', $hmCols) ? 'educationalAttainment' : 'educational_attainment';
             $colIncome = in_array('monthlyIncome', $hmCols) ? 'monthlyIncome' : 'monthly_income';
+            $colSex = in_array('gender', $hmCols) ? 'gender' : (in_array('sex', $hmCols) ? 'sex' : null);
             $colCode = in_array('code', $hmCols) ? 'code' : null;
             $names = $request->input('name', []);
             $relationships = $request->input('relationship', []);
             $ages = $request->input('age', []);
+            $sexes = $request->input('sex', []);
             $civil_statuses = $request->input('civil_status', []);
             $educations = $request->input('educational_attainment', []);
             $occupations = $request->input('occupation', []);
@@ -961,6 +1050,7 @@ class ValidatorDashboardController extends Controller
                 $n = $normalize($n);
                 $rel = $normalize($relationships[$i] ?? null);
                 $age = (int) ($ages[$i] ?? 0);
+                $sex = $normalize($sexes[$i] ?? null);
                 $civ = $normalize($civil_statuses[$i] ?? null);
                 $edu = $normalize($educations[$i] ?? null);
                 $occ = $normalize($occupations[$i] ?? null);
@@ -968,6 +1058,9 @@ class ValidatorDashboardController extends Controller
                 $code = $normalize($codes[$i] ?? null);
                 if (empty($n) && empty($rel) && empty($age)) continue;
                 $payload = [ 'survey_id' => $survey_id, 'name' => $n, 'relationship' => $rel, 'age' => $age, 'occupation' => $occ ?? '' ];
+                if ($colSex) {
+                    $payload[$colSex] = $sex ?? '';
+                }
                 $payload[$colCivil] = $civ ?? '';
                 $payload[$colEdu] = $edu ?? '';
                 $payload[$colIncome] = $inc ?? '';
@@ -1039,13 +1132,12 @@ class ValidatorDashboardController extends Controller
         if (!$validator_id) {
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
-        $barangay = trim((string)$request->get('barangay', ''));
+        $barangay = $this->normalizeBarangay((string)$request->get('barangay', ''));
         if ($barangay === '') {
             return response()->json(['message' => 'Missing barangay'], 400);
         }
         $code = $this->getBarangayCode($barangay);
         $maxTag = DB::table('demographic')
-            ->where('barangay', $barangay)
             ->where('tag_number', 'like', $code . '%')
             ->max('tag_number');
         $nextSeq = 1;
@@ -3226,7 +3318,7 @@ class ValidatorDashboardController extends Controller
         }
         $update = [];
         if ($email) $update['email'] = $email;
-        if ($password) $update['password'] = \Illuminate\Support\Facades\Hash::make($password);
+        if ($password) $update['password'] = password_hash($password, PASSWORD_BCRYPT);
         DB::table('admin')->where('username', $username)->update($update);
         return response()->json(['ok' => true]);
     }
@@ -4017,20 +4109,18 @@ class ValidatorDashboardController extends Controller
         if ($exists) {
             return response()->json(['errors' => ['username' => ['Username already taken']]], 422);
         }
-        $encryptedSignature = null;
+        $signaturePath = null;
         if ($request->hasFile('signature')) {
             $file = $request->file('signature');
-            $bytes = file_get_contents($file->getRealPath());
-            $b64 = base64_encode($bytes);
-            $encryptedSignature = Crypt::encryptString($b64);
+            $signaturePath = $file->store('signatures', 'public');
         }
         DB::table('validator')->insert([
             'username' => $username,
             'name' => $request->input('name'),
             'email' => $request->input('email'),
-            'password' => \Illuminate\Support\Facades\Hash::make($request->input('password')),
+            'password' => password_hash($request->input('password'), PASSWORD_BCRYPT),
             'status' => 'approved',
-            'signature_data' => $encryptedSignature,
+            'signature_data' => $signaturePath,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -4535,35 +4625,40 @@ class ValidatorDashboardController extends Controller
     protected function getBarangayCode(string $barangay): string
     {
         $map = [
-            'Aplaya' => 'A',
-            'Balabag' => 'B',
-            'Binaton' => 'C',
-            'Cogon' => 'D',
-            'Colorado' => 'E',
-            'Dawis' => 'F',
-            'Dulangan' => 'G',
-            'Goma' => 'H',
-            'Igpit' => 'I',
-            'Kapatagan' => 'J',
-            'Kiagot' => 'K',
-            'Lungag' => 'L',
-            'Mahatahay' => 'M',
-            'Matti' => 'N',
-            'Ruparan' => 'O',
-            'San Agustin' => 'P',
-            'San Jose' => 'Q',
-            'San Miguel' => 'R',
-            'San Roque' => 'S',
-            'Sinawilan' => 'T',
-            'Soong' => 'U',
-            'Tiguman' => 'V',
-            'Tres De Mayo' => 'W',
-            'Zone I' => 'X',
-            'Zone II' => 'Y',
-            'Zone III' => 'Z',
+            'aplya' => 'A',
+            'aplaya' => 'A',
+            'balabag' => 'B',
+            'binaton' => 'C',
+            'cogon' => 'D',
+            'colorado' => 'E',
+            'dawis' => 'F',
+            'dulangan' => 'G',
+            'goma' => 'H',
+            'igpit' => 'I',
+            'kapatagan' => 'J',
+            'kiagot' => 'K',
+            'lungag' => 'L',
+            'mahatahay' => 'M',
+            'matti' => 'N',
+            'ruparan' => 'O',
+            'san agustin' => 'P',
+            'san jose' => 'Q',
+            'san miguel' => 'R',
+            'san roque' => 'S',
+            'sinawilan' => 'T',
+            'soong' => 'U',
+            'tiguman' => 'V',
+            'tres de mayo' => 'W',
+            'zone 1' => 'X',
+            'zone 2' => 'Y',
+            'zone 3' => 'Z',
+            'zone i' => 'X',
+            'zone ii' => 'Y',
+            'zone iii' => 'Z',
         ];
 
-        return $map[$barangay] ?? 'Z';
+        $key = strtolower($this->normalizeBarangay($barangay));
+        return $map[$key] ?? 'Z';
     }
 
     protected function generateTagNumber(string $barangay): string
@@ -4571,10 +4666,10 @@ class ValidatorDashboardController extends Controller
         $code = $this->getBarangayCode($barangay);
 
         $maxTag = DB::table('demographic')
-            ->where('barangay', $barangay)
             ->where('tag_number', 'like', $code . '%')
+            ->orderBy('tag_number', 'desc')
             ->lockForUpdate()
-            ->max('tag_number');
+            ->value('tag_number');
 
         $nextSeq = 1;
         if ($maxTag) {

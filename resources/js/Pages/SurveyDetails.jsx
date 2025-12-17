@@ -587,33 +587,61 @@ export default function SurveyDetails() {
                           'Full Concrete',
                           'Made of wood and metal roof',
                           'Made of Amakan and Nipa',
-                        ].map(lbl => { const opt = HS_OPTS.find(o=>o.label===lbl); return (
-                          <div key={lbl} className="flex items-center gap-[1px]">
-                            <Check checked={opt ? eq(survey.housing_structure, opt.key) : false} />
-                            <span>{lbl}</span>
-                          </div>
-                        )})}
+                        ].map(lbl => {
+                          const opt = HS_OPTS.find(o => o.label === lbl);
+                          const otherRaw = String(survey.other_housing_structure || '');
+                          const checked = opt ? (
+                            eq(survey.housing_structure, opt.key) ||
+                            eq(survey.housing_structure, opt.label) ||
+                            eq(otherRaw, opt.key) ||
+                            eq(otherRaw, opt.label)
+                          ) : false;
+                          return (
+                            <div key={lbl} className="flex items-center gap-[1px]">
+                              <Check checked={checked} />
+                              <span>{lbl}</span>
+                            </div>
+                          )
+                        })}
                       </div>
                       <div className="space-y-0">
                         {[
                           'Combination of concrete and wood',
                           'Made of Amakan and metal roof',
                           'Makeshift/Salvaged/Improvised Material',
-                        ].map(lbl => { const opt = HS_OPTS.find(o=>o.label===lbl); return (
-                          <div key={lbl} className="flex items-center gap-[1px]">
-                            <Check checked={opt ? eq(survey.housing_structure, opt.key) : false} />
-                            <span>{lbl}</span>
-                          </div>
-                        )})}
+                        ].map(lbl => {
+                          const opt = HS_OPTS.find(o => o.label === lbl);
+                          const otherRaw = String(survey.other_housing_structure || '');
+                          const checked = opt ? (
+                            eq(survey.housing_structure, opt.key) ||
+                            eq(survey.housing_structure, opt.label) ||
+                            eq(otherRaw, opt.key) ||
+                            eq(otherRaw, opt.label)
+                          ) : false;
+                          return (
+                            <div key={lbl} className="flex items-center gap-[1px]">
+                              <Check checked={checked} />
+                              <span>{lbl}</span>
+                            </div>
+                          )
+                        })}
                         <div className="flex items-center gap-[2px]">
-                          {(() => { const v = String(survey.housing_structure||''); const known = HS_OPTS.some(o=>eq(v,o.key)); const other = String(survey.other_housing_structure||'') || (known? '' : v); return (
-                            <>
-                              <Check checked={other !== ''} />
-                              <span>Others</span>
-                              <span className="ml-[2px]">please specify</span>
-                              <span className="inline-block border-b border-black w-[140px] overflow-hidden whitespace-nowrap">{other}</span>
-                            </>
-                          ) })()}
+                          {(() => {
+                            const v = String(survey.housing_structure || '');
+                            const otherRaw = String(survey.other_housing_structure || '');
+                            const knownByValue = HS_OPTS.some(o => eq(v, o.key) || eq(v, o.label));
+                            const knownByOther = HS_OPTS.some(o => eq(otherRaw, o.key) || eq(otherRaw, o.label));
+                            const isOtherSelected = !knownByValue && !knownByOther && otherRaw !== '';
+                            const otherText = isOtherSelected ? (otherRaw || v) : '';
+                            return (
+                              <>
+                                <Check checked={isOtherSelected} />
+                                <span>Others</span>
+                                <span className="ml-[2px]">please specify</span>
+                                <span className="inline-block border-b border-black w-[140px] overflow-hidden whitespace-nowrap">{otherText}</span>
+                              </>
+                            )
+                          })()}
                         </div>
                       </div>
                     </div>

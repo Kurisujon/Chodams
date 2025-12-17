@@ -21,53 +21,42 @@ Route::get('/', function () {
 Route::get('/login', [LoginController::class, 'showLogin'])->name('login');
 Route::post('/login', [LoginController::class, 'login']);
 
-// Admin Dashboard (React)
-Route::get('/admin/dashboard', function () {
-    return Inertia::render('AdminDashboard');
+Route::middleware('role:admin')->group(function () {
+    Route::get('/admin/dashboard', function () {
+        return Inertia::render('AdminDashboard');
+    });
+    Route::get('/admin/beneficiaries', function () {
+        return Inertia::render('AdminBeneficiaries');
+    });
+    Route::get('/admin/project-sites', function () {
+        return Inertia::render('AdminProjectSites');
+    });
+    Route::get('/admin/project-sites/add', function () {
+        return Inertia::render('AdminProjectAdd');
+    });
+    Route::get('/admin/assignments', function () {
+        return Inertia::render('AdminAssignments');
+    });
+    Route::get('/admin/profile', function () {
+        return Inertia::render('AdminProfile');
+    });
+    Route::get('/admin/profile/edit', function () {
+        return Inertia::render('EditAdminProfile');
+    });
+    Route::get('/admin/validators/create', function () {
+        return Inertia::render('ValidatorSignup');
+    });
+    Route::get('/admin/about', function () {
+        return Inertia::render('AdminAbout');
+    });
+    Route::get('/admin/beneficiaries/{survey_id}', function ($survey_id) {
+        return Inertia::render('SurveyDetails', ['survey_id' => $survey_id, 'api_base' => '/admin/api']);
+    });
+    Route::post('/admin/logout', [LoginController::class, 'logout']);
 });
-
-// Admin Beneficiaries Page (React)
-Route::get('/admin/beneficiaries', function () {
-    return Inertia::render('AdminBeneficiaries');
-});
-
-// Admin Project Sites (React)
-Route::get('/admin/project-sites', function () {
-    return Inertia::render('AdminProjectSites');
-});
-Route::get('/admin/project-sites/add', function () {
-    return Inertia::render('AdminProjectAdd');
-});
-
-// Admin Assignments (React)
-Route::get('/admin/assignments', function () {
-    return Inertia::render('AdminAssignments');
-});
-
-// Admin Profile (React)
-Route::get('/admin/profile', function () {
-    return Inertia::render('AdminProfile');
-});
-Route::get('/admin/profile/edit', function () {
-    return Inertia::render('EditAdminProfile');
-});
-Route::get('/admin/validators/create', function () {
-    return Inertia::render('ValidatorSignup');
-});
-Route::get('/admin/about', function () {
-    return Inertia::render('AdminAbout');
-});
-
-// Admin Beneficiary Details (reuse SurveyDetails)
-Route::get('/admin/beneficiaries/{survey_id}', function ($survey_id) {
-    return Inertia::render('SurveyDetails', ['survey_id' => $survey_id, 'api_base' => '/admin/api']);
-});
-
-// Admin Logout
-Route::post('/admin/logout', [LoginController::class, 'logout']);
 
 // Admin API Routes
-Route::prefix('admin/api')->group(function () {
+Route::prefix('admin/api')->middleware('role:admin')->group(function () {
     Route::get('/totals', [ValidatorDashboardController::class, 'adminTotals']);
     Route::get('/barangay', [ValidatorDashboardController::class, 'adminBarangay']);
     Route::get('/classification', [ValidatorDashboardController::class, 'adminClassification']);
@@ -120,36 +109,27 @@ Route::prefix('admin/api')->group(function () {
     Route::post('/assignments', [ValidatorDashboardController::class, 'adminAssignmentsCreate']);
 });
 
-// Validator Logout
-Route::post('/validator/logout', [LoginController::class, 'logout']);
-
-// Validator Dashboard (React)
-Route::get('/validator/dashboard', function () {
-    return Inertia::render('ValidatorDashboard');
+Route::middleware('role:validator')->group(function () {
+    Route::post('/validator/logout', [LoginController::class, 'logout']);
+    Route::get('/validator/dashboard', function () {
+        return Inertia::render('ValidatorDashboard');
+    });
+    Route::get('/validator/survey-form', function () {
+        return Inertia::render('SurveyForm', [
+            'validator_name' => session('name'),
+        ]);
+    });
+    Route::get('/validator/survey/{survey_id}', function ($survey_id) {
+        return Inertia::render('SurveyDetails', ['survey_id' => $survey_id]);
+    });
+    Route::get('/validator/profile', function () {
+        return Inertia::render('ValidatorProfile');
+    });
+    Route::post('/validator/logout', [LoginController::class, 'logout']);
 });
-
-// Survey Form Page (React)
-Route::get('/validator/survey-form', function () {
-    return Inertia::render('SurveyForm', [
-        'validator_name' => session('name'),
-    ]);
-});
-
-// Survey Details Page (React)
-Route::get('/validator/survey/{survey_id}', function ($survey_id) {
-    return Inertia::render('SurveyDetails', ['survey_id' => $survey_id]);
-});
-
-// Validator Profile Page (React)
-Route::get('/validator/profile', function () {
-    return Inertia::render('ValidatorProfile');
-});
-
-// Validator Logout
-Route::post('/validator/logout', [LoginController::class, 'logout']);
 
 // Validator API Routes
-Route::prefix('validator/api')->group(function () {
+Route::prefix('validator/api')->middleware('role:validator')->group(function () {
     Route::get('/totals', [ValidatorDashboardController::class, 'totals']);
     Route::get('/surveys', [ValidatorDashboardController::class, 'surveys']);
     Route::get('/submitted', [ValidatorDashboardController::class, 'submitted']);
