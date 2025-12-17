@@ -44,30 +44,40 @@ class LoginController extends Controller
 
         $admin = DB::table('admin')
             ->select('username', 'password')
-            ->where('username', $username)
+            ->whereRaw('LOWER(username) = ?', [strtolower($username)])
             ->first();
 
         if ($admin) {
-            $adminPassword = $admin->password;
-            $isValid = password_verify($password, $adminPassword) || $password === $adminPassword;
+            $adminPassword = (string)$admin->password;
+            $isValid = ($adminPassword !== '' && password_verify($password, $adminPassword))
+                || $password === $adminPassword
+                || (md5($password) === $adminPassword);
             if ($isValid) {
                 $request->session()->regenerate();
-                session([ 'loggedin' => true, 'role' => 'admin', 'username' => $username ]);
+                session([ 'loggedin' => true, 'role' => 'admin', 'username' => $admin->username ]);
                 return redirect('/admin/dashboard');
             }
         }
 
         $validator = DB::table('validator')
-            ->select('validator_id', 'name', 'password')
-            ->where('username', $username)
+            ->select('validator_id', 'name', 'username', 'password')
+            ->whereRaw('LOWER(username) = ?', [strtolower($username)])
             ->where('status', 'approved')
             ->first();
 
-        if ($validator && password_verify($password, $validator->password)) {
+        if ($validator) {
+            $stored = (string)$validator->password;
+            $valid = ($stored !== '' && password_verify($password, $stored))
+                || $password === $stored
+                || (md5($password) === $stored);
+        } else {
+            $valid = false;
+        }
+        if ($validator && $valid) {
             session([
                 'loggedin' => true,
                 'role' => 'validator',
-                'username' => $username,
+                'username' => $validator->username,
                 'validator_id' => $validator->validator_id,
                 'name' => $validator->name,
             ]);

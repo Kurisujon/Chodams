@@ -85,11 +85,12 @@ export default function ValidatorDashboard() {
   const [totals, setTotals] = useState({ total_surveyed: 0, total_submitted: 0 })
   const [surveys, setSurveys] = useState({ data: [], total: 0, page: 1 })
   const [submitted, setSubmitted] = useState({ data: [], total: 0, page: 1 })
-  const [showTable, setShowTable] = useState('none') // 'survey' or 'submitted' or 'none'
+  const [deleted, setDeleted] = useState({ data: [], total: 0, page: 1 })
+  const [showTable, setShowTable] = useState('none') // 'survey' or 'submitted' or 'deleted' or 'none'
+  const [showBarangayList, setShowBarangayList] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalRows, setModalRows] = useState([])
   const [search, setSearch] = useState('')
-  const [showBarangayList, setShowBarangayList] = useState(false)
   const [barangayFilter, setBarangayFilter] = useState('')
   const [exportScope, setExportScope] = useState('all')
   const [exportClass, setExportClass] = useState('')
@@ -112,6 +113,7 @@ export default function ValidatorDashboard() {
     fetchTotals()
     fetchSurveys(1)
     fetchSubmitted(1)
+    fetchDeleted(1)
   }, [])
 
   useEffect(() => {
@@ -120,6 +122,8 @@ export default function ValidatorDashboard() {
       setSurveys(prev => ({ ...prev, page: 1 }))
       fetchSubmitted(1, search)
       setSubmitted(prev => ({ ...prev, page: 1 }))
+      fetchDeleted(1, search)
+      setDeleted(prev => ({ ...prev, page: 1 }))
     }, 300)
     return () => clearTimeout(t)
   }, [search])
@@ -144,6 +148,12 @@ export default function ValidatorDashboard() {
       setSubmitted(res.data)
     } catch (e) { console.error(e) }
   }
+  async function fetchDeleted(page = 1, s = '') {
+    try {
+      const res = await axios.get('/validator/api/deleted', { params: { page, per_page: perPage, search: s } })
+      setDeleted(res.data)
+    } catch (e) { console.error(e) }
+  }
 
   async function handleSubmitSurvey(survey_id) {
     if (!confirm('Submit to admin?')) return
@@ -163,16 +173,18 @@ export default function ValidatorDashboard() {
 
   async function handleExportBarangay() {
     try {
+      const scope = showBarangayList ? exportScope : showTable === 'survey' ? 'survey' : showTable === 'submitted' ? 'submitted' : ''
+      if (!scope) return
       const b = (barangayFilter || '').trim()
       if (!b) return
-      const params = { barangay: b, scope: exportScope || 'submitted' }
+      const params = { barangay: b, scope }
       if (exportClass) params.classification = exportClass
       const res = await axios.get('/validator/api/export/barangay', { params, responseType: 'blob' })
       const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8' })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `barangay-${b.replace(/\s+/g,'_').toLowerCase()}.csv`
+      a.download = `${scope}-barangay-${b.replace(/\s+/g,'_').toLowerCase()}.csv`
       document.body.appendChild(a)
       a.click()
       a.remove()
@@ -192,7 +204,9 @@ export default function ValidatorDashboard() {
   const q = search.trim().toLowerCase()
   const surveysFiltered = q ? (surveys.data || []).filter(r => [r.date_interviewed, r.barangay, r.purok, r.last_name, r.classification, r.subclass_displaced, r.subclass_doubleup].some(v => String(v || '').toLowerCase().includes(q))) : (surveys.data || [])
   const submittedFiltered = q ? (submitted.data || []).filter(r => [r.date_interviewed, r.barangay, r.purok, r.last_name, r.classification, r.subclass_displaced, r.subclass_doubleup].some(v => String(v || '').toLowerCase().includes(q))) : (submitted.data || [])
+  const deletedFiltered = q ? (deleted.data || []).filter(r => [r.deleted_at, r.barangay, r.purok, r.last_name, r.classification, r.subclass_displaced, r.subclass_doubleup].some(v => String(v || '').toLowerCase().includes(q))) : (deleted.data || [])
   const surveysFinal = barangayFilter ? surveysFiltered.filter(r => r.barangay === barangayFilter) : surveysFiltered
+  const submittedFinal = barangayFilter ? submittedFiltered.filter(r => r.barangay === barangayFilter) : submittedFiltered
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
@@ -314,7 +328,7 @@ export default function ValidatorDashboard() {
         {/* Cards */}
         <DashboardFade delay={200}>
           <section className="mt-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <button onClick={() => setShowTable(showTable === 'survey' ? 'none' : 'survey')} className="text-left bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-md transition min-h-[160px]">
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-50 text-emerald-600">
                   <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 11c0 2.761-2.239 5-5 5s-5-2.239-5-5 2.239-5 5-5 5 2.239 5 5z"/><path d="M20 21a8 8 0 10-16 0"/></svg>
@@ -330,6 +344,15 @@ export default function ValidatorDashboard() {
                 </div>
                 <div className="mt-4 text-3xl font-semibold text-gray-900">{totals.total_submitted}</div>
                 <div className="mt-1 text-sm text-gray-600">Submitted</div>
+                <div className="mt-1 text-xs text-gray-500">Tap to view list</div>
+              </button>
+
+              <button onClick={() => setShowTable(showTable === 'deleted' ? 'none' : 'deleted')} className="text-left bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-md transition min-h-[160px]">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-50 text-red-600">
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M8 6v12a2 2 0 002 2h4a2 2 0 002-2V6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+                </div>
+                <div className="mt-4 text-3xl font-semibold text-gray-900">{deleted.total}</div>
+                <div className="mt-1 text-sm text-gray-600">Deleted</div>
                 <div className="mt-1 text-xs text-gray-500">Tap to view list</div>
               </button>
 
@@ -444,7 +467,7 @@ export default function ValidatorDashboard() {
                     className="group border-b border-gray-100 last:border-b-0 transition-colors duration-150 hover:bg-emerald-50"
                   >
                     <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.date_interviewed}</td>
-                    <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.barangay}</td>
+                    <td className="px-3 py-3 whitespace-nowrap text-gray-700">{String(row.barangay || '').replace(/_/g,' ')}</td>
                     <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.purok}</td>
                     <td className="px-3 py-3 whitespace-nowrap text-gray-900 font-medium">{row.last_name}</td>
                     <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.classification}</td>
@@ -480,6 +503,7 @@ export default function ValidatorDashboard() {
                     </td>
                   </tr>
                 ))}
+                {!surveysFinal.length && <tr><td className="p-3" colSpan="8">No surveyed applicants found.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -518,13 +542,13 @@ export default function ValidatorDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {submittedFiltered.map(row => (
+                {submittedFinal.map(row => (
                   <tr
                     key={row.survey_id}
                     className="group border-b border-gray-100 last:border-b-0 transition-colors duration-150 hover:bg-emerald-50"
                   >
                     <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.date_interviewed}</td>
-                    <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.barangay}</td>
+                    <td className="px-3 py-3 whitespace-nowrap text-gray-700">{String(row.barangay || '').replace(/_/g,' ')}</td>
                     <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.purok}</td>
                     <td className="px-3 py-3 whitespace-nowrap text-gray-900 font-medium">{row.last_name}</td>
                     <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.classification}</td>
@@ -552,6 +576,7 @@ export default function ValidatorDashboard() {
                     </td>
                   </tr>
                 ))}
+                {!submittedFinal.length && <tr><td className="p-3" colSpan="8">No submitted applicants found.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -568,6 +593,59 @@ export default function ValidatorDashboard() {
             </section>
           </DashboardFade>
         )}
+
+        {/* Deleted Table */}
+        <section className={`mt-6 bg-white p-6 rounded-2xl border border-gray-200 shadow-sm ${showTable !== 'deleted' && 'hidden'}`}>
+          <h3 className="text-lg font-semibold text-emerald-800 mb-4">Deleted Surveys</h3>
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead className="bg-red-50 text-red-800">
+                <tr>
+                  <th className="p-3 text-left">Deleted At</th>
+                  <th className="p-3 text-left">Barangay</th>
+                  <th className="p-3 text-left">Purok</th>
+                  <th className="p-3 text-left">Surname</th>
+                  <th className="p-3 text-left">Classification</th>
+                  <th className="p-3 text-left">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deletedFiltered.map(row => (
+                  <tr key={row.survey_id} className="even:bg-gray-50">
+                    <td className="p-3">{row.deleted_at}</td>
+                    <td className="p-3">{String(row.barangay || '').replace(/_/g,' ')}</td>
+                    <td className="p-3">{row.purok}</td>
+                    <td className="p-3">{row.last_name}</td>
+                    <td className="p-3">{row.classification}</td>
+                    <td className="p-3 space-x-2">
+                      <button
+                        onClick={async () => {
+                          try {
+                            await axios.post(`/validator/api/survey/${row.survey_id}/restore`)
+                            fetchDeleted(deleted.page)
+                            fetchSurveys(surveys.page)
+                            fetchTotals()
+                          } catch (e) { console.error(e) }
+                        }}
+                        className="px-3 py-1 border rounded text-sm text-emerald-800 hover:bg-emerald-50"
+                      >Restore</button>
+                    </td>
+                  </tr>
+                ))}
+                {!deletedFiltered.length && <tr><td className="p-3" colSpan="6">No deleted surveys.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-4 flex justify-center gap-2">
+            {pages(deleted.total).map(i => (
+              <button key={i}
+                      onClick={() => { fetchDeleted(i, search); setDeleted(prev => ({...prev, page: i})) }}
+                      className={`px-3 py-1 rounded border ${deleted.page === i ? 'bg-red-600 text-white' : 'text-red-800'}`}>
+                {i}
+              </button>
+            ))}
+          </div>
+        </section>
 
         {/* Modal for showing all surveys (Total Surveyed click) */}
         {modalOpen && (
@@ -597,7 +675,7 @@ export default function ValidatorDashboard() {
                         className="group border-b border-gray-100 last:border-b-0 transition-colors duration-150 hover:bg-emerald-50"
                       >
                         <td className="px-3 py-3 whitespace-nowrap text-gray-700">{r.date_interviewed}</td>
-                        <td className="px-3 py-3 whitespace-nowrap text-gray-700">{r.barangay}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-gray-700">{String(r.barangay || '').replace(/_/g,' ')}</td>
                         <td className="px-3 py-3 whitespace-nowrap text-gray-700">{r.purok}</td>
                         <td className="px-3 py-3 whitespace-nowrap text-gray-900 font-medium">{r.last_name}</td>
                         <td className="px-3 py-3 whitespace-nowrap text-gray-700">{r.classification}</td>

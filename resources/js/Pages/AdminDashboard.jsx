@@ -553,6 +553,7 @@ export default function AdminDashboard() {
               </div>
             </div>
           `
+          if (marker.getPopup()) marker.unbindPopup()
           marker.bindPopup(html, { maxWidth: 360, className: 'custom-popup' }).openPopup()
         })
         cluster.addLayer(marker)

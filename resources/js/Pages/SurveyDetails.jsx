@@ -120,23 +120,42 @@ export default function SurveyDetails() {
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="max-w-6xl mx-auto p-6 print:max-w-none print:p-0 print:m-0">
-        <div className="flex justify-between items-center mb-4 print:hidden">
-          <h1 className="text-2xl font-semibold text-emerald-800">Survey Form Details</h1>
-          <div className="flex gap-2">
-            <Link href={isAdmin ? '/admin/beneficiaries' : '/validator/dashboard'} className="px-4 py-2 border rounded text-emerald-800">Back</Link>
-            <button onClick={() => window.print()} className="px-4 py-2 bg-emerald-600 text-white rounded">Print</button>
-            <a
-              href={`${apiBase}/survey/${surveyId}/export`}
-              className="px-3 py-2 rounded-2xl ring-2 ring-emerald-300 text-emerald-700 inline-flex items-center gap-2 hover:bg-emerald-50"
-              title="Download Excel"
-            >
-              <img src="/icons/downloadicon.png" alt="Download" className="w-5 h-5" />
-            </a>
-            {isAdmin && survey?.is_submitted !== 2 && (
-              <button onClick={handleApprove} className="px-4 py-2 bg-emerald-600 text-white rounded">Approve</button>
-            )}
+          <div className="flex justify-between items-center mb-4 print:hidden">
+            <h1 className="text-2xl font-semibold text-emerald-800">Survey Form Details</h1>
+            <div className="flex gap-2">
+              <Link href={isAdmin ? '/admin/beneficiaries' : '/validator/dashboard'} className="px-4 py-2 border rounded text-emerald-800">Back</Link>
+              <button onClick={() => window.print()} className="px-4 py-2 bg-emerald-600 text-white rounded">Print</button>
+              <a
+                href={`${apiBase}/survey/${surveyId}/export`}
+                className="px-3 py-2 rounded-2xl ring-2 ring-emerald-300 text-emerald-700 inline-flex items-center gap-2 hover:bg-emerald-50"
+                title="Download Excel"
+              >
+                <img src="/icons/downloadicon.png" alt="Download" className="w-5 h-5" />
+              </a>
+              {isAdmin && survey?.is_submitted !== 2 && (
+                <button onClick={handleApprove} className="px-4 py-2 bg-emerald-600 text-white rounded">Approve</button>
+              )}
+              {!isAdmin && (survey?.is_submitted === 0) && (
+                <>
+                  <Link href={`/validator/survey-form?survey_id=${surveyId}`} className="px-4 py-2 border rounded text-emerald-800">Edit</Link>
+                  <button
+                    onClick={async () => {
+                      if (!confirm('Delete this survey? You can restore it later.')) return
+                      try {
+                        await axios.delete(`/validator/api/survey/${surveyId}`)
+                        window.location.href = '/validator/dashboard'
+                      } catch (e) {
+                        alert(e?.response?.data?.message || 'Delete failed')
+                      }
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white rounded"
+                  >
+                    Delete
+                  </button>
+                </>
+              )}
+            </div>
           </div>
-        </div>
         <style>{`
           @page { size: 8.5in 13in; margin: 0in; }
           @media print {
@@ -571,33 +590,61 @@ export default function SurveyDetails() {
                           'Full Concrete',
                           'Made of wood and metal roof',
                           'Made of Amakan and Nipa',
-                        ].map(lbl => { const opt = HS_OPTS.find(o=>o.label===lbl); return (
-                          <div key={lbl} className="flex items-center gap-[1px]">
-                            <Check checked={opt ? eq(survey.housing_structure, opt.key) : false} />
-                            <span>{lbl}</span>
-                          </div>
-                        )})}
+                        ].map(lbl => {
+                          const opt = HS_OPTS.find(o => o.label === lbl);
+                          const otherRaw = String(survey.other_housing_structure || '');
+                          const checked = opt ? (
+                            eq(survey.housing_structure, opt.key) ||
+                            eq(survey.housing_structure, opt.label) ||
+                            eq(otherRaw, opt.key) ||
+                            eq(otherRaw, opt.label)
+                          ) : false;
+                          return (
+                            <div key={lbl} className="flex items-center gap-[1px]">
+                              <Check checked={checked} />
+                              <span>{lbl}</span>
+                            </div>
+                          )
+                        })}
                       </div>
                       <div className="space-y-0">
                         {[
                           'Combination of concrete and wood',
                           'Made of Amakan and metal roof',
                           'Makeshift/Salvaged/Improvised Material',
-                        ].map(lbl => { const opt = HS_OPTS.find(o=>o.label===lbl); return (
-                          <div key={lbl} className="flex items-center gap-[1px]">
-                            <Check checked={opt ? eq(survey.housing_structure, opt.key) : false} />
-                            <span>{lbl}</span>
-                          </div>
-                        )})}
+                        ].map(lbl => {
+                          const opt = HS_OPTS.find(o => o.label === lbl);
+                          const otherRaw = String(survey.other_housing_structure || '');
+                          const checked = opt ? (
+                            eq(survey.housing_structure, opt.key) ||
+                            eq(survey.housing_structure, opt.label) ||
+                            eq(otherRaw, opt.key) ||
+                            eq(otherRaw, opt.label)
+                          ) : false;
+                          return (
+                            <div key={lbl} className="flex items-center gap-[1px]">
+                              <Check checked={checked} />
+                              <span>{lbl}</span>
+                            </div>
+                          )
+                        })}
                         <div className="flex items-center gap-[2px]">
-                          {(() => { const v = String(survey.housing_structure||''); const known = HS_OPTS.some(o=>eq(v,o.key)); const other = String(survey.other_housing_structure||'') || (known? '' : v); return (
-                            <>
-                              <Check checked={other !== ''} />
-                              <span>Others</span>
-                              <span className="ml-[2px]">please specify</span>
-                              <span className="inline-block border-b border-black w-[140px] overflow-hidden whitespace-nowrap">{other}</span>
-                            </>
-                          ) })()}
+                          {(() => {
+                            const v = String(survey.housing_structure || '');
+                            const otherRaw = String(survey.other_housing_structure || '');
+                            const knownByValue = HS_OPTS.some(o => eq(v, o.key) || eq(v, o.label));
+                            const knownByOther = HS_OPTS.some(o => eq(otherRaw, o.key) || eq(otherRaw, o.label));
+                            const isOtherSelected = !knownByValue && !knownByOther && otherRaw !== '';
+                            const otherText = isOtherSelected ? (otherRaw || v) : '';
+                            return (
+                              <>
+                                <Check checked={isOtherSelected} />
+                                <span>Others</span>
+                                <span className="ml-[2px]">please specify</span>
+                                <span className="inline-block border-b border-black w-[140px] overflow-hidden whitespace-nowrap">{otherText}</span>
+                              </>
+                            )
+                          })()}
                         </div>
                       </div>
                     </div>

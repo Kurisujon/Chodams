@@ -182,7 +182,7 @@ function SmoothSelect({ value, onChange, options, buttonClassName, disabled = fa
   )
 }
 
-function Signature({ canvasRef, onClear }) {
+function Signature({ canvasRef, onClear, onEnd }) {
   const drawing = useRef(false)
   const last = useRef({ x: 0, y: 0 })
 
@@ -217,7 +217,10 @@ function Signature({ canvasRef, onClear }) {
     ctx.stroke()
     last.current = { x, y }
   }
-  const onUp = () => { drawing.current = false }
+  const onUp = () => {
+    drawing.current = false
+    if (typeof onEnd === 'function') onEnd()
+  }
   return (
     <div className="space-y-2">
       <div className="w-full max-w-3xl">
@@ -255,6 +258,11 @@ export default function SurveyForm() {
   const [lat, setLat] = useState('')
   const [lon, setLon] = useState('')
   const rSigRef = useRef(null)
+  const [signatureDirty, setSignatureDirty] = useState(false)
+  const [respondentSignatureDataUrl, setRespondentSignatureDataUrl] = useState('')
+  const [existingHousePhotoUrl, setExistingHousePhotoUrl] = useState('')
+  const [existingPersonPhotoUrl, setExistingPersonPhotoUrl] = useState('')
+  const [existingRespondentSignatureUrl, setExistingRespondentSignatureUrl] = useState('')
   const sortedBarangays = useMemo(() => [...barangays].sort((a,b)=>a.replace(/_/g,' ').localeCompare(b.replace(/_/g,' '))), [])
   
   const inputClass = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100'
@@ -321,9 +329,10 @@ export default function SurveyForm() {
     </div>
   ) }
 
-  const [members, setMembers] = useState([{ name:'', age:'', gender:'', relationship:'', civil_status:'', educational_attainment:'', occupation:'', monthly_income:'' }])
+  const [members, setMembers] = useState([{ name:'', age:'', sex:'', relationship:'', civil_status:'', educational_attainment:'', occupation:'', monthly_income:'', code:'' }])
   const [tagNum, setTagNum] = useState('')
   const [affSelections, setAffSelections] = useState([])
+  const prevBarangayRef = useRef('')
 
   const [data, setData] = useState({
     previous_client:'', year_inhabited:'', classification:'', sub_class_displaced:'', sub_class_double_up:'', sub_class_homeless:'',
@@ -337,10 +346,160 @@ export default function SurveyForm() {
     organization_member:'', specific_organization:'', other_organization:'', wanttolearn:'', remarks:'', interviewed_by: validatorName, date_interviewed:''
   })
 
+  const incomeChoices = ['0 - 2,999 PHP','3,000 - 5,999 PHP','6,000 - 8,999 PHP','9,000 - 12,999 PHP','13,000 and above']
+  const relationshipChoices = ['Spouse','Son','Daughter','Father','Mother','Brother','Sister','Grandfather','Grandmother','Cousin','Relative']
+  const educationChoices = ['none','Elementary_Level_(Incomplete)','Elementary_Graduate','High_School_Level_(Incomplete)','High_School_Graduate','Vocational/Technical_Education','College_Level_(Incomplete)','College_Graduate','Postgraduate_Level','ALS']
+  const fileUrl = (path) => {
+    const s = String(path || '')
+    if (!s) return ''
+    if (s.startsWith('http')) return s
+    if (s.startsWith('storage/')) return `/${s}`
+    if (s.startsWith('signatures/')) return `/storage/${s}`
+    return s.startsWith('/') ? s : `/${s}`
+  }
+  const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim()
+  const toKey = (s) => norm(s).replace(/ /g, '_')
+  const ynToYesNo = (v) => {
+    if (v === 1 || v === '1' || v === true) return 'Yes'
+    if (v === 0 || v === '0' || v === false) return 'No'
+    const t = String(v || '').trim().toLowerCase()
+    if (t === 'yes') return 'Yes'
+    if (t === 'no') return 'No'
+    return ''
+  }
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const b = params.get('barangay')
     if (b) setData(d => ({ ...d, barangay: b }))
+    const sid = params.get('survey_id')
+    if (sid) {
+      axios.get(`/validator/api/survey/${sid}`).then(res => {
+        const sv = res.data?.survey
+        const mem = res.data?.members || []
+        if (sv) {
+          const housingStructureOptions = ['Full_Concrete','Made_of_wood_and_metal_roof','Made_of_Amakan_and_Nipa','Combination_of_concrete_and_wood','Made_of_Amakan_and_metal_roof']
+          const typeOfToiletOptions = ['Water-sealed','Pit','None']
+          const sourceOfWaterOptions = ['With_own_meter','Shared_connection','Well']
+          const sourceOfElectricityOptions = ['With_own_meter','Solar_Panel','Candle/Lamp','Tapping_to_the_neighbor']
+          const mainIncomeOptions = ['Public_Employee','Private_Employee','Self_Employed','Casual']
+          const workStatusOptions = ['Regular','Contractual']
+          const skillOptions = ['Handicrafts','Wood_Works_and_Furnitures','Food_Processing']
+          const organizationOptions = ['HOA','Youth_Organization','Dayong','Womens_Organization']
+
+          const normalizeToOptions = (stored, options, othersValue) => {
+            const raw = norm(stored)
+            if (!raw) return { v: '', other: '' }
+            const k = toKey(raw)
+            if (options.includes(k) || options.includes(raw)) return { v: options.includes(k) ? k : raw, other: '' }
+            return { v: othersValue, other: raw }
+          }
+
+          const hs = normalizeToOptions(sv.housing_structure, housingStructureOptions, 'Others')
+          const tt = normalizeToOptions(sv.type_of_toilet, typeOfToiletOptions, 'Others')
+          const sw = normalizeToOptions(sv.source_of_water, sourceOfWaterOptions, 'Others')
+          const se = normalizeToOptions(sv.source_of_electricity, sourceOfElectricityOptions, 'Others')
+          const mi = normalizeToOptions(sv.main_income_source, mainIncomeOptions, 'others')
+          const ws = normalizeToOptions(sv.work_status, workStatusOptions, 'others')
+          const sk = normalizeToOptions(sv.specific_skill, skillOptions, 'others')
+          const org = normalizeToOptions(sv.specific_organization, organizationOptions, 'others')
+
+          const classificationValue = sv.classification === 'Upgrading of Land Tenure' ? 'Upgrading_of_Land_Tenure' : (sv.classification || '')
+          const spouseReligionValue = sv.spouse_religion ? toKey(sv.spouse_religion) : ''
+          const affiliationsStr = norm(sv.affiliations || '')
+          const affList = affiliationsStr ? affiliationsStr.split(',').map(x => norm(x)).filter(Boolean) : []
+
+          setData(d => ({
+            ...d,
+            previous_client: sv.previous_client || d.previous_client,
+            year_inhabited: sv.year_inhabited || d.year_inhabited,
+            classification: classificationValue || d.classification,
+            sub_class_displaced: sv.subclass_displaced || d.sub_class_displaced,
+            sub_class_double_up: sv.subclass_doubleup || d.sub_class_double_up,
+            sub_class_homeless: sv.subclass_homeless || d.sub_class_homeless,
+            interview_person: sv.interview_person || d.interview_person,
+            last_name: sv.last_name || d.last_name,
+            first_name: sv.first_name || d.first_name,
+            middle_name: sv.middle_name || d.middle_name,
+            suffix: sv.suffix || d.suffix,
+            barangay: sv.barangay || d.barangay,
+            purok: sv.purok || d.purok,
+            street: sv.street || d.street,
+            gender: sv.gender || d.gender,
+            religion: sv.religion || d.religion,
+            birth_place: sv.birth_place || d.birth_place,
+            birth_date: sv.birth_date || d.birth_date,
+            person_age: sv.person_age || d.person_age,
+            marital_status: sv.marital_status || d.marital_status,
+            contact_number: sv.contact_number || d.contact_number,
+            language_spoken: sv.language_spoken || d.language_spoken,
+            tribe: sv.tribe || d.tribe,
+            highest_education: sv.highest_education || d.highest_education,
+            last_school_attended: sv.last_school_name || d.last_school_attended,
+            year_graduated: sv.year_graduated || d.year_graduated,
+            spouse_name: sv.spouse_name || d.spouse_name,
+            spouse_religion: spouseReligionValue || d.spouse_religion,
+            spouse_tribe: sv.spouse_tribe || d.spouse_tribe,
+            spouse_age: sv.spouse_age || d.spouse_age,
+            spouse_gender: sv.spouse_gender || d.spouse_gender,
+            affiliation: sv.affiliation ? toKey(sv.affiliation) : (d.affiliation || ''),
+            affiliations: affiliationsStr || d.affiliations,
+            endorsed_by_mayor: ynToYesNo(sv.endorsed_by_mayor) || d.endorsed_by_mayor,
+            lot_ownership: sv.lot_ownership || d.lot_ownership,
+            house_ownership: sv.house_ownership || d.house_ownership,
+            avail_socialized_housing: sv.avail_socialized_housing || d.avail_socialized_housing,
+            temporary_living_area: sv.temporary_living_area || d.temporary_living_area,
+            housing_structure: hs.v || d.housing_structure,
+            other_housing_structure: hs.other || d.other_housing_structure,
+            type_of_toilet: tt.v || d.type_of_toilet,
+            other_type_of_toilet: tt.other || d.other_type_of_toilet,
+            source_of_water: sw.v || d.source_of_water,
+            other_source_of_water: sw.other || d.other_source_of_water,
+            source_of_electricity: se.v || d.source_of_electricity,
+            other_source_of_electricity: se.other || d.other_source_of_electricity,
+            main_income_source: mi.v || d.main_income_source,
+            other_main_income_source: mi.other || d.other_main_income_source,
+            work_status: ws.v || d.work_status,
+            other_work_status: ws.other || d.other_work_status,
+            work_location_head: sv.work_location_head || d.work_location_head,
+            monthly_salary: sv.monthly_salary || d.monthly_salary,
+            combine_monthly_income: sv.combine_monthly_income || d.combine_monthly_income,
+            skills_for_living: sv.skills_for_living || d.skills_for_living,
+            specific_skill: sk.v || d.specific_skill,
+            other_skill: sk.other || d.other_skill,
+            organization_member: sv.organization_member || d.organization_member,
+            specific_organization: org.v || d.specific_organization,
+            other_organization: org.other || d.other_organization,
+            wanttolearn: sv.wanttolearn || d.wanttolearn,
+            remarks: sv.remarks || d.remarks,
+            date_interviewed: sv.date_interviewed || d.date_interviewed,
+          }))
+          setAffSelections(affList)
+          setLat(sv.latitude !== null && sv.latitude !== undefined ? String(sv.latitude) : '')
+          setLon(sv.longitude !== null && sv.longitude !== undefined ? String(sv.longitude) : '')
+          setExistingHousePhotoUrl(fileUrl(sv.house_photo))
+          setExistingPersonPhotoUrl(fileUrl(sv.person_photo))
+          setExistingRespondentSignatureUrl(fileUrl(sv.respondent_signature))
+          setMembers(mem.map(m => ({
+            name: m.name || '',
+            age: m.age || '',
+            sex: m.gender || '',
+            relationship: m.relationship || '',
+            civil_status: m.civilStatus || m.civil_status || '',
+            educational_attainment: (() => {
+              const raw = m.educationalAttainment || m.educational_attainment || ''
+              const k = toKey(raw)
+              if (educationChoices.includes(k)) return k
+              if (educationChoices.includes(raw)) return raw
+              return raw
+            })(),
+            occupation: m.occupation || '',
+            monthly_income: m.monthlyIncome || m.monthly_income || '',
+            code: m.code || '',
+          })))
+        }
+      }).catch(()=>{})
+    }
   }, [])
 
   const spouseEnabled = useMemo(() => {
@@ -360,6 +519,17 @@ export default function SurveyForm() {
   }
 
   useEffect(() => {
+    const bd = data.birth_date
+    if (!bd) return
+    const now = new Date()
+    const d = new Date(bd)
+    let age = now.getFullYear() - d.getFullYear()
+    const m = now.getMonth() - d.getMonth()
+    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age = age - 1
+    if (!Number.isNaN(age) && age >= 0) setData(prev => ({ ...prev, person_age: String(age) }))
+  }, [data.birth_date])
+
+  useEffect(() => {
     if (data.barangay) {
       const normalizeName = (s) => {
         const t = String(s || '').replace(/"/g,'').replace(/\s+/g,' ').trim()
@@ -372,13 +542,54 @@ export default function SurveyForm() {
       }
       const uniqSorted = (arr) => Array.from(new Set(arr.map(normalizeName))).sort((a,b)=>a.localeCompare(b))
       const base = uniqSorted(purokMap[data.barangay] || [])
-      setPurokOptions(base)
-      setData(d => ({...d, purok: ''}))
+      const current = normalizeName(data.purok)
+      const withCurrent = current && !base.includes(current) ? uniqSorted([...base, current]) : base
+      setPurokOptions(withCurrent)
+      const prevBarangay = prevBarangayRef.current
+      prevBarangayRef.current = data.barangay
+      if (prevBarangay && prevBarangay !== data.barangay) {
+        if (current && !base.includes(current)) {
+          setData(d => ({ ...d, purok: '' }))
+        }
+      }
       axios.get('/validator/api/tag-number/preview', { params: { barangay: data.barangay } })
         .then(res => setTagNum(res.data?.tag_number || ''))
         .catch(() => setTagNum(''))
     }
   }, [data.barangay])
+
+  useEffect(() => {
+    if (!existingRespondentSignatureUrl || !rSigRef.current) return
+    const img = new Image()
+    img.onload = () => {
+      const canvas = rSigRef.current
+      const ctx = canvas.getContext('2d')
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      setSignatureDirty(false)
+      try {
+        const data = canvas.toDataURL()
+        setRespondentSignatureDataUrl(data)
+      } catch {}
+    }
+    img.src = existingRespondentSignatureUrl
+  }, [existingRespondentSignatureUrl])
+  
+  useEffect(() => {
+    if (step !== 5) return
+    if (signatureDirty) return
+    if (!rSigRef.current) return
+    if (existingRespondentSignatureUrl) {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = rSigRef.current
+        const ctx = canvas.getContext('2d')
+        ctx.clearRect(0, 0, canvas.width, canvas.height)
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      }
+      img.src = existingRespondentSignatureUrl
+    }
+  }, [step, signatureDirty, existingRespondentSignatureUrl])
 
   useEffect(() => {
     axios.get('/validator/api/profile')
@@ -394,6 +605,40 @@ export default function SurveyForm() {
     doubleup: data.classification === 'Double-up',
     homeless: data.classification === 'Homeless',
   }), [data.classification])
+  
+  useEffect(() => {
+    const shouldHaveSpouse = spouseEnabled && (String(data.spouse_name || '').trim() !== '' || String(data.spouse_age || '').trim() !== '' || String(data.spouse_gender || '').trim() !== '')
+    setMembers(prev => {
+      const idx = prev.findIndex(m => String(m.relationship || '') === 'Spouse')
+      if (!shouldHaveSpouse) {
+        if (idx !== -1) {
+          const copy = [...prev]
+          copy.splice(idx, 1)
+          return copy
+        }
+        return prev
+      }
+      const civ = data.marital_status === 'Married' ? 'Married' : (data.marital_status || '')
+      const entry = {
+        name: data.spouse_name || '',
+        age: data.spouse_age || '',
+        sex: data.spouse_gender || '',
+        relationship: 'Spouse',
+        civil_status: civ,
+        educational_attainment: idx !== -1 ? prev[idx].educational_attainment : '',
+        occupation: idx !== -1 ? prev[idx].occupation : '',
+        monthly_income: idx !== -1 ? prev[idx].monthly_income : '',
+        code: idx !== -1 ? prev[idx].code : '',
+      }
+      if (idx === -1) {
+        return [entry, ...prev]
+      } else {
+        const copy = [...prev]
+        copy[idx] = { ...copy[idx], ...entry }
+        return copy
+      }
+    })
+  }, [data.spouse_name, data.spouse_age, data.spouse_gender, data.marital_status, spouseEnabled])
 
   const getLocation = () => {
     setError('')
@@ -408,7 +653,7 @@ export default function SurveyForm() {
     ctx.clearRect(0,0,ref.current.width, ref.current.height)
   }
 
-  const addMember = () => setMembers(m => [...m, { name:'', age:'', gender:'', relationship:'', civil_status:'', educational_attainment:'', occupation:'', monthly_income:'' }])
+  const addMember = () => setMembers(m => [...m, { name:'', age:'', sex:'', relationship:'', civil_status:'', educational_attainment:'', occupation:'', monthly_income:'', code:'' }])
 
   const updateMember = (idx, key, val) => setMembers(m => {
     const copy = [...m]; copy[idx] = {...copy[idx], [key]: val}; return copy
@@ -420,7 +665,7 @@ export default function SurveyForm() {
       const next = m.filter((_, i) => i !== idx)
       const spouseIndex = next.findIndex(r => String(r.relationship || '').trim() === 'Spouse')
       if (next.length === 1 && spouseIndex === 0) {
-        return [...next, { name:'', age:'', gender:'', relationship:'', civil_status:'', educational_attainment:'', occupation:'', monthly_income:'' }]
+        return [...next, { name:'', age:'', sex:'', relationship:'', civil_status:'', educational_attainment:'', occupation:'', monthly_income:'', code:'' }]
       }
       return next
     })
@@ -433,40 +678,12 @@ export default function SurveyForm() {
     }
   }, [data.birth_date])
 
-  useEffect(() => {
-    const spouseName = String(data.spouse_name || '').trim()
-    const spouseAge = String(data.spouse_age || '').trim()
-    const shouldHaveSpouseRow = spouseEnabled && spouseName !== ''
-
-    setMembers(prev => {
-      const spouseIndex = prev.findIndex(m => String(m.relationship || '').trim() === 'Spouse')
-      if (!shouldHaveSpouseRow) {
-        if (spouseIndex === -1) return prev
-        const next = prev.filter((_, i) => i !== spouseIndex)
-        return next.length ? next : [{ name:'', age:'', gender:'', relationship:'', civil_status:'', educational_attainment:'', occupation:'', monthly_income:'' }]
-      }
-
-      const spouseRow = {
-        ...(spouseIndex === -1 ? { name:'', age:'', gender:'', relationship:'', civil_status:'', educational_attainment:'', occupation:'', monthly_income:'' } : prev[spouseIndex]),
-        name: spouseName,
-        age: spouseAge,
-        gender: data.spouse_gender,
-        relationship: 'Spouse',
-      }
-
-      const others = spouseIndex === -1 ? prev : prev.filter((_, i) => i !== spouseIndex)
-      const next = [spouseRow, ...others]
-      if (next.length === 1) {
-        next.push({ name:'', age:'', gender:'', relationship:'', civil_status:'', educational_attainment:'', occupation:'', monthly_income:'' })
-      }
-      return next
-    })
-  }, [spouseEnabled, data.spouse_name, data.spouse_age, data.spouse_gender])
-
   const submit = async () => {
     setSubmitting(true)
     setError('')
     try {
+      if (!data.monthly_salary) { setError('Monthly salary is required'); setSubmitting(false); return }
+      const sid = new URLSearchParams(window.location.search).get('survey_id')
       const fd = new FormData()
       Object.entries(data).forEach(([k,v]) => fd.append(k, v ?? ''))
       if (housePhoto) fd.append('house_photo', housePhoto)
@@ -474,18 +691,28 @@ export default function SurveyForm() {
       fd.append('latitude', lat)
       fd.append('longitude', lon)
       
-      fd.append('respondent_signature', rSigRef.current.toDataURL ? rSigRef.current.toDataURL() : '')
+      if (!sid) {
+        fd.append('respondent_signature', rSigRef.current?.toDataURL ? rSigRef.current.toDataURL() : '')
+      } else if (signatureDirty) {
+        fd.append('respondent_signature', respondentSignatureDataUrl || (rSigRef.current?.toDataURL ? rSigRef.current.toDataURL() : ''))
+      }
       members.forEach(m => {
         fd.append('name[]', m.name ?? '')
         fd.append('age[]', m.age ?? '')
-        fd.append('gender[]', m.gender ?? '')
+        fd.append('sex[]', m.sex ?? '')
         fd.append('relationship[]', m.relationship ?? '')
         fd.append('civil_status[]', m.civil_status ?? '')
         fd.append('educational_attainment[]', m.educational_attainment ?? '')
         fd.append('occupation[]', m.occupation ?? '')
         fd.append('monthly_income[]', m.monthly_income ?? '')
+        fd.append('code[]', m.code ?? '')
       })
-      await axios.post('/validator/api/survey', fd, { headers: { 'X-CSRF-TOKEN': csrf() } })
+      if (sid) {
+        fd.append('_method', 'PUT')
+        await axios.post(`/validator/api/survey/${sid}`, fd, { headers: { 'X-CSRF-TOKEN': csrf() } })
+      } else {
+        await axios.post('/validator/api/survey', fd, { headers: { 'X-CSRF-TOKEN': csrf() } })
+      }
       window.location.href = '/validator/dashboard'
     } catch (e) {
       setError(e.response?.data?.message || 'Submission failed')
@@ -784,7 +1011,24 @@ export default function SurveyForm() {
                   <SmoothSelect
                     value={data.language_spoken}
                     onChange={v => setData({ ...data, language_spoken: v })}
-                    options={buildOptions(['Cebuano', 'Tagalog', 'English'])}
+                    options={buildOptions([
+                      'Cebuano',
+                      'Tagalog',
+                      'English',
+                      'Maguindanaon',
+                      'Meranaw',
+                      'Tausug',
+                      'Hiligaynon',
+                      'Ilocano',
+                      'Chavacano',
+                      'Bagobo',
+                      "B'laan",
+                      'Mandaya',
+                      'Mansaka',
+                      'Kaagan',
+                      'Subanen',
+                      'Others',
+                    ])}
                     buttonClassName={selectClass}
                   />
                 </div>
@@ -891,6 +1135,7 @@ export default function SurveyForm() {
                         <th className="w-40 px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Education</th>
                         <th className="w-32 px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Occupation</th>
                         <th className="w-40 px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Monthly Income</th>
+                        <th className="w-28 px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Code</th>
                         <th className="w-20 px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Action</th>
                       </tr>
                     </thead>
@@ -903,48 +1148,44 @@ export default function SurveyForm() {
                           <td className="px-2 py-2 align-middle"><input className={isSpouseRow ? tableReadOnlyInputClass : tableInputClass} value={m.name} readOnly={isSpouseRow} onChange={e=>updateMember(i,'name',e.target.value)}/></td>
                           <td className="px-2 py-2 align-middle"><input type="number" className={isSpouseRow ? tableReadOnlyInputClass : tableInputClass} value={m.age} readOnly={isSpouseRow} onChange={e=>updateMember(i,'age',e.target.value)}/></td>
                           <td className="px-2 py-2 align-middle">
-                            <SmoothSelect
-                              value={m.gender}
-                              onChange={v => updateMember(i, 'gender', v)}
-                              options={genderOptions}
-                              buttonClassName={tableSelectClass}
-                              disabled={isSpouseRow}
-                            />
+                            <select className={tableSelectClass} value={m.sex} onChange={e=>updateMember(i,'sex',e.target.value)} disabled={isSpouseRow}>
+                              <option value="">- select here -</option>
+                              <option value="Male">Male</option>
+                              <option value="Female">Female</option>
+                            </select>
                           </td>
                           <td className="px-2 py-2 align-middle">
-                            <SmoothSelect
-                              value={m.relationship}
-                              onChange={v => updateMember(i, 'relationship', v)}
-                              options={relationshipOptions}
-                              buttonClassName={tableSelectClass}
-                              disabled={isSpouseRow}
-                            />
+                            <select className={tableSelectClass} value={m.relationship} onChange={e=>updateMember(i,'relationship',e.target.value)} disabled={isSpouseRow}>
+                              <option value="">- select here -</option>
+                              {relationshipChoices.map(opt => (<option key={`rel-${opt}`} value={opt}>{opt}</option>))}
+                            </select>
                           </td>
                           <td className="px-2 py-2 align-middle">
-                            <SmoothSelect
-                              value={m.civil_status}
-                              onChange={v => updateMember(i, 'civil_status', v)}
-                              options={memberCivilStatusOptions}
-                              buttonClassName={tableSelectClass}
-                            />
+                            <select className={tableSelectClass} value={m.civil_status} onChange={e=>updateMember(i,'civil_status',e.target.value)}>
+                              <option value="">- select here -</option>
+                              <option value="Single">Single</option>
+                              <option value="Married">Married</option>
+                              <option value="Live-in">Live-in</option>
+                              <option value="Widow/Widower">Widow/Widower</option>
+                              <option value="Annulled">Annulled</option>
+                              <option value="Separated">Separated</option>
+                              <option value="Unknown">Unknown</option>
+                            </select>
                           </td>
                           <td className="px-2 py-2 align-middle">
-                            <SmoothSelect
-                              value={m.educational_attainment}
-                              onChange={v => updateMember(i, 'educational_attainment', v)}
-                              options={educationOptions}
-                              buttonClassName={tableSelectClass}
-                            />
+                            <select className={tableSelectClass} value={m.educational_attainment} onChange={e=>updateMember(i,'educational_attainment',e.target.value)}>
+                              <option value="">- select here -</option>
+                              {educationChoices.map(opt => (<option key={`edu-${opt}`} value={opt}>{opt.replace(/_/g,' ')}</option>))}
+                            </select>
                           </td>
                           <td className="px-2 py-2 align-middle"><input className={tableInputClass} value={m.occupation} onChange={e=>updateMember(i,'occupation',e.target.value)}/></td>
                           <td className="px-2 py-2 align-middle">
-                            <SmoothSelect
-                              value={m.monthly_income}
-                              onChange={v => updateMember(i, 'monthly_income', v)}
-                              options={incomeOptions}
-                              buttonClassName={tableSelectClass}
-                            />
+                            <select className={tableSelectClass} value={m.monthly_income} onChange={e=>updateMember(i,'monthly_income',e.target.value)}>
+                              <option value="">- select here -</option>
+                              {incomeChoices.map(opt => (<option key={`inc-${opt}`} value={opt}>{opt}</option>))}
+                            </select>
                           </td>
+                          <td className="px-2 py-2 align-middle"><input className={tableInputClass} value={m.code} onChange={e=>updateMember(i,'code',e.target.value)}/></td>
                           <td className="px-2 py-2 align-middle">
                             <button
                               type="button"
@@ -1109,21 +1350,17 @@ export default function SurveyForm() {
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Monthly Salary</div>
-                  <SmoothSelect
-                    value={data.monthly_salary}
-                    onChange={v => setData({ ...data, monthly_salary: v })}
-                    options={incomeOptions}
-                    buttonClassName={selectClass}
-                  />
+                  <select className={selectClass} value={data.monthly_salary} onChange={e=>setData({...data, monthly_salary:e.target.value})}>
+                    <option value="">- select here -</option>
+                    {incomeChoices.map(opt => (<option key={`ms-${opt}`} value={opt}>{opt}</option>))}
+                  </select>
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Combined Household Income</div>
-                  <SmoothSelect
-                    value={data.combine_monthly_income}
-                    onChange={v => setData({ ...data, combine_monthly_income: v })}
-                    options={incomeOptions}
-                    buttonClassName={selectClass}
-                  />
+                  <select className={selectClass} value={data.combine_monthly_income} onChange={e=>setData({...data, combine_monthly_income:e.target.value})}>
+                    <option value="">- select here -</option>
+                    {incomeChoices.map(opt => (<option key={`ci-${opt}`} value={opt}>{opt}</option>))}
+                  </select>
                 </div>
               </div>
               </div>
@@ -1213,22 +1450,14 @@ export default function SurveyForm() {
               <div className="space-y-4">
               <div>
                 <div className="text-sm text-gray-500">House Photo</div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className={fileInputClass}
-                  onChange={e=>setHousePhoto(e.target.files?.[0] || null)}
-                />
+                {existingHousePhotoUrl && !housePhoto && <img src={existingHousePhotoUrl} alt="House photo" className="mt-2 w-40 h-40 object-cover rounded border" />}
+                <input type="file" accept="image/*" className={fileInputClass} onChange={e=>setHousePhoto(e.target.files?.[0] || null)} />
                 {housePhoto?.name && <div className="mt-1 text-xs text-gray-500 truncate">Selected: {housePhoto.name}</div>}
               </div>
               <div>
                 <div className="text-sm text-gray-500">Respondent Photo</div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className={fileInputClass}
-                  onChange={e=>setPersonPhoto(e.target.files?.[0] || null)}
-                />
+                {existingPersonPhotoUrl && !personPhoto && <img src={existingPersonPhotoUrl} alt="Respondent photo" className="mt-2 w-40 h-40 object-cover rounded border" />}
+                <input type="file" accept="image/*" className={fileInputClass} onChange={e=>setPersonPhoto(e.target.files?.[0] || null)} />
                 {personPhoto?.name && <div className="mt-1 text-xs text-gray-500 truncate">Selected: {personPhoto.name}</div>}
               </div>
               <div>
@@ -1259,7 +1488,19 @@ export default function SurveyForm() {
               <div className="grid grid-cols-1 gap-6">
                 <div>
                   <div className="text-sm text-gray-500 mb-2">Respondent Signature</div>
-                  <Signature canvasRef={rSigRef} onClear={()=>clearCanvas(rSigRef)} />
+                  <Signature
+                    canvasRef={rSigRef}
+                    onClear={() => {
+                      clearCanvas(rSigRef)
+                      setSignatureDirty(true)
+                      setRespondentSignatureDataUrl('')
+                      setExistingRespondentSignatureUrl('')
+                    }}
+                    onEnd={() => {
+                      setSignatureDirty(true)
+                      setRespondentSignatureDataUrl(rSigRef.current?.toDataURL ? rSigRef.current.toDataURL() : '')
+                    }}
+                  />
                 </div>
               </div>
               </div>
