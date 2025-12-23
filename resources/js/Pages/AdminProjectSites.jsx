@@ -378,8 +378,8 @@ export default function AdminProjectSites() {
                         <div className="text-sm font-semibold text-emerald-800">{p.total_blocks ?? 0}</div>
                       </div>
                       <div className="rounded bg-emerald-50 p-2">
-                        <div className="text-xs text-gray-500">Lots</div>
-                        <div className="text-sm font-semibold text-emerald-800">{p.total_lots ?? 0}</div>
+                        <div className="text-xs text-gray-500">Available Lots</div>
+                        <div className="text-sm font-semibold text-emerald-800">{(p.available_lots ?? p.total_lots) ?? 0}</div>
                       </div>
                     </div>
                     {p.description && <div className="mt-3 text-sm text-gray-700 line-clamp-3">{p.description}</div>}

@@ -6,6 +6,7 @@ export default function Landing() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const { data, setData, post, processing, errors, reset } = useForm({ username: '', password: '' })
+  const [showPassword, setShowPassword] = useState(false)
   
   useEffect(() => {
     setMounted(true)
@@ -134,7 +135,22 @@ export default function Landing() {
                   </div>
                   <div>
                     <label className="block text-sm text-gray-600 mb-1">Password</label>
-                    <input type="password" value={data.password} onChange={e=>setData('password', e.target.value)} className="w-full border border-gray-300 rounded-full p-2.5 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Enter password" />
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={data.password}
+                        onChange={e=>setData('password', e.target.value)}
+                        className="w-full border border-gray-300 rounded-full p-2.5 pr-20 px-4 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                        placeholder="Enter password"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(v => !v)}
+                        className="absolute inset-y-0 right-4 flex items-center text-xs font-medium text-gray-500 hover:text-gray-700"
+                      >
+                        {showPassword ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
                   </div>
                   <button type="submit" disabled={processing} className="w-full mt-2 px-4 py-2 rounded-full bg-emerald-600 text-white hover:bg-emerald-700">Log in</button>
                   <div className="mt-2 text-xs text-gray-500">Use Admin or Validator credentials</div>

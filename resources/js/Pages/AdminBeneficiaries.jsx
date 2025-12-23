@@ -106,7 +106,7 @@ export default function AdminBeneficiaries() {
   const [search, setSearch] = useState('')
   const [classFilter, setClassFilter] = useState('')
   const [affType, setAffType] = useState('')
-  const [statusFilter, setStatusFilter] = useState('validated')
+  const [statusFilter, setStatusFilter] = useState('submitted')
   const [barangayFilter, setBarangayFilter] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -118,7 +118,7 @@ export default function AdminBeneficiaries() {
     search: '',
     classFilter: '',
     affType: '',
-    statusFilter: 'validated',
+    statusFilter: 'submitted',
     barangayFilter: '',
     dateFrom: '',
     dateTo: '',
@@ -164,7 +164,7 @@ export default function AdminBeneficiaries() {
       search: search || '',
       classFilter: classFilter || '',
       affType: affType || '',
-      statusFilter: statusFilter || 'validated',
+      statusFilter: statusFilter || 'submitted',
       barangayFilter: barangayFilter || '',
       dateFrom: dateFrom || '',
       dateTo: dateTo || '',
@@ -259,31 +259,45 @@ export default function AdminBeneficiaries() {
   async function handleExportBarangay() {
     try {
       const f = currentFilters()
-      const b = (f.barangayFilter || '').trim()
-      if (!b) {
-        setError('Please select a barangay to export')
-        return
-      }
       const params = {
-        barangay: b,
+        search: f.search || '',
         status: f.statusFilter || 'validated',
         classification: f.classFilter || '',
+        barangay: f.barangayFilter || '',
         date_from: f.dateFrom || '',
         date_to: f.dateTo || '',
         points_min: f.pointsMin || '',
         points_max: f.pointsMax || '',
       }
-      const res = await axios.get('/admin/api/export/barangay', { params, responseType: 'blob' })
+
+      let apiUrl = ''
+      let filename = 'beneficiaries.csv'
+      if (activeTab === 'non') {
+        apiUrl = '/admin/api/beneficiaries/validated/export'
+        filename = 'validated_beneficiaries.csv'
+      } else if (activeTab === 'mayor') {
+        apiUrl = '/admin/api/beneficiaries/mayor-endorsed/export'
+        filename = 'mayor_endorsed_beneficiaries.csv'
+      } else {
+        apiUrl = '/admin/api/export/barangay'
+        const b = (params.barangay || '').trim()
+        if (!b) {
+          setError('Please select a barangay to export')
+          return
+        }
+        filename = `barangay-${b.replace(/\s+/g, '_').toLowerCase()}.csv`
+      }
+
+      const res = await axios.get(apiUrl, { params, responseType: 'blob' })
       const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8' })
-      const url = window.URL.createObjectURL(blob)
+      const downloadUrl = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
-      const fname = `barangay-${b.replace(/\s+/g,'_').toLowerCase()}.csv`
-      a.href = url
-      a.download = fname
+      a.href = downloadUrl
+      a.download = filename
       document.body.appendChild(a)
       a.click()
       a.remove()
-      window.URL.revokeObjectURL(url)
+      window.URL.revokeObjectURL(downloadUrl)
       setError('')
     } catch (err) {
       console.error('Export failed', err)
@@ -620,9 +634,9 @@ export default function AdminBeneficiaries() {
                   value={statusFilter}
                   onChange={setStatusFilter}
                   options={[
-                    { value: 'submitted', label: 'Submitted' },
+                    { value: 'submitted', label: 'All' },
                     { value: 'validated', label: 'Validated' },
-                    { value: 'approved', label: 'Approved' },
+                    { value: 'approved', label: 'Assigned' },
                   ]}
                   widthClass="w-40"
                 />

@@ -278,6 +278,34 @@ export default function SurveyForm() {
   const genderOptions = useMemo(() => buildOptions(['Male', 'Female']), [])
   const civilStatusOptions = useMemo(() => buildOptions(['Single', 'Married', 'Live-in', 'Widow/Widower', 'Annulled', 'Separated', 'Unknown']), [])
   const memberCivilStatusOptions = civilStatusOptions
+  const sourceOfWaterValueKeys = useMemo(() => ['NAWASA', 'Spring', 'Deep_Well', 'Rainwater', 'Surface_Water'], [])
+  const sourceOfElectricityValueKeys = useMemo(
+    () => ['With_own_meter', 'Solar_Panel', 'Candle/Lamp', 'Tapping_to_the_neighbor'],
+    []
+  )
+  const sourceOfWaterOptions = useMemo(
+    () => [
+      { value: '', label: '- select here -' },
+      { value: 'NAWASA', label: 'Community Water System(NAWASA)' },
+      { value: 'Spring', label: 'Spring' },
+      { value: 'Deep_Well', label: 'Deep Well' },
+      { value: 'Rainwater', label: 'Rainwater' },
+      { value: 'Surface_Water', label: 'Surface Water' },
+      { value: 'Others', label: 'Others' },
+    ],
+    []
+  )
+  const sourceOfElectricityOptions = useMemo(
+    () => [
+      { value: '', label: '- select here -' },
+      { value: 'With_own_meter', label: 'With own meter' },
+      { value: 'Solar_Panel', label: 'Solar Panel' },
+      { value: 'Candle/Lamp', label: 'Candle/Lamp' },
+      { value: 'Tapping_to_the_neighbor', label: 'Tapping to the neighbor' },
+      { value: 'Others', label: 'Others' },
+    ],
+    []
+  )
   const educationOptions = useMemo(
     () => [
       { value: '', label: '- select here -' },
@@ -304,13 +332,14 @@ export default function SurveyForm() {
       ),
     []
   )
+  const relationshipChoiceList = useMemo(
+    () => ['Household Head', 'Spouse of Head', 'Never-Married Child', 'Other Relative', 'Non-Relative'],
+    []
+  )
   const relationshipOptions = useMemo(
     () =>
-      buildOptions(
-        ['Household Head', 'Spouse of Head', 'Never-Married Child', 'Other Relative', 'Non-Relative', 'Spouse'],
-        '- select relationship -'
-      ),
-    []
+      buildOptions(relationshipChoiceList, '- select relationship -'),
+    [relationshipChoiceList]
   )
   const barangayOptions = useMemo(
     () => [{ value: '', label: '- select here -' }, ...sortedBarangays.map(b => ({ value: b, label: b.replace(/_/g, ' ') }))],
@@ -347,7 +376,30 @@ export default function SurveyForm() {
   })
 
   const incomeChoices = ['0 - 2,999 PHP','3,000 - 5,999 PHP','6,000 - 8,999 PHP','9,000 - 12,999 PHP','13,000 and above']
-  const relationshipChoices = ['Spouse','Son','Daughter','Father','Mother','Brother','Sister','Grandfather','Grandmother','Cousin','Relative']
+  const relationshipChoices = relationshipChoiceList
+  const memberRelationshipChoices = [
+    'Spouse',
+    'Son',
+    'Daughter',
+    'Stepson',
+    'Step Daughter',
+    'Son-In-Law',
+    'Daughter-In-Law',
+    'Grandson',
+    'Granddaughter',
+    'Father',
+    'Mother',
+    'Father-In-Law',
+    'Mother-In-Law',
+    'Brother',
+    'Sister',
+    'Brother-In-Law',
+    'Sister-In-Law',
+    'Uncle',
+    'Aunt',
+    'Nephew',
+    'Niece',
+  ]
   const educationChoices = ['none','Elementary_Level_(Incomplete)','Elementary_Graduate','High_School_Level_(Incomplete)','High_School_Graduate','Vocational/Technical_Education','College_Level_(Incomplete)','College_Graduate','Postgraduate_Level','ALS']
   const fileUrl = (path) => {
     const s = String(path || '')
@@ -359,6 +411,45 @@ export default function SurveyForm() {
   }
   const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim()
   const toKey = (s) => norm(s).replace(/ /g, '_')
+  const normalizePurokName = (s) => {
+    const t = String(s || '').replace(/"/g, '').replace(/\s+/g, ' ').trim()
+    return t
+      .split(' ')
+      .map(part =>
+        part
+          .split('-')
+          .map(seg => {
+            const low = seg.toLowerCase()
+            if (low === 'sto.' || low === 'st.') return 'Sto.'
+            if (low === 'niño' || low === 'nińo') return 'Niño'
+            return seg.charAt(0).toUpperCase() + seg.slice(1).toLowerCase()
+          })
+          .join('-')
+      )
+      .join(' ')
+  }
+  const normalizeLegacyToiletValue = (value) => {
+    const raw = norm(value)
+    if (!raw) return ''
+    const t = raw.toLowerCase().replace(/[_-]/g, ' ')
+    if (t.includes('water') && t.includes('sealed')) return 'Water-sealed'
+    if (t.includes('open') && (t.includes('pit') || t.includes('antipolo'))) return 'Pit'
+    if (t.includes('no') && t.includes('toilet')) return 'None'
+    return raw
+  }
+  const isSpouseRel = (rel) => {
+    const r = String(rel || '').trim()
+    return r === 'Spouse of Head' || r === 'Spouse'
+  }
+  const normalizeRelationship = (rel) => {
+    const r = norm(rel)
+    if (!r) return ''
+    if (r === 'Spouse') return 'Spouse of Head'
+    if (relationshipChoiceList.includes(r)) return r
+    const k = r.toLowerCase()
+    if (['son','daughter','stepson','step daughter','grandson','granddaughter'].includes(k)) return 'Never-Married Child'
+    return 'Other Relative'
+  }
   const ynToYesNo = (v) => {
     if (v === 1 || v === '1' || v === true) return 'Yes'
     if (v === 0 || v === '0' || v === false) return 'No'
@@ -380,8 +471,6 @@ export default function SurveyForm() {
         if (sv) {
           const housingStructureOptions = ['Full_Concrete','Made_of_wood_and_metal_roof','Made_of_Amakan_and_Nipa','Combination_of_concrete_and_wood','Made_of_Amakan_and_metal_roof']
           const typeOfToiletOptions = ['Water-sealed','Pit','None']
-          const sourceOfWaterOptions = ['With_own_meter','Shared_connection','Well']
-          const sourceOfElectricityOptions = ['With_own_meter','Solar_Panel','Candle/Lamp','Tapping_to_the_neighbor']
           const mainIncomeOptions = ['Public_Employee','Private_Employee','Self_Employed','Casual']
           const workStatusOptions = ['Regular','Contractual']
           const skillOptions = ['Handicrafts','Wood_Works_and_Furnitures','Food_Processing']
@@ -395,16 +484,80 @@ export default function SurveyForm() {
             return { v: othersValue, other: raw }
           }
 
+          const normalizeWater = (stored) => {
+            const raw = norm(stored)
+            if (!raw) return { v: '', other: '' }
+            const k = toKey(raw)
+            if (k === 'With_own_meter' || k === 'Shared_connection') return { v: 'NAWASA', other: '' }
+            if (k === 'Well') return { v: 'Deep_Well', other: '' }
+            if (k === 'Community_Water_System_(NAWASA)' || k === 'Community_Water_System(NAWASA)') return { v: 'NAWASA', other: '' }
+            if (k.startsWith('Surface_Water')) return { v: 'Surface_Water', other: '' }
+            if (sourceOfWaterValueKeys.includes(k) || sourceOfWaterValueKeys.includes(raw)) {
+              return { v: sourceOfWaterValueKeys.includes(k) ? k : raw, other: '' }
+            }
+            return { v: 'Others', other: raw }
+          }
+
+          const normalizeElectricity = (stored) => {
+            const raw = norm(stored)
+            if (!raw) return { v: '', other: '' }
+            const k = toKey(raw)
+            if (sourceOfElectricityValueKeys.includes(k) || sourceOfElectricityValueKeys.includes(raw)) {
+              return { v: sourceOfElectricityValueKeys.includes(k) ? k : raw, other: '' }
+            }
+            return { v: 'Others', other: raw }
+          }
+
+          const normalizeMainIncome = (stored) => {
+            const raw = norm(stored)
+            if (!raw) return ''
+            const lower = raw.toLowerCase()
+            if (lower === 'employee (public office/company)') return 'Public_Employee'
+            if (lower === 'employee (private office/company)') return 'Private_Employee'
+            if (lower === 'self-employed/with owned business') return 'Self_Employed'
+            if (lower === 'casual (on-call for work)') return 'Casual'
+            return raw
+          }
+
+          const normalizeSkill = (stored) => {
+            const raw = norm(stored)
+            if (!raw) return ''
+            const lower = raw.toLowerCase()
+            if (lower === 'handicraft' || lower === 'handicrafts') return 'Handicrafts'
+            if (
+              lower === 'wood works & furnitures' ||
+              lower === 'wood works and furnitures' ||
+              lower === 'wood works & furnitures' ||
+              lower === 'wood works and furnitures'
+            ) {
+              return 'Wood_Works_and_Furnitures'
+            }
+            if (lower === 'food processing') return 'Food_Processing'
+            return raw
+          }
+
+          const normalizeOrganization = (stored) => {
+            const raw = norm(stored)
+            if (!raw) return ''
+            const lower = raw.toLowerCase()
+            if (lower === 'hoa') return 'HOA'
+            if (lower === 'dayong') return 'Dayong'
+            if (lower === "women's organization" || lower === 'womens organization') return 'Womens_Organization'
+            if (lower === 'youth organization') return 'Youth_Organization'
+            return raw
+          }
+
           const hs = normalizeToOptions(sv.housing_structure, housingStructureOptions, 'Others')
-          const tt = normalizeToOptions(sv.type_of_toilet, typeOfToiletOptions, 'Others')
-          const sw = normalizeToOptions(sv.source_of_water, sourceOfWaterOptions, 'Others')
-          const se = normalizeToOptions(sv.source_of_electricity, sourceOfElectricityOptions, 'Others')
-          const mi = normalizeToOptions(sv.main_income_source, mainIncomeOptions, 'others')
-          const ws = normalizeToOptions(sv.work_status, workStatusOptions, 'others')
-          const sk = normalizeToOptions(sv.specific_skill, skillOptions, 'others')
-          const org = normalizeToOptions(sv.specific_organization, organizationOptions, 'others')
+          const tt = normalizeToOptions(normalizeLegacyToiletValue(sv.type_of_toilet), typeOfToiletOptions, 'Others')
+          const sw = normalizeWater(sv.source_of_water)
+          const se = normalizeElectricity(sv.source_of_electricity)
+          const mi = normalizeToOptions(normalizeMainIncome(sv.main_income_source), mainIncomeOptions, 'others')
+          const ws = normalizeToOptions(sv.work_status, workStatusOptions, 'Others')
+          const sk = normalizeToOptions(normalizeSkill(sv.specific_skill), skillOptions, 'others')
+          const org = normalizeToOptions(normalizeOrganization(sv.specific_organization), organizationOptions, 'others')
 
           const classificationValue = sv.classification === 'Upgrading of Land Tenure' ? 'Upgrading_of_Land_Tenure' : (sv.classification || '')
+          const religionValue = sv.religion ? toKey(sv.religion) : ''
           const spouseReligionValue = sv.spouse_religion ? toKey(sv.spouse_religion) : ''
           const affiliationsStr = norm(sv.affiliations || '')
           const affList = affiliationsStr ? affiliationsStr.split(',').map(x => norm(x)).filter(Boolean) : []
@@ -423,10 +576,10 @@ export default function SurveyForm() {
             middle_name: sv.middle_name || d.middle_name,
             suffix: sv.suffix || d.suffix,
             barangay: sv.barangay || d.barangay,
-            purok: sv.purok || d.purok,
+            purok: sv.purok ? normalizePurokName(sv.purok) : d.purok,
             street: sv.street || d.street,
             gender: sv.gender || d.gender,
-            religion: sv.religion || d.religion,
+            religion: religionValue || d.religion,
             birth_place: sv.birth_place || d.birth_place,
             birth_date: sv.birth_date || d.birth_date,
             person_age: sv.person_age || d.person_age,
@@ -483,8 +636,13 @@ export default function SurveyForm() {
           setMembers(mem.map(m => ({
             name: m.name || '',
             age: m.age || '',
-            sex: m.gender || '',
-            relationship: m.relationship || '',
+            sex: m.sex || m.gender || '',
+            relationship: (() => {
+              const raw = norm(m.relationship)
+              if (!raw) return ''
+              const match = memberRelationshipChoices.find(opt => opt.toLowerCase() === raw.toLowerCase())
+              return match || raw
+            })(),
             civil_status: m.civilStatus || m.civil_status || '',
             educational_attainment: (() => {
               const raw = m.educationalAttainment || m.educational_attainment || ''
@@ -531,18 +689,9 @@ export default function SurveyForm() {
 
   useEffect(() => {
     if (data.barangay) {
-      const normalizeName = (s) => {
-        const t = String(s || '').replace(/"/g,'').replace(/\s+/g,' ').trim()
-        return t.split(' ').map(part => part.split('-').map(seg => {
-          const low = seg.toLowerCase()
-          if (low === 'sto.' || low === 'st.') return 'Sto.'
-          if (low === 'niño' || low === 'nińo') return 'Niño'
-          return seg.charAt(0).toUpperCase() + seg.slice(1).toLowerCase()
-        }).join('-')).join(' ')
-      }
-      const uniqSorted = (arr) => Array.from(new Set(arr.map(normalizeName))).sort((a,b)=>a.localeCompare(b))
+      const uniqSorted = (arr) => Array.from(new Set(arr.map(normalizePurokName))).sort((a,b)=>a.localeCompare(b))
       const base = uniqSorted(purokMap[data.barangay] || [])
-      const current = normalizeName(data.purok)
+      const current = normalizePurokName(data.purok)
       const withCurrent = current && !base.includes(current) ? uniqSorted([...base, current]) : base
       setPurokOptions(withCurrent)
       const prevBarangay = prevBarangayRef.current
@@ -609,7 +758,7 @@ export default function SurveyForm() {
   useEffect(() => {
     const shouldHaveSpouse = spouseEnabled && (String(data.spouse_name || '').trim() !== '' || String(data.spouse_age || '').trim() !== '' || String(data.spouse_gender || '').trim() !== '')
     setMembers(prev => {
-      const idx = prev.findIndex(m => String(m.relationship || '') === 'Spouse')
+      const idx = prev.findIndex(m => isSpouseRel(m.relationship))
       if (!shouldHaveSpouse) {
         if (idx !== -1) {
           const copy = [...prev]
@@ -623,7 +772,7 @@ export default function SurveyForm() {
         name: data.spouse_name || '',
         age: data.spouse_age || '',
         sex: data.spouse_gender || '',
-        relationship: 'Spouse',
+        relationship: 'Spouse of Head',
         civil_status: civ,
         educational_attainment: idx !== -1 ? prev[idx].educational_attainment : '',
         occupation: idx !== -1 ? prev[idx].occupation : '',
@@ -663,7 +812,7 @@ export default function SurveyForm() {
     setMembers(m => {
       if (m.length <= 1) return m
       const next = m.filter((_, i) => i !== idx)
-      const spouseIndex = next.findIndex(r => String(r.relationship || '').trim() === 'Spouse')
+      const spouseIndex = next.findIndex(r => isSpouseRel(r.relationship))
       if (next.length === 1 && spouseIndex === 0) {
         return [...next, { name:'', age:'', sex:'', relationship:'', civil_status:'', educational_attainment:'', occupation:'', monthly_income:'', code:'' }]
       }
@@ -685,7 +834,40 @@ export default function SurveyForm() {
       if (!data.monthly_salary) { setError('Monthly salary is required'); setSubmitting(false); return }
       const sid = new URLSearchParams(window.location.search).get('survey_id')
       const fd = new FormData()
-      Object.entries(data).forEach(([k,v]) => fd.append(k, v ?? ''))
+      const isBlank = (v) => {
+        if (v === null || v === undefined) return true
+        if (typeof v !== 'string') return false
+        return v.trim() === ''
+      }
+      const payload = { ...data }
+      ;[
+        'middle_name',
+        'suffix',
+        'purok',
+        'street',
+        'birth_place',
+        'contact_number',
+        'last_school_attended',
+        'year_graduated',
+        'spouse_name',
+        'spouse_age',
+        'wanttolearn',
+        'remarks',
+        'date_interviewed',
+      ].forEach(k => {
+        if (isBlank(payload[k])) payload[k] = 'N/A'
+      })
+
+      if (payload.housing_structure === 'Others' && isBlank(payload.other_housing_structure)) payload.other_housing_structure = 'N/A'
+      if (payload.type_of_toilet === 'Others' && isBlank(payload.other_type_of_toilet)) payload.other_type_of_toilet = 'N/A'
+      if (payload.source_of_water === 'Others' && isBlank(payload.other_source_of_water)) payload.other_source_of_water = 'N/A'
+      if (payload.source_of_electricity === 'Others' && isBlank(payload.other_source_of_electricity)) payload.other_source_of_electricity = 'N/A'
+      if (payload.main_income_source === 'others' && isBlank(payload.other_main_income_source)) payload.other_main_income_source = 'N/A'
+      if (payload.work_status === 'others' && isBlank(payload.other_work_status)) payload.other_work_status = 'N/A'
+      if (payload.specific_skill === 'others' && isBlank(payload.other_skill)) payload.other_skill = 'N/A'
+      if (payload.specific_organization === 'others' && isBlank(payload.other_organization)) payload.other_organization = 'N/A'
+
+      Object.entries(payload).forEach(([k,v]) => fd.append(k, v ?? ''))
       if (housePhoto) fd.append('house_photo', housePhoto)
       if (personPhoto) fd.append('person_photo', personPhoto)
       fd.append('latitude', lat)
@@ -924,7 +1106,7 @@ export default function SurveyForm() {
                   <SmoothSelect
                     value={data.interview_person}
                     onChange={v => setData({ ...data, interview_person: v })}
-                    options={buildOptions(['Household_Head', 'Spouse_Head', 'Never-Married'])}
+                    options={buildOptions(['Household_Head', 'Spouse_Head', 'Never-Married', 'Other_Relative', 'Non_Relative'])}
                     buttonClassName={selectClass}
                   />
                 </div>
@@ -1012,21 +1194,17 @@ export default function SurveyForm() {
                     value={data.language_spoken}
                     onChange={v => setData({ ...data, language_spoken: v })}
                     options={buildOptions([
-                      'Cebuano',
-                      'Tagalog',
+                      'Cebuano (Bisaya)',
+                      'Tagalog (Filipino)',
                       'English',
                       'Maguindanaon',
-                      'Meranaw',
-                      'Tausug',
-                      'Hiligaynon',
+                      'Tagakaulo',
+                      'Hiligaynon (Ilonggo)',
                       'Ilocano',
-                      'Chavacano',
                       'Bagobo',
                       "B'laan",
                       'Mandaya',
-                      'Mansaka',
-                      'Kaagan',
-                      'Subanen',
+                      'Kalagan/Kagan',
                       'Others',
                     ])}
                     buttonClassName={selectClass}
@@ -1037,7 +1215,21 @@ export default function SurveyForm() {
                   <SmoothSelect
                     value={data.tribe}
                     onChange={v => setData({ ...data, tribe: v })}
-                    options={buildOptions(['Manobo', 'Bagobo', "B'laan", 'Kaolo', 'Bisaya', 'Muslim'])}
+                    options={buildOptions([
+                      'Manobo',
+                      'Bagobo',
+                      "B'laan",
+                      'Bagobo-Tagabawa',
+                      'Kaolo',
+                      'Kalagan (Kaagan)',
+                      'Bisaya/Cebuano',
+                      'Ilonggo',
+                      'Ilocano',
+                      'Leyteño',
+                      'Muslim',
+                      'Badjao',
+                      'Others',
+                    ])}
                     buttonClassName={selectClass}
                   />
                 </div>
@@ -1058,35 +1250,71 @@ export default function SurveyForm() {
                 <div className="mt-6">
                   <div className="text-lg font-semibold text-emerald-800">Spouse Information</div>
                   <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-3">
-                    <input className={inputClass} placeholder="Spouse Name" value={data.spouse_name} onChange={e=>setData({...data, spouse_name:e.target.value})}/>
-                    <SmoothSelect
-                      value={data.spouse_religion}
-                      onChange={v => setData({ ...data, spouse_religion: v })}
-                      options={buildOptions([
-                        'Roman_Catholic',
-                        'Islam',
-                        'Iglesia_ni_Cristo',
-                        'Seventh-day_Adventist',
-                        'Bible_Baptist_Church',
-                        'United_Church_of_Christ_in_the_Philippines',
-                        "Jehovah's_Witnesses",
-                        'Church_of_Christ',
-                      ])}
-                      buttonClassName={selectClass}
-                    />
-                    <SmoothSelect
-                      value={data.spouse_tribe}
-                      onChange={v => setData({ ...data, spouse_tribe: v })}
-                      options={buildOptions(['Manobo', 'Bagobo', "B'laan", 'Kaolo', 'Bisaya', 'Muslim'])}
-                      buttonClassName={selectClass}
-                    />
-                    <input type="number" className={inputClass} placeholder="Age" value={data.spouse_age} onChange={e=>setData({...data, spouse_age:e.target.value})}/>
-                    <SmoothSelect
-                      value={data.spouse_gender}
-                      onChange={v => setData({ ...data, spouse_gender: v })}
-                      options={genderOptions}
-                      buttonClassName={selectClass}
-                    />
+                    <div>
+                      <div className="text-sm text-gray-500">Spouse Name</div>
+                      <input
+                        className={inputClass}
+                        value={data.spouse_name}
+                        onChange={e => setData({ ...data, spouse_name: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Spouse Religion</div>
+                      <SmoothSelect
+                        value={data.spouse_religion}
+                        onChange={v => setData({ ...data, spouse_religion: v })}
+                        options={buildOptions([
+                          'Roman_Catholic',
+                          'Islam',
+                          'Iglesia_ni_Cristo',
+                          'Seventh-day_Adventist',
+                          'Bible_Baptist_Church',
+                          'United_Church_of_Christ_in_the_Philippines',
+                          "Jehovah's_Witnesses",
+                          'Church_of_Christ',
+                        ])}
+                        buttonClassName={selectClass}
+                      />
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Spouse Tribe/Ethnicity</div>
+                      <SmoothSelect
+                        value={data.spouse_tribe}
+                        onChange={v => setData({ ...data, spouse_tribe: v })}
+                        options={buildOptions([
+                          'Manobo',
+                          'Bagobo',
+                          "B'laan",
+                          'Bagobo-Tagabawa',
+                          'Kaolo',
+                          'Kalagan (Kaagan)',
+                          'Bisaya/Cebuano',
+                          'Ilonggo',
+                          'Ilocano',
+                          'Leyteño',
+                          'Muslim',
+                        ])}
+                        buttonClassName={selectClass}
+                      />
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Spouse Age</div>
+                      <input
+                        type="number"
+                        className={inputClass}
+                        value={data.spouse_age}
+                        onChange={e => setData({ ...data, spouse_age: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500">Spouse Gender</div>
+                      <SmoothSelect
+                        value={data.spouse_gender}
+                        onChange={v => setData({ ...data, spouse_gender: v })}
+                        options={genderOptions}
+                        buttonClassName={selectClass}
+                      />
+                    </div>
                   </div>
                 </div>
               )}
@@ -1123,13 +1351,18 @@ export default function SurveyForm() {
 
               <div className="mt-6">
                 <div className="text-lg font-semibold text-emerald-800">Members of the Household</div>
+                <div className="mt-2 rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-700">
+                  <div className="font-medium text-gray-900">Choose the Code Letter that applies to a specific family member</div>
+                  <div className="mt-1 text-xs text-gray-600">
+                    Vulnerable Group Code: A. Pregnant B. PWD C. Senior Citizen D. Infant/Kid E. With Severe Illness F. IP&apos;s
+                  </div>
+                </div>
                 <div className="overflow-x-auto border border-gray-100 rounded-2xl">
                   <table className="min-w-full table-fixed text-xs">
                     <thead className="bg-white">
                       <tr className="border-b border-gray-100">
                         <th className="w-40 px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Name</th>
                         <th className="w-16 px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Age</th>
-                        <th className="w-20 px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Sex</th>
                         <th className="w-40 px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Relationship</th>
                         <th className="w-32 px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Civil Status</th>
                         <th className="w-40 px-2 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Education</th>
@@ -1142,22 +1375,15 @@ export default function SurveyForm() {
                     <tbody>
                       {members.map((m, i) => (
                         (() => {
-                          const isSpouseRow = String(m.relationship || '').trim() === 'Spouse'
+                          const isSpouseRow = isSpouseRel(m.relationship)
                           return (
                         <tr key={i} className="group border-b border-gray-100 last:border-b-0 transition-colors duration-150 hover:bg-emerald-50">
-                          <td className="px-2 py-2 align-middle"><input className={isSpouseRow ? tableReadOnlyInputClass : tableInputClass} value={m.name} readOnly={isSpouseRow} onChange={e=>updateMember(i,'name',e.target.value)}/></td>
-                          <td className="px-2 py-2 align-middle"><input type="number" className={isSpouseRow ? tableReadOnlyInputClass : tableInputClass} value={m.age} readOnly={isSpouseRow} onChange={e=>updateMember(i,'age',e.target.value)}/></td>
+                          <td className="px-2 py-2 align-middle"><input className={tableInputClass} value={m.name} onChange={e=>updateMember(i,'name',e.target.value)}/></td>
+                          <td className="px-2 py-2 align-middle"><input type="number" className={tableInputClass} value={m.age} onChange={e=>updateMember(i,'age',e.target.value)}/></td>
                           <td className="px-2 py-2 align-middle">
-                            <select className={tableSelectClass} value={m.sex} onChange={e=>updateMember(i,'sex',e.target.value)} disabled={isSpouseRow}>
+                            <select className={tableSelectClass} value={m.relationship} onChange={e=>updateMember(i,'relationship',e.target.value)}>
                               <option value="">- select here -</option>
-                              <option value="Male">Male</option>
-                              <option value="Female">Female</option>
-                            </select>
-                          </td>
-                          <td className="px-2 py-2 align-middle">
-                            <select className={tableSelectClass} value={m.relationship} onChange={e=>updateMember(i,'relationship',e.target.value)} disabled={isSpouseRow}>
-                              <option value="">- select here -</option>
-                              {relationshipChoices.map(opt => (<option key={`rel-${opt}`} value={opt}>{opt}</option>))}
+                              {memberRelationshipChoices.map(opt => (<option key={`rel-${opt}`} value={opt}>{opt}</option>))}
                             </select>
                           </td>
                           <td className="px-2 py-2 align-middle">
@@ -1173,10 +1399,17 @@ export default function SurveyForm() {
                             </select>
                           </td>
                           <td className="px-2 py-2 align-middle">
-                            <select className={tableSelectClass} value={m.educational_attainment} onChange={e=>updateMember(i,'educational_attainment',e.target.value)}>
-                              <option value="">- select here -</option>
-                              {educationChoices.map(opt => (<option key={`edu-${opt}`} value={opt}>{opt.replace(/_/g,' ')}</option>))}
-                            </select>
+                            {(() => {
+                              const base = [...educationChoices]
+                              const currentEdu = String(m.educational_attainment || '')
+                              if (currentEdu && !base.includes(currentEdu)) base.push(currentEdu)
+                              return (
+                                <select className={tableSelectClass} value={m.educational_attainment} onChange={e=>updateMember(i,'educational_attainment',e.target.value)}>
+                                  <option value="">- select here -</option>
+                                  {base.map(opt => (<option key={`edu-${opt}`} value={opt}>{opt.replace(/_/g,' ')}</option>))}
+                                </select>
+                              )
+                            })()}
                           </td>
                           <td className="px-2 py-2 align-middle"><input className={tableInputClass} value={m.occupation} onChange={e=>updateMember(i,'occupation',e.target.value)}/></td>
                           <td className="px-2 py-2 align-middle">
@@ -1185,7 +1418,17 @@ export default function SurveyForm() {
                               {incomeChoices.map(opt => (<option key={`inc-${opt}`} value={opt}>{opt}</option>))}
                             </select>
                           </td>
-                          <td className="px-2 py-2 align-middle"><input className={tableInputClass} value={m.code} onChange={e=>updateMember(i,'code',e.target.value)}/></td>
+                          <td className="px-2 py-2 align-middle">
+                            <select className={tableSelectClass} value={m.code} onChange={e=>updateMember(i,'code',e.target.value)}>
+                              <option value="">- select here -</option>
+                              <option value="A">A</option>
+                              <option value="B">B</option>
+                              <option value="C">C</option>
+                              <option value="D">D</option>
+                              <option value="E">E</option>
+                              <option value="F">F</option>
+                            </select>
+                          </td>
                           <td className="px-2 py-2 align-middle">
                             <button
                               type="button"
@@ -1275,7 +1518,7 @@ export default function SurveyForm() {
                   <SmoothSelect
                     value={data.source_of_water}
                     onChange={v => setData({ ...data, source_of_water: v, other_source_of_water: '' })}
-                    options={buildOptions(['With_own_meter', 'Shared_connection', 'Well', 'Others'])}
+                    options={sourceOfWaterOptions}
                     buttonClassName={selectClass}
                   />
                   {data.source_of_water === 'Others' && <input className={'mt-2 '+inputClass} placeholder="Please specify" value={data.other_source_of_water} onChange={e=>setData({...data, other_source_of_water:e.target.value})}/>}
@@ -1285,7 +1528,7 @@ export default function SurveyForm() {
                   <SmoothSelect
                     value={data.source_of_electricity}
                     onChange={v => setData({ ...data, source_of_electricity: v, other_source_of_electricity: '' })}
-                    options={buildOptions(['With_own_meter', 'Solar_Panel', 'Candle/Lamp', 'Tapping_to_the_neighbor', 'Others'])}
+                    options={sourceOfElectricityOptions}
                     buttonClassName={selectClass}
                   />
                   {data.source_of_electricity === 'Others' && <input className={'mt-2 '+inputClass} placeholder="Please specify" value={data.other_source_of_electricity} onChange={e=>setData({...data, other_source_of_electricity:e.target.value})}/>}
@@ -1338,8 +1581,6 @@ export default function SurveyForm() {
                     value={data.work_location_head}
                     onChange={v => setData({ ...data, work_location_head: v })}
                     options={buildOptions([
-                      'None',
-                      'N/A',
                       'Within the Barangay',
                       'Within the City/Municipality',
                       'Within the Province',
@@ -1350,17 +1591,21 @@ export default function SurveyForm() {
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Monthly Salary</div>
-                  <select className={selectClass} value={data.monthly_salary} onChange={e=>setData({...data, monthly_salary:e.target.value})}>
-                    <option value="">- select here -</option>
-                    {incomeChoices.map(opt => (<option key={`ms-${opt}`} value={opt}>{opt}</option>))}
-                  </select>
+                  <SmoothSelect
+                    value={data.monthly_salary}
+                    onChange={v => setData({ ...data, monthly_salary: v })}
+                    options={incomeOptions}
+                    buttonClassName={selectClass}
+                  />
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Combined Household Income</div>
-                  <select className={selectClass} value={data.combine_monthly_income} onChange={e=>setData({...data, combine_monthly_income:e.target.value})}>
-                    <option value="">- select here -</option>
-                    {incomeChoices.map(opt => (<option key={`ci-${opt}`} value={opt}>{opt}</option>))}
-                  </select>
+                  <SmoothSelect
+                    value={data.combine_monthly_income}
+                    onChange={v => setData({ ...data, combine_monthly_income: v })}
+                    options={incomeOptions}
+                    buttonClassName={selectClass}
+                  />
                 </div>
               </div>
               </div>
@@ -1382,26 +1627,29 @@ export default function SurveyForm() {
                   />
                 </div>
                 {data.skills_for_living === 'Yes' && (
-                  <>
-                    <div>
-                      <div className="text-sm text-gray-500">Specific Skill</div>
-                      <SmoothSelect
-                        value={data.specific_skill}
-                        onChange={v => setData({ ...data, specific_skill: v, other_skill: '' })}
-                        options={[
-                          { value: '', label: '- select skill -' },
-                          { value: 'Handicrafts', label: 'Handicrafts' },
-                          { value: 'Wood_Works_and_Furnitures', label: 'Wood Works & Furnitures' },
-                          { value: 'Food_Processing', label: 'Food Processing' },
-                          { value: 'others', label: 'Others' },
-                        ]}
-                        buttonClassName={selectClass}
-                      />
-                    </div>
+                  <div>
+                    <div className="text-sm text-gray-500">Specific Skill</div>
+                    <SmoothSelect
+                      value={data.specific_skill}
+                      onChange={v => setData({ ...data, specific_skill: v, other_skill: '' })}
+                      options={[
+                        { value: '', label: '- select skill -' },
+                        { value: 'Handicrafts', label: 'Handicrafts' },
+                        { value: 'Wood_Works_and_Furnitures', label: 'Wood Works & Furnitures' },
+                        { value: 'Food_Processing', label: 'Food Processing' },
+                        { value: 'others', label: 'Others' },
+                      ]}
+                      buttonClassName={selectClass}
+                    />
                     {data.specific_skill === 'others' && (
-                      <div><input className={'mt-2 '+inputClass} placeholder="Please specify" value={data.other_skill} onChange={e=>setData({...data, other_skill:e.target.value})}/></div>
+                      <input
+                        className={'mt-2 ' + inputClass}
+                        placeholder="Please specify"
+                        value={data.other_skill}
+                        onChange={e => setData({ ...data, other_skill: e.target.value })}
+                      />
                     )}
-                  </>
+                  </div>
                 )}
                 <div>
                   <div className="text-sm text-gray-500">Organization Member</div>
@@ -1413,27 +1661,30 @@ export default function SurveyForm() {
                   />
                 </div>
                 {data.organization_member === 'Yes' && (
-                  <>
-                    <div>
-                      <div className="text-sm text-gray-500">Organization</div>
-                      <SmoothSelect
-                        value={data.specific_organization}
-                        onChange={v => setData({ ...data, specific_organization: v, other_organization: '' })}
-                        options={[
-                          { value: '', label: '- select -' },
-                          { value: 'HOA', label: 'HOA' },
-                          { value: 'Youth_Organization', label: 'Youth Organization' },
-                          { value: 'Dayong', label: 'Dayong' },
-                          { value: 'Womens_Organization', label: "Women's Organization" },
-                          { value: 'others', label: 'Others' },
-                        ]}
-                        buttonClassName={selectClass}
+                  <div>
+                    <div className="text-sm text-gray-500">Organization</div>
+                    <SmoothSelect
+                      value={data.specific_organization}
+                      onChange={v => setData({ ...data, specific_organization: v, other_organization: '' })}
+                      options={[
+                        { value: '', label: '- select -' },
+                        { value: 'HOA', label: 'HOA' },
+                        { value: 'Youth_Organization', label: 'Youth Organization' },
+                        { value: 'Dayong', label: 'Dayong' },
+                        { value: 'Womens_Organization', label: "Women's Organization" },
+                        { value: 'others', label: 'Others' },
+                      ]}
+                      buttonClassName={selectClass}
+                    />
+                    {data.specific_organization === 'others' && (
+                      <input
+                        className={'mt-2 ' + inputClass}
+                        placeholder="Please specify"
+                        value={data.other_organization}
+                        onChange={e => setData({ ...data, other_organization: e.target.value })}
                       />
-                    </div>
-                {data.specific_organization === 'others' && (
-                      <div><input className={'mt-2 '+inputClass} placeholder="Please specify" value={data.other_organization} onChange={e=>setData({...data, other_organization:e.target.value})}/></div>
-                )}
-                  </>
+                    )}
+                  </div>
                 )}
               </div>
               <div>

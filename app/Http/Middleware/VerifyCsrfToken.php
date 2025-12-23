@@ -16,5 +16,7 @@ class VerifyCsrfToken extends Middleware
         'validate_validator_api.php',
         'Chodams/survey/submit_survey_api.php',
         'Chodams/survey/validate_validator_api.php',
+        'admin/api/*',
+        'validator/api/*',
     ];
 }

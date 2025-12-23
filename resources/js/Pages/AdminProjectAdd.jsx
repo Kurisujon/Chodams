@@ -13,6 +13,7 @@ export default function AdminProjectAdd() {
     description: '',
     proj_image: null,
   })
+  const [blocks, setBlocks] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -27,7 +28,47 @@ export default function AdminProjectAdd() {
     }
   }
 
-  function updateField(k, v) { setForm(prev => ({ ...prev, [k]: v })) }
+  function recalcTotalLots(nextBlocks) {
+    const total = nextBlocks.reduce((sum, b) => {
+      const n = parseInt(b.lots, 10)
+      return sum + (Number.isNaN(n) || n < 0 ? 0 : n)
+    }, 0)
+    setForm(prev => ({ ...prev, total_lots: total ? String(total) : '' }))
+  }
+
+  function updateField(k, v) {
+    if (k === 'total_blocks') {
+      const raw = v === '' ? '' : String(v)
+      const num = v === '' ? 0 : parseInt(v, 10)
+      const safeNum = Number.isNaN(num) || num < 0 ? 0 : num
+      setForm(prev => ({ ...prev, total_blocks: raw }))
+      setBlocks(prev => {
+        const next = [...prev]
+        if (safeNum < next.length) {
+          const trimmed = next.slice(0, safeNum)
+          recalcTotalLots(trimmed)
+          return trimmed
+        }
+        if (safeNum > next.length) {
+          for (let i = next.length; i < safeNum; i++) {
+            next.push({ block_no: i + 1, lots: '' })
+          }
+        }
+        recalcTotalLots(next)
+        return next
+      })
+      return
+    }
+    setForm(prev => ({ ...prev, [k]: v }))
+  }
+
+  function updateBlockLots(index, value) {
+    setBlocks(prev => {
+      const next = prev.map((b, i) => (i === index ? { ...b, lots: value } : b))
+      recalcTotalLots(next)
+      return next
+    })
+  }
 
   async function submit(e) {
     e.preventDefault()
@@ -36,6 +77,18 @@ export default function AdminProjectAdd() {
     try {
       const fd = new FormData()
       Object.entries(form).forEach(([k, v]) => { if (v !== null && v !== undefined) fd.append(k, v) })
+      if (blocks.length > 0) {
+        const payloadBlocks = {}
+        blocks.forEach(b => {
+          const max = parseInt(b.lots, 10)
+          if (!Number.isNaN(max) && max > 0) {
+            payloadBlocks[b.block_no] = max
+          }
+        })
+        if (Object.keys(payloadBlocks).length > 0) {
+          fd.set('blocks_json', JSON.stringify(payloadBlocks))
+        }
+      }
       const res = await axios.post('/admin/api/project-sites', fd, { headers: { 'X-CSRF-TOKEN': csrf() } })
       if (res.data?.ok) {
         window.location.href = '/admin/project-sites'
@@ -178,9 +231,28 @@ export default function AdminProjectAdd() {
               </div>
               <div>
                 <label className="block text-sm text-gray-700">Total Lots</label>
-                <input type="number" className="mt-1 w-full border rounded p-2" value={form.total_lots} onChange={e=>updateField('total_lots', e.target.value)} />
+                <input type="number" className="mt-1 w-full border rounded p-2" value={form.total_lots} readOnly />
               </div>
             </div>
+            {blocks.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-sm text-gray-700">Lots per block</div>
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {blocks.map((b, idx) => (
+                    <div key={b.block_no} className="grid grid-cols-2 gap-2 items-center">
+                      <div className="text-sm text-gray-600">Block {b.block_no}</div>
+                      <input
+                        type="number"
+                        min="0"
+                        className="border rounded p-2"
+                        value={b.lots}
+                        onChange={e => updateBlockLots(idx, e.target.value)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-gray-700">Barangay</label>

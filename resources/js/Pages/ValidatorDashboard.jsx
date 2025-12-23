@@ -2,6 +2,7 @@ import React, { Fragment, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { Link } from '@inertiajs/react'
 import { Listbox, Transition } from '@headlessui/react'
+import Modal from '@/Components/Modal'
 
 const perPage = 10
 
@@ -87,12 +88,11 @@ export default function ValidatorDashboard() {
   const [submitted, setSubmitted] = useState({ data: [], total: 0, page: 1 })
   const [deleted, setDeleted] = useState({ data: [], total: 0, page: 1 })
   const [showTable, setShowTable] = useState('none') // 'survey' or 'submitted' or 'deleted' or 'none'
-  const [showBarangayList, setShowBarangayList] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalRows, setModalRows] = useState([])
+  const [submitConfirm, setSubmitConfirm] = useState({ open: false, surveyId: null })
   const [search, setSearch] = useState('')
   const [barangayFilter, setBarangayFilter] = useState('')
-  const [exportScope, setExportScope] = useState('all')
   const [exportClass, setExportClass] = useState('')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const barangays = [
@@ -156,14 +156,22 @@ export default function ValidatorDashboard() {
   }
 
   async function handleSubmitSurvey(survey_id) {
-    if (!confirm('Submit to admin?')) return
+    setSubmitConfirm({ open: true, surveyId: survey_id })
+  }
+
+  async function confirmSubmitSurvey() {
+    if (!submitConfirm.surveyId) {
+      setSubmitConfirm({ open: false, surveyId: null })
+      return
+    }
     try {
-      await axios.post('/validator/api/submit', { survey_id })
+      await axios.post('/validator/api/submit', { survey_id: submitConfirm.surveyId })
       // refresh lists
       fetchSurveys(surveys.page)
       fetchSubmitted(submitted.page)
       fetchTotals()
     } catch (e) { console.error(e) }
+    setSubmitConfirm({ open: false, surveyId: null })
   }
 
   function openModalWithSurveyRows(rows) {
@@ -171,9 +179,9 @@ export default function ValidatorDashboard() {
     setModalOpen(true)
   }
 
-  async function handleExportBarangay() {
+  async function handleExportBarangay(scopeOverride) {
     try {
-      const scope = showBarangayList ? exportScope : showTable === 'survey' ? 'survey' : showTable === 'submitted' ? 'submitted' : ''
+      const scope = scopeOverride || (showTable === 'survey' ? 'survey' : showTable === 'submitted' ? 'submitted' : '')
       if (!scope) return
       const b = (barangayFilter || '').trim()
       if (!b) return
@@ -202,11 +210,18 @@ export default function ValidatorDashboard() {
 
   const pending = Math.max(0, (totals.total_surveyed || 0) - (totals.total_submitted || 0))
   const q = search.trim().toLowerCase()
-  const surveysFiltered = q ? (surveys.data || []).filter(r => [r.date_interviewed, r.barangay, r.purok, r.last_name, r.classification, r.subclass_displaced, r.subclass_doubleup].some(v => String(v || '').toLowerCase().includes(q))) : (surveys.data || [])
-  const submittedFiltered = q ? (submitted.data || []).filter(r => [r.date_interviewed, r.barangay, r.purok, r.last_name, r.classification, r.subclass_displaced, r.subclass_doubleup].some(v => String(v || '').toLowerCase().includes(q))) : (submitted.data || [])
-  const deletedFiltered = q ? (deleted.data || []).filter(r => [r.deleted_at, r.barangay, r.purok, r.last_name, r.classification, r.subclass_displaced, r.subclass_doubleup].some(v => String(v || '').toLowerCase().includes(q))) : (deleted.data || [])
-  const surveysFinal = barangayFilter ? surveysFiltered.filter(r => r.barangay === barangayFilter) : surveysFiltered
-  const submittedFinal = barangayFilter ? submittedFiltered.filter(r => r.barangay === barangayFilter) : submittedFiltered
+  const surveysFiltered = q ? (surveys.data || []).filter(r => [r.date_interviewed, r.barangay, r.purok, r.last_name, r.classification, r.subclass_displaced, r.subclass_doubleup, r.subclass_homeless].some(v => String(v || '').toLowerCase().includes(q))) : (surveys.data || [])
+  const submittedFiltered = q ? (submitted.data || []).filter(r => [r.date_interviewed, r.barangay, r.purok, r.last_name, r.classification, r.subclass_displaced, r.subclass_doubleup, r.subclass_homeless].some(v => String(v || '').toLowerCase().includes(q))) : (submitted.data || [])
+  const deletedFiltered = q ? (deleted.data || []).filter(r => [r.deleted_at, r.barangay, r.purok, r.last_name, r.classification, r.subclass_displaced, r.subclass_doubleup, r.subclass_homeless].some(v => String(v || '').toLowerCase().includes(q))) : (deleted.data || [])
+  const applyRowFilters = (rows) => {
+    let out = rows
+    if (barangayFilter) out = out.filter(r => r.barangay === barangayFilter)
+    if (exportClass) out = out.filter(r => r.classification === exportClass)
+    return out
+  }
+  const surveysFinal = applyRowFilters(surveysFiltered)
+  const submittedFinal = applyRowFilters(submittedFiltered)
+  const deletedFinal = applyRowFilters(deletedFiltered)
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
@@ -328,7 +343,7 @@ export default function ValidatorDashboard() {
         {/* Cards */}
         <DashboardFade delay={200}>
           <section className="mt-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <button onClick={() => setShowTable(showTable === 'survey' ? 'none' : 'survey')} className="text-left bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-md transition min-h-[160px]">
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-50 text-emerald-600">
                   <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 11c0 2.761-2.239 5-5 5s-5-2.239-5-5 2.239-5 5-5 5 2.239 5 5z"/><path d="M20 21a8 8 0 10-16 0"/></svg>
@@ -355,97 +370,64 @@ export default function ValidatorDashboard() {
                 <div className="mt-1 text-sm text-gray-600">Deleted</div>
                 <div className="mt-1 text-xs text-gray-500">Tap to view list</div>
               </button>
-
-              <button type="button" onClick={() => setShowBarangayList(v => !v)} className="text-left bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-md transition min-h-[160px] w-full">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-50 text-emerald-600">
-                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11l4-4 4 4 4-4 4 4"/><path d="M5 19h14"/></svg>
-                </div>
-                <div className="mt-4 text-lg font-semibold text-gray-900">Browse by Barangay</div>
-                <div className="mt-1 text-xs text-gray-500">Tap to filter and export</div>
-              </button>
             </div>
           </section>
         </DashboardFade>
-
-        {showBarangayList && (
-          <DashboardFade delay={300}>
-            <section className="mt-6">
-              <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-emerald-800 mb-3">Browse by Barangay</h3>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <FilterDropdown
-                    label="Barangay"
-                    value={barangayFilter}
-                    onChange={(v) => {
-                      setBarangayFilter(v)
-                      setShowTable('survey')
-                    }}
-                    options={[
-                      { value: '', label: 'Select' },
-                      ...barangays.map(b => ({ value: b, label: b.replace(/_/g, ' ') })),
-                    ]}
-                    widthClass="w-56"
-                  />
-
-                  <FilterDropdown
-                    label="Scope"
-                    value={exportScope}
-                    onChange={setExportScope}
-                    options={[
-                      { value: 'submitted', label: 'Submitted' },
-                      { value: 'survey', label: 'Surveyed' },
-                      { value: 'all', label: 'All' },
-                    ]}
-                    widthClass="w-44"
-                  />
-
-                  <FilterDropdown
-                    label="Class"
-                    value={exportClass}
-                    onChange={setExportClass}
-                    options={[
-                      { value: '', label: 'All' },
-                      { value: 'Displaced', label: 'Displaced' },
-                      { value: 'Double-up', label: 'Double-up' },
-                      { value: 'Homeless', label: 'Homeless' },
-                      { value: 'Upgrading of Land Tenure', label: 'Upgrading of Land Tenure' },
-                    ]}
-                    widthClass="w-56"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={handleExportBarangay}
-                    disabled={!barangayFilter}
-                    className={`inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-medium text-emerald-800 shadow-sm ring-1 ring-gray-200 hover:bg-emerald-50 hover:text-emerald-900 ${
-                      !barangayFilter ? 'cursor-not-allowed opacity-50 hover:bg-white hover:text-emerald-800' : ''
-                    }`}
-                  >
-                    <svg
-                      className="h-4 w-4"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-                      <path d="M7 10l5 5 5-5" />
-                      <path d="M12 15V3" />
-                    </svg>
-                    <span>Export CSV</span>
-                  </button>
-                </div>
-              </div>
-            </section>
-          </DashboardFade>
-        )}
 
         {showTable === 'survey' && (
           <DashboardFade delay={400}>
             <section className="mt-6 bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
           <h3 className="text-lg font-semibold text-emerald-800 mb-4">List of Applicants</h3>
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <FilterDropdown
+              label="Barangay"
+              value={barangayFilter}
+              onChange={setBarangayFilter}
+              options={[
+                { value: '', label: 'Select' },
+                ...barangays.map(b => ({ value: b, label: b.replace(/_/g, ' ') })),
+              ]}
+              widthClass="w-56"
+            />
+
+            <FilterDropdown
+              label="Class"
+              value={exportClass}
+              onChange={setExportClass}
+              options={[
+                { value: '', label: 'All' },
+                { value: 'Displaced', label: 'Displaced' },
+                { value: 'Double-up', label: 'Double-up' },
+                { value: 'Homeless', label: 'Homeless' },
+                { value: 'Upgrading of Land Tenure', label: 'Upgrading of Land Tenure' },
+              ]}
+              widthClass="w-56"
+            />
+
+            <button
+              type="button"
+              onClick={() => handleExportBarangay('survey')}
+              disabled={!barangayFilter}
+              className={`inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-medium text-emerald-800 shadow-sm ring-1 ring-gray-200 hover:bg-emerald-50 hover:text-emerald-900 ${
+                !barangayFilter ? 'cursor-not-allowed opacity-50 hover:bg-white hover:text-emerald-800' : ''
+              }`}
+            >
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+                <path d="M7 10l5 5 5-5" />
+                <path d="M12 15V3" />
+              </svg>
+              <span>Export CSV</span>
+            </button>
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
@@ -455,8 +437,9 @@ export default function ValidatorDashboard() {
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Purok</th>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Surname</th>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Classification</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Sub-Class Displaced</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Double Up</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Displaced Subclass</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Double-up Subclass</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Homeless Subclass</th>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Action</th>
                 </tr>
               </thead>
@@ -473,6 +456,7 @@ export default function ValidatorDashboard() {
                     <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.classification}</td>
                     <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.subclass_displaced || <span className="text-gray-400">—</span>}</td>
                     <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.subclass_doubleup || <span className="text-gray-400">—</span>}</td>
+                    <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.subclass_homeless || <span className="text-gray-400">—</span>}</td>
                     <td className="px-3 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-3">
                         <Link
@@ -527,6 +511,56 @@ export default function ValidatorDashboard() {
           <DashboardFade delay={400}>
             <section className="mt-6 bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
           <h3 className="text-lg font-semibold text-emerald-800 mb-4">Submitted Applicants</h3>
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <FilterDropdown
+              label="Barangay"
+              value={barangayFilter}
+              onChange={setBarangayFilter}
+              options={[
+                { value: '', label: 'Select' },
+                ...barangays.map(b => ({ value: b, label: b.replace(/_/g, ' ') })),
+              ]}
+              widthClass="w-56"
+            />
+
+            <FilterDropdown
+              label="Class"
+              value={exportClass}
+              onChange={setExportClass}
+              options={[
+                { value: '', label: 'All' },
+                { value: 'Displaced', label: 'Displaced' },
+                { value: 'Double-up', label: 'Double-up' },
+                { value: 'Homeless', label: 'Homeless' },
+                { value: 'Upgrading of Land Tenure', label: 'Upgrading of Land Tenure' },
+              ]}
+              widthClass="w-56"
+            />
+
+            <button
+              type="button"
+              onClick={() => handleExportBarangay('submitted')}
+              disabled={!barangayFilter}
+              className={`inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-medium text-emerald-800 shadow-sm ring-1 ring-gray-200 hover:bg-emerald-50 hover:text-emerald-900 ${
+                !barangayFilter ? 'cursor-not-allowed opacity-50 hover:bg-white hover:text-emerald-800' : ''
+              }`}
+            >
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+                <path d="M7 10l5 5 5-5" />
+                <path d="M12 15V3" />
+              </svg>
+              <span>Export CSV</span>
+            </button>
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
@@ -536,8 +570,9 @@ export default function ValidatorDashboard() {
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Purok</th>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Surname</th>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Classification</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Sub-Class Displaced</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Double Up</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Displaced Subclass</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Double-up Subclass</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Homeless Subclass</th>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Action</th>
                 </tr>
               </thead>
@@ -554,6 +589,7 @@ export default function ValidatorDashboard() {
                     <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.classification}</td>
                     <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.subclass_displaced || <span className="text-gray-400">—</span>}</td>
                     <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.subclass_doubleup || <span className="text-gray-400">—</span>}</td>
+                    <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.subclass_homeless || <span className="text-gray-400">—</span>}</td>
                     <td className="px-3 py-3 whitespace-nowrap">
                       <Link
                         className="inline-flex items-center gap-2 text-xs font-medium text-emerald-700 hover:text-emerald-800 transition-colors"
@@ -595,60 +631,133 @@ export default function ValidatorDashboard() {
         )}
 
         {/* Deleted Table */}
-        <section className={`mt-6 bg-white p-6 rounded-2xl border border-gray-200 shadow-sm ${showTable !== 'deleted' && 'hidden'}`}>
-          <h3 className="text-lg font-semibold text-emerald-800 mb-4">Deleted Surveys</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead className="bg-red-50 text-red-800">
-                <tr>
-                  <th className="p-3 text-left">Deleted At</th>
-                  <th className="p-3 text-left">Barangay</th>
-                  <th className="p-3 text-left">Purok</th>
-                  <th className="p-3 text-left">Surname</th>
-                  <th className="p-3 text-left">Classification</th>
-                  <th className="p-3 text-left">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {deletedFiltered.map(row => (
-                  <tr key={row.survey_id} className="even:bg-gray-50">
-                    <td className="p-3">{row.deleted_at}</td>
-                    <td className="p-3">{String(row.barangay || '').replace(/_/g,' ')}</td>
-                    <td className="p-3">{row.purok}</td>
-                    <td className="p-3">{row.last_name}</td>
-                    <td className="p-3">{row.classification}</td>
-                    <td className="p-3 space-x-2">
-                      <button
-                        onClick={async () => {
-                          try {
-                            await axios.post(`/validator/api/survey/${row.survey_id}/restore`)
-                            fetchDeleted(deleted.page)
-                            fetchSurveys(surveys.page)
-                            fetchTotals()
-                          } catch (e) { console.error(e) }
-                        }}
-                        className="px-3 py-1 border rounded text-sm text-emerald-800 hover:bg-emerald-50"
-                      >Restore</button>
-                    </td>
-                  </tr>
-                ))}
-                {!deletedFiltered.length && <tr><td className="p-3" colSpan="6">No deleted surveys.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-4 flex justify-center gap-2">
-            {pages(deleted.total).map(i => (
-              <button key={i}
-                      onClick={() => { fetchDeleted(i, search); setDeleted(prev => ({...prev, page: i})) }}
-                      className={`px-3 py-1 rounded border ${deleted.page === i ? 'bg-red-600 text-white' : 'text-red-800'}`}>
-                {i}
-              </button>
-            ))}
-          </div>
-        </section>
+        {showTable === 'deleted' && (
+          <DashboardFade delay={400}>
+            <section className="mt-6 bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+              <h3 className="text-lg font-semibold text-emerald-800 mb-4">Deleted Surveys</h3>
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <FilterDropdown
+                  label="Barangay"
+                  value={barangayFilter}
+                  onChange={setBarangayFilter}
+                  options={[
+                    { value: '', label: 'Select' },
+                    ...barangays.map(b => ({ value: b, label: b.replace(/_/g, ' ') })),
+                  ]}
+                  widthClass="w-56"
+                />
 
-        {/* Modal for showing all surveys (Total Surveyed click) */}
-        {modalOpen && (
+                <FilterDropdown
+                  label="Class"
+                  value={exportClass}
+                  onChange={setExportClass}
+                  options={[
+                    { value: '', label: 'All' },
+                    { value: 'Displaced', label: 'Displaced' },
+                    { value: 'Double-up', label: 'Double-up' },
+                    { value: 'Homeless', label: 'Homeless' },
+                    { value: 'Upgrading of Land Tenure', label: 'Upgrading of Land Tenure' },
+                  ]}
+                  widthClass="w-56"
+                />
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Deleted At</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Barangay</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Purok</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Surname</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Classification</th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deletedFinal.map(row => (
+                      <tr
+                        key={row.survey_id}
+                        className="group border-b border-gray-100 last:border-b-0 transition-colors duration-150 hover:bg-red-50"
+                      >
+                        <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.deleted_at}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-gray-700">{String(row.barangay || '').replace(/_/g, ' ')}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.purok}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-gray-900 font-medium">{row.last_name}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.classification}</td>
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          <button
+                            onClick={async () => {
+                              try {
+                                await axios.post(`/validator/api/survey/${row.survey_id}/restore`)
+                                fetchDeleted(deleted.page)
+                                fetchSurveys(surveys.page)
+                                fetchTotals()
+                              } catch (e) {
+                                console.error(e)
+                              }
+                            }}
+                            className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+                          >
+                            Restore
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {!deletedFinal.length && (
+                      <tr>
+                        <td className="p-3" colSpan="6">
+                          No deleted surveys.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-4 flex justify-center gap-2">
+                {pages(deleted.total).map(i => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      fetchDeleted(i, search)
+                      setDeleted(prev => ({ ...prev, page: i }))
+                    }}
+                    className={`px-3 py-1 rounded border ${deleted.page === i ? 'bg-red-600 text-white' : 'text-red-800'}`}
+                  >
+                    {i}
+                  </button>
+                ))}
+              </div>
+            </section>
+        </DashboardFade>
+      )}
+
+      <Modal show={submitConfirm.open} onClose={() => setSubmitConfirm({ open: false, surveyId: null })} maxWidth="sm">
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-emerald-800 mb-2">Submit survey to admin?</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            This will send the selected survey to the admin for validation. You will not be able to edit it afterwards.
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setSubmitConfirm({ open: false, surveyId: null })}
+              className="px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmSubmitSurvey}
+              className="px-3 py-2 rounded-xl bg-emerald-600 text-sm font-medium text-white hover:bg-emerald-700"
+            >
+              Proceed
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal for showing all surveys (Total Surveyed click) */}
+      {modalOpen && (
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center">
             <div className="bg-white rounded-2xl border border-gray-200 p-6 w-11/12 md:w-3/4 shadow-xl">
               <div className="flex justify-between items-center mb-4">

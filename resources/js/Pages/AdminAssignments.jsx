@@ -202,12 +202,15 @@ export default function AdminAssignments() {
         return (
           <ProjectSelect
             value={f.project_id}
-            onChange={v =>
+            onChange={v => {
               setAssignForms(prev => ({
                 ...prev,
-                [r.survey_id]: { ...prev[r.survey_id], project_id: v },
+                [r.survey_id]: { project_id: v, block_no: '', lot_no: '' },
               }))
-            }
+              if (v) {
+                loadBlocks(v)
+              }
+            }}
           />
         )
       },
@@ -218,17 +221,30 @@ export default function AdminAssignments() {
       sortable: false,
       render: r => {
         const f = assignForms[r.survey_id] || { project_id: '', block_no: '', lot_no: '' }
+        const blocks = f.project_id ? blocksMap[f.project_id] || [] : []
         return (
-          <input
-            className="border rounded p-2 w-24"
+          <select
+            className="w-28 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-900 text-left focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
             value={f.block_no}
-            onChange={e =>
+            disabled={!f.project_id}
+            onChange={e => {
+              const v = e.target.value
               setAssignForms(prev => ({
                 ...prev,
-                [r.survey_id]: { ...prev[r.survey_id], block_no: e.target.value },
+                [r.survey_id]: { ...(prev[r.survey_id] || {}), project_id: f.project_id, block_no: v, lot_no: '' },
               }))
-            }
-          />
+              if (f.project_id && v) {
+                loadAvailableLots(f.project_id, v)
+              }
+            }}
+          >
+            <option value="">Select Block</option>
+            {blocks.map(b => (
+              <option key={b.block_no} value={b.block_no}>
+                Block {b.block_no} ({b.available_lots} left)
+              </option>
+            ))}
+          </select>
         )
       },
     },
@@ -238,17 +254,28 @@ export default function AdminAssignments() {
       sortable: false,
       render: r => {
         const f = assignForms[r.survey_id] || { project_id: '', block_no: '', lot_no: '' }
+        const lotsKey = `${f.project_id}#${f.block_no}`
+        const lots = f.project_id && f.block_no ? lotsMap[lotsKey] || [] : []
         return (
-          <input
-            className="border rounded p-2 w-24"
+          <select
+            className="w-24 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-900 text-left focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
             value={f.lot_no}
-            onChange={e =>
+            disabled={!f.project_id || !f.block_no}
+            onChange={e => {
+              const v = e.target.value
               setAssignForms(prev => ({
                 ...prev,
-                [r.survey_id]: { ...prev[r.survey_id], lot_no: e.target.value },
+                [r.survey_id]: { ...(prev[r.survey_id] || {}), project_id: f.project_id, block_no: f.block_no, lot_no: v },
               }))
-            }
-          />
+            }}
+          >
+            <option value="">Select Lot</option>
+            {lots.map(l => (
+              <option key={l} value={l}>
+                Lot {l}
+              </option>
+            ))}
+          </select>
         )
       },
     },

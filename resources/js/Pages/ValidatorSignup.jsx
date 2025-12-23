@@ -8,6 +8,7 @@ export default function ValidatorSignup() {
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [signatureFile, setSignatureFile] = useState(null)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -37,9 +38,13 @@ export default function ValidatorSignup() {
       fd.append('email', email)
       fd.append('password', password)
       fd.append('signature', signatureFile)
-      await axios.post('/admin/api/validators', fd, { headers: { 'X-CSRF-TOKEN': csrf() } })
+      await axios.post('/admin/api/validators', fd)
       router.visit('/admin/profile')
     } catch (err) {
+      if (err?.response?.status === 419) {
+        window.location.reload()
+        return
+      }
       const data = err?.response?.data
       setError(data?.errors?.username?.[0] || data?.message || 'Failed to create account')
     } finally {
@@ -122,7 +127,22 @@ export default function ValidatorSignup() {
               </div>
               <div>
                 <div className="text-sm text-gray-500">Password</div>
-                <input className="border border-gray-300 rounded-xl p-2.5 w-full focus:outline-none focus:ring-2 focus:ring-emerald-300" type="password" value={password} onChange={e=>setPassword(e.target.value)} required/>
+                <div className="relative">
+                  <input
+                    className="border border-gray-300 rounded-xl p-2.5 w-full pr-20 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={e=>setPassword(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(v => !v)}
+                    className="absolute inset-y-0 right-4 flex items-center text-xs font-medium text-gray-500 hover:text-gray-700"
+                  >
+                    {showPassword ? 'Hide' : 'Show'}
+                  </button>
+                </div>
               </div>
               <div>
                 <div className="text-sm text-gray-500">Signature</div>

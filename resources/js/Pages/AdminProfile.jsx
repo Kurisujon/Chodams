@@ -29,6 +29,10 @@ export default function AdminProfile() {
       setProfile(res.data.profile)
       setError('')
     } catch (e) {
+      if (e?.response?.status === 401) {
+        window.location.href = '/login'
+        return
+      }
       setError('Failed to load admin profile.')
     }
   }
@@ -40,6 +44,10 @@ export default function AdminProfile() {
       setError('')
       setValidatorsPage(1)
     } catch (e) {
+      if (e?.response?.status === 401) {
+        window.location.href = '/login'
+        return
+      }
       setError('Failed to load validators.')
     }
   }

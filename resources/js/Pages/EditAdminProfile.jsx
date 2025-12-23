@@ -10,6 +10,8 @@ export default function EditAdminProfile() {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('account')
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
   const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
 
   useEffect(() => {
@@ -113,11 +115,39 @@ export default function EditAdminProfile() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <div className="text-sm text-gray-500">Current Password</div>
-                    <input className="border border-gray-300 rounded-xl p-2.5 w-full focus:outline-none focus:ring-2 focus:ring-emerald-300" type="password" value={currentPassword} onChange={e=>setCurrentPassword(e.target.value)} />
+                    <div className="relative">
+                      <input
+                        className="border border-gray-300 rounded-xl p-2.5 w-full pr-20 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                        type={showCurrentPassword ? 'text' : 'password'}
+                        value={currentPassword}
+                        onChange={e=>setCurrentPassword(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowCurrentPassword(v => !v)}
+                        className="absolute inset-y-0 right-4 flex items-center text-xs font-medium text-gray-500 hover:text-gray-700"
+                      >
+                        {showCurrentPassword ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <div className="text-sm text-gray-500">New Password</div>
-                    <input className="border border-gray-300 rounded-xl p-2.5 w-full focus:outline-none focus:ring-2 focus:ring-emerald-300" type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} />
+                    <div className="relative">
+                      <input
+                        className="border border-gray-300 rounded-xl p-2.5 w-full pr-20 focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                        type={showNewPassword ? 'text' : 'password'}
+                        value={newPassword}
+                        onChange={e=>setNewPassword(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(v => !v)}
+                        className="absolute inset-y-0 right-4 flex items-center text-xs font-medium text-gray-500 hover:text-gray-700"
+                      >
+                        {showNewPassword ? 'Hide' : 'Show'}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div className="flex justify-end">

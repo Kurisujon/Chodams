@@ -13,7 +13,6 @@ export default function SurveyDetails() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showHouseInfo, setShowHouseInfo] = useState(false)
-  const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
   const fileUrl = (path) => {
     const s = String(path || '')
     if (!s) return ''
@@ -45,9 +44,9 @@ export default function SurveyDetails() {
     { key: 'Makeshift/Salvaged/Improvised_Material', label: 'Makeshift/Salvaged/Improvised Material' },
   ]
   const TOILET_OPTS = [
-    { key: 'Water-sealed', label: 'Water Sealed' },
-    { key: 'Pit', label: 'Open Pit/Antipolo' },
-    { key: 'None', label: 'No Toilet' },
+    { key: 'Water-sealed', label: 'Water Sealed', aliases: ['Water_Sealed', 'Water Sealed'] },
+    { key: 'Pit', label: 'Open Pit/Antipolo', aliases: ['Open_Pit/Antipolo', 'Open Pit', 'Open pit/antipolo'] },
+    { key: 'None', label: 'No Toilet', aliases: ['No_Toilet', 'No Toilet'] },
   ]
   const WATER_OPTS = [
     { key: 'Community_Water_System_(NAWASA)', label: 'Community Water System (NAWASA)', aliases: ['With_own_meter','Shared_connection'] },
@@ -79,6 +78,10 @@ export default function SurveyDetails() {
     { key: 'Within the Province', label: 'Within the Province' },
     { key: 'Within the Country', label: 'Within the Country' },
   ]
+
+  const buttonGhostClass = 'inline-flex items-center justify-center rounded-2xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-emerald-700 hover:border-emerald-300 hover:bg-emerald-50'
+  const buttonPrimaryClass = 'inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700'
+  const buttonDangerClass = 'inline-flex items-center justify-center rounded-2xl bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700'
   const SKILL_OPTS = [
     { key: 'Handicrafts', label: 'Handicrafts', aliases: ['Handicraft'] },
     { key: 'Wood Works & furnitures', label: 'Wood Works & furnitures', aliases: ['Wood Works and furnitures','Wood works & furnitures','Wood works and furnitures'] },
@@ -93,7 +96,7 @@ export default function SurveyDetails() {
 
   async function handleApprove() {
     try {
-      await axios.post('/admin/api/approve', { survey_id: surveyId }, { headers: { 'X-CSRF-TOKEN': csrf() } })
+      await axios.post('/admin/api/approve', { survey_id: surveyId })
       window.location.href = '/admin/assignments'
     } catch (e) {
       setError(e?.response?.data?.message || 'Approval failed')
@@ -117,27 +120,66 @@ export default function SurveyDetails() {
   if (error) return <div className="min-h-screen flex items-center justify-center text-red-600">{error}</div>
   if (!survey) return <div className="min-h-screen flex items-center justify-center text-gray-600">Not found</div>
 
+  const normalizeNamePart = v => {
+    if (!v) return ''
+    const t = String(v).trim()
+    if (t.toUpperCase() === 'N/A') return ''
+    return t
+  }
+
+  const respondentNameParts = []
+  const firstName = normalizeNamePart(survey.first_name)
+  const middleName = normalizeNamePart(survey.middle_name)
+  const lastName = normalizeNamePart(survey.last_name)
+  const suffix = normalizeNamePart(survey.suffix)
+  if (firstName) respondentNameParts.push(firstName)
+  if (middleName) respondentNameParts.push(middleName)
+  if (lastName) respondentNameParts.push(lastName)
+  if (suffix) respondentNameParts.push(suffix)
+  const respondentName = respondentNameParts.join(' ')
+  const validatorName = survey.validator_name || ''
+
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="max-w-6xl mx-auto p-6 print:max-w-none print:p-0 print:m-0">
-          <div className="flex justify-between items-center mb-4 print:hidden">
+          <div className="flex justify-between items-center mb-6 print:hidden">
             <h1 className="text-2xl font-semibold text-emerald-800">Survey Form Details</h1>
-            <div className="flex gap-2">
-              <Link href={isAdmin ? '/admin/beneficiaries' : '/validator/dashboard'} className="px-4 py-2 border rounded text-emerald-800">Back</Link>
-              <button onClick={() => window.print()} className="px-4 py-2 bg-emerald-600 text-white rounded">Print</button>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={isAdmin ? '/admin/beneficiaries' : '/validator/dashboard'}
+                className={buttonGhostClass}
+              >
+                Back
+              </Link>
+              <button
+                onClick={() => window.print()}
+                className={buttonPrimaryClass}
+              >
+                Print
+              </button>
               <a
                 href={`${apiBase}/survey/${surveyId}/export`}
-                className="px-3 py-2 rounded-2xl ring-2 ring-emerald-300 text-emerald-700 inline-flex items-center gap-2 hover:bg-emerald-50"
+                className="inline-flex items-center justify-center rounded-2xl bg-white px-3 py-2 text-sm font-medium text-emerald-700 ring-2 ring-emerald-300 hover:ring-emerald-400 hover:bg-emerald-50"
                 title="Download Excel"
               >
                 <img src="/icons/downloadicon.png" alt="Download" className="w-5 h-5" />
               </a>
               {isAdmin && survey?.is_submitted !== 2 && (
-                <button onClick={handleApprove} className="px-4 py-2 bg-emerald-600 text-white rounded">Approve</button>
+                <button
+                  onClick={handleApprove}
+                  className={buttonPrimaryClass}
+                >
+                  Approve
+                </button>
               )}
               {!isAdmin && (survey?.is_submitted === 0) && (
                 <>
-                  <Link href={`/validator/survey-form?survey_id=${surveyId}`} className="px-4 py-2 border rounded text-emerald-800">Edit</Link>
+                  <Link
+                    href={`/validator/survey-form?survey_id=${surveyId}`}
+                    className={buttonGhostClass}
+                  >
+                    Edit
+                  </Link>
                   <button
                     onClick={async () => {
                       if (!confirm('Delete this survey? You can restore it later.')) return
@@ -148,7 +190,7 @@ export default function SurveyDetails() {
                         alert(e?.response?.data?.message || 'Delete failed')
                       }
                     }}
-                    className="px-4 py-2 bg-red-600 text-white rounded"
+                    className={buttonDangerClass}
                   >
                     Delete
                   </button>
@@ -434,12 +476,9 @@ export default function SurveyDetails() {
                   <td className="border border-gray-300 px-3 py-2">{String(survey.language_spoken || '-').replace(/_/g,' ')}</td>
                 </tr>
                 <tr className="bg-gray-100 text-gray-900 font-semibold">
-                  <td className="border border-gray-300 px-3 py-2">Affiliation</td>
-                  <td className="border border-gray-300 px-3 py-2" colSpan={3}>{survey.affiliation || survey.affiliations || '-'}</td>
-                </tr>
-                <tr className="bg-gray-100 text-gray-900 font-semibold">
-                  <td className="border border-gray-300 px-3 py-2" colSpan={2}>Highest Educational Attainment</td>
-                  <td className="border border-gray-300 px-3 py-2">Name of the School Last Attended</td>
+                  <td className="border border-gray-300 px-3 py-2">Ethnicity/Tribe</td>
+                  <td className="border border-gray-300 px-3 py-2">Highest Educational Attainment</td>
+                  <td className="border border-gray-300 px-3 py-2">Name of School Last Attended</td>
                   <td className="border border-gray-300 px-3 py-2">Year Graduated</td>
                 </tr>
                 <tr>
@@ -652,29 +691,54 @@ export default function SurveyDetails() {
                   <td className="border border-gray-300 px-1 py-1" colSpan={2} style={{width:'40%'}}>
                     <div className="grid grid-cols-2 gap-x-[2px] gap-y-[1px]">
                       <div className="space-y-0">
-                        {['Water Sealed','No Toilet'].map(lbl => { const opt = TOILET_OPTS.find(o=>o.label===lbl); return (
-                          <div key={lbl} className="flex items-center gap-[1px]">
-                            <Check checked={opt ? eq(survey.type_of_toilet, opt.key) : false} />
-                            <span>{lbl}</span>
-                          </div>
-                        )})}
+                        {['Water Sealed','No Toilet'].map(lbl => {
+                          const opt = TOILET_OPTS.find(o=>o.label===lbl);
+                          const checked = opt ? (
+                            eq(survey.type_of_toilet, opt.key) ||
+                            eq(survey.type_of_toilet, opt.label) ||
+                            (opt.aliases||[]).some(a=>eq(survey.type_of_toilet, a))
+                          ) : false;
+                          return (
+                            <div key={lbl} className="flex items-center gap-[1px]">
+                              <Check checked={checked} />
+                              <span>{lbl}</span>
+                            </div>
+                          )
+                        })}
                       </div>
                       <div className="space-y-0">
-                        {['Open Pit/Antipolo'].map(lbl => { const opt = TOILET_OPTS.find(o=>o.label===lbl); return (
-                          <div key={lbl} className="flex items-center gap-[1px]">
-                            <Check checked={opt ? eq(survey.type_of_toilet, opt.key) : false} />
-                            <span>{lbl}</span>
-                          </div>
-                        )})}
+                        {['Open Pit/Antipolo'].map(lbl => {
+                          const opt = TOILET_OPTS.find(o=>o.label===lbl);
+                          const checked = opt ? (
+                            eq(survey.type_of_toilet, opt.key) ||
+                            eq(survey.type_of_toilet, opt.label) ||
+                            (opt.aliases||[]).some(a=>eq(survey.type_of_toilet, a))
+                          ) : false;
+                          return (
+                            <div key={lbl} className="flex items-center gap-[1px]">
+                              <Check checked={checked} />
+                              <span>{lbl}</span>
+                            </div>
+                          )
+                        })}
                         <div className="flex items-center gap-[2px] mt-[2px] pl-[2px]">
-                          {(() => { const v = String(survey.type_of_toilet||''); const known = TOILET_OPTS.some(o=>eq(v,o.key)); const other = String(survey.other_type_of_toilet||'') || (known? '' : v); return (
-                            <>
-                              <Check checked={other !== ''} />
-                              <span>Others</span>
-                              <span className="ml-[2px]">please specify</span>
-                              <span className="inline-block border-b border-black w-[140px] overflow-hidden whitespace-nowrap">{other}</span>
-                            </>
-                          ) })()}
+                          {(() => {
+                            const v = String(survey.type_of_toilet||'');
+                            const known = TOILET_OPTS.some(o =>
+                              eq(v, o.key) ||
+                              eq(v, o.label) ||
+                              (o.aliases||[]).some(a => eq(v, a))
+                            );
+                            const other = String(survey.other_type_of_toilet||'') || (known ? '' : v);
+                            return (
+                              <>
+                                <Check checked={other !== ''} />
+                                <span>Others</span>
+                                <span className="ml-[2px]">please specify</span>
+                                <span className="inline-block border-b border-black w-[140px] overflow-hidden whitespace-nowrap">{other}</span>
+                              </>
+                            )
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -912,12 +976,19 @@ export default function SurveyDetails() {
                     <div className="leading-relaxed">
                       I hereby certify that the above statement and information are true and correct to the best of my knowledge. I further understand that any misrepresentation and/or deliberate omission of facts and information contained herein shall constitute ground for my disqualification. I voluntarily and freely consent to the collection and processing of the above personal information only in relation to Data Privacy Act.
                     </div>
-                    <div className="mt-2" style={{height:'80px'}}>
+                    <div className="mt-2 flex items-center justify-center" style={{height:'90px'}}>
                       {survey.respondent_signature ? (
-                        <img className="h-full object-contain" src={fileUrl(survey.respondent_signature)} alt="Respondent Signature" />
+                        <img className="max-h-full object-contain" src={fileUrl(survey.respondent_signature)} alt="Respondent Signature" />
                       ) : null}
                     </div>
-                    <div className="border-t border-gray-300 pt-1 text-center font-semibold text-[10px]">Signature over Printed Name of HH/Respondent</div>
+                    <div className="pt-1 text-center">
+                      <div className="w-full border-b border-gray-300 flex justify-center">
+                        <span className="font-semibold text-[12px] leading-tight px-2 bg-white">
+                          {respondentName || '\u00A0'}
+                        </span>
+                      </div>
+                      <div className="font-semibold text-[11px] mt-1">Signature over Printed Name of HH/Respondent</div>
+                    </div>
                   </td>
                   <td className="border border-gray-300 px-3 py-2 align-top" style={{width:'50%'}}>
                     <table className="w-full border-collapse">
@@ -938,15 +1009,22 @@ export default function SurveyDetails() {
                         </tr>
                         <tr>
                           <td className="px-2 py-2" colSpan={2}>
-                            <div className="w-full" style={{height:'80px'}}>
+                            <div className="w-full flex items-center justify-center" style={{height:'90px'}}>
                               {survey.validator_signature ? (
-                                <img className="h-full object-contain mx-auto" src={fileUrl(survey.validator_signature)} alt="Validator Signature" />
+                                <img className="max-h-full object-contain" src={fileUrl(survey.validator_signature)} alt="Validator Signature" />
                               ) : null}
                             </div>
                           </td>
                         </tr>
                         <tr>
-                          <td className="border-t border-gray-300 px-2 py-1 text-center font-semibold text-[10px]" colSpan={2}>Signature over Printed Name of Interviewer</td>
+                          <td className="px-2 pt-1 pb-1 text-center" colSpan={2}>
+                            <div className="w-full border-b border-gray-300 flex justify-center">
+                              <span className="font-semibold text-[12px] leading-tight px-2 bg-white">
+                                {validatorName || '\u00A0'}
+                              </span>
+                            </div>
+                            <div className="font-semibold text-[11px] mt-1">Signature over Printed Name of Interviewer</div>
+                          </td>
                         </tr>
                         <tr>
                           <td className="border-t border-gray-300 px-2 py-2 text-[10px] leading-relaxed" colSpan={2}>

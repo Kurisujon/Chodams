@@ -114,6 +114,8 @@ Route::prefix('admin/api')->middleware('role:admin')->group(function () {
     Route::get('/subclass-doubleup', [ValidatorDashboardController::class, 'adminSubclassDoubleUp']);
     Route::get('/subclass-homeless', [ValidatorDashboardController::class, 'adminSubclassHomeless']);
     Route::get('/indicators', [ValidatorDashboardController::class, 'adminIndicators']);
+    Route::get('/timeseries', [ValidatorDashboardController::class, 'adminTimeSeries']);
+    Route::get('/data-quality', [ValidatorDashboardController::class, 'adminDataQuality']);
     Route::get('/crosstab/income-classification', [ValidatorDashboardController::class, 'adminCrosstabIncomeClassification']);
     Route::get('/crosstab/classification-barangay', [ValidatorDashboardController::class, 'adminCrosstabClassificationBarangay']);
     Route::get('/beneficiaries/validated', [ValidatorDashboardController::class, 'adminBeneficiariesValidated']);
@@ -137,6 +139,7 @@ Route::prefix('admin/api')->middleware('role:admin')->group(function () {
     Route::get('/survey/{survey_id}/photo', [ValidatorDashboardController::class, 'adminSurveyPhoto']);
     Route::get('/survey/{survey_id}/person-photo', [ValidatorDashboardController::class, 'adminSurveyPersonPhoto']);
     Route::get('/map-points', [ValidatorDashboardController::class, 'adminMapPoints']);
+    Route::post('/surveys/restore-deleted-all', [ValidatorDashboardController::class, 'adminRestoreAllDeletedSurveys']);
     Route::post('/approve', [ValidatorDashboardController::class, 'adminApproveSurvey']);
     Route::get('/db-info', [ValidatorDashboardController::class, 'adminDbInfo']);
 
@@ -172,7 +175,6 @@ Route::middleware('role:validator')->group(function () {
     Route::get('/validator/profile', function () {
         return Inertia::render('ValidatorProfile');
     });
-    Route::post('/validator/logout', [LoginController::class, 'logout']);
 });
 
 // Validator API Routes
@@ -212,4 +214,8 @@ Route::prefix('Chodams/survey')->group(function () {
     Route::post('/submit_survey_api.php', [ValidatorDashboardController::class, 'mobileSubmitSurvey']);
     Route::post('/validate_validator_api.php', [ValidatorDashboardController::class, 'mobileValidateValidator']);
     Route::get('/test_api_connection.php', [ValidatorDashboardController::class, 'mobilePing']);
+});
+
+Route::fallback(function () {
+    return Inertia::render('Landing');
 });
