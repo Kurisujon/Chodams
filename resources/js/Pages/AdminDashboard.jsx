@@ -1,8 +1,15 @@
 // resources/js/Pages/AdminDashboard.jsx
-import React, { useEffect, useRef, useState } from 'react'
+import React, { Fragment, useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { Link } from '@inertiajs/react'
 import Modal from '../Components/Modal'
+import { Listbox, Transition } from '@headlessui/react'
+
+const barangays = [
+  'Aplaya','Balabag','Binaton','Cogon','Colorado','Dawis','Dulangan','Goma','Igpit','Kapatagan','Kiagot','Lungag','Mahayahay','Matti','Ruparan','San_Agustin','San_Jose','San_Miguel','San_Roque','Sinawilan','Soong','Tiguman','Tres_De_Mayo','Zone_1','Zone_2','Zone_3'
+]
+
+const classOrder = ['Displaced', 'Double-up', 'Homeless', 'Upgrading of Land Tenure']
 
 export default function AdminDashboard() {
   const [totals, setTotals] = useState({ total_validated: 0, total_approved: 0 })
@@ -43,6 +50,29 @@ export default function AdminDashboard() {
   const [periodBarangayData, setPeriodBarangayData] = useState([])
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
+
+  const filterSelectClass = 'rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 text-left shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100 min-w-[150px]'
+  const barangayFilterOptions = [{ value: '', label: 'All' }, ...barangays.map(b => ({ value: b, label: b.replace(/_/g, ' ') }))]
+  const classFilterOptions = [{ value: '', label: 'All' }, ...classOrder.map(c => ({ value: c, label: c }))]
+  const incomeFilterOptions = [
+    { value: '', label: 'All income bands' },
+    { value: '0_2999', label: '0–2,999' },
+    { value: '3000_5999', label: '3,000–5,999' },
+    { value: '6000_8999', label: '6,000–8,999' },
+    { value: '9000_12999', label: '9,000–12,999' },
+    { value: '13000_plus', label: '13,000+' },
+  ]
+  const waterFilterOptions = [
+    { value: '', label: 'Water: All' },
+    { value: 'has', label: 'With water' },
+    { value: 'none', label: 'No water' },
+  ]
+  const electricityFilterOptions = [
+    { value: '', label: 'Electricity: All' },
+    { value: 'has', label: 'With electricity' },
+    { value: 'none', label: 'No electricity' },
+  ]
 
   const barangayRef = useRef(null)
   const classificationRef = useRef(null)
@@ -116,9 +146,6 @@ export default function AdminDashboard() {
   const surveysMonthRef = useRef(null)
   const followupMonthChart = useRef(null)
   const followupMonthRef = useRef(null)
-  const barangays = [
-    'Aplaya','Balabag','Binaton','Cogon','Colorado','Dawis','Dulangan','Goma','Igpit','Kapatagan','Kiagot','Lungag','Mahayahay','Matti','Ruparan','San_Agustin','San_Jose','San_Miguel','San_Roque','Sinawilan','Soong','Tiguman','Tres_De_Mayo','Zone_1','Zone_2','Zone_3'
-  ]
 
   const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
 
@@ -135,19 +162,28 @@ export default function AdminDashboard() {
   }, [])
 
   useEffect(() => {
-    fetchTotals()
-    fetchBarangay()
-    fetchClassification(classificationPeriod)
-    fetchSubclassDisplaced()
-    fetchSubclassDoubleUp()
-    fetchSubclassHomeless()
-    fetchMapPoints()
-    fetchAssignedCount()
-    fetchNotifications()
-    fetchIndicators()
-    fetchTimeSeries()
-    fetchCrosstabIncomeClassification()
-    fetchCrosstabClassificationBarangay()
+    let cancelled = false
+    async function loadInitial() {
+      setInitialLoading(true)
+      try {
+        await Promise.all([
+          fetchTotals(),
+          fetchBarangay(),
+          fetchSubclassDisplaced(),
+          fetchSubclassDoubleUp(),
+          fetchSubclassHomeless(),
+          fetchAssignedCount(),
+          fetchNotifications(),
+          fetchProfile(),
+        ])
+      } finally {
+        if (!cancelled) setInitialLoading(false)
+      }
+    }
+    loadInitial()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
@@ -156,10 +192,6 @@ export default function AdminDashboard() {
     fetchCrosstabIncomeClassification()
     fetchCrosstabClassificationBarangay()
   }, [filterBarangay, filterClass, filterIncome, filterWater, filterElectricity])
-
-  useEffect(() => {
-    fetchProfile()
-  }, [])
 
   useEffect(() => {
     const refresh = () => { fetchTotals(); fetchAssignedCount() }
@@ -223,6 +255,10 @@ export default function AdminDashboard() {
     }
     const res = await axios.get('/admin/api/indicators', { params })
     setIndicators(res.data)
+    if (!filterBarangay && !filterClass && !filterIncome && !filterWater && !filterElectricity) {
+      const baseCounts = res.data?.vulnerability?.classification_count || {}
+      setOverallClassificationData(baseCounts)
+    }
   }
 
   async function fetchTimeSeries() {
@@ -306,14 +342,46 @@ export default function AdminDashboard() {
     if (!window.Chart) return
     if (classificationChart.current) classificationChart.current.destroy()
     if (!classificationRef.current) return
-    const top = [...periodBarangayData].sort((a, b) => (Number(b.count || 0) - Number(a.count || 0))).slice(0, 10)
-    const labels = top.map(i => String(i.barangay || 'Unknown').replace(/_/g,' '))
-    const values = top.map(i => Number(i.count) || 0)
-    const colors = emeraldColors(labels.length)
+    const sorted = [...periodBarangayData].sort((a, b) => (Number(b.count || 0) - Number(a.count || 0)))
+    const labels = sorted.map(i => String(i.barangay || 'Unknown').replace(/_/g,' '))
+    const values = sorted.map(i => Number(i.count) || 0)
+    const colors = byYearColors(labels.length)
     classificationChart.current = new window.Chart(classificationRef.current, {
       type: 'doughnut',
-      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: '#fff', borderWidth: 2, hoverOffset: 6 }] },
-      options: { responsive: true, cutout: '68%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle' } } }, animation: { duration: 800 } }
+      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: '#fff', borderWidth: 2, hoverOffset: 4 }] },
+      options: {
+        responsive: true,
+        cutout: '66%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              usePointStyle: true,
+              pointStyle: 'circle',
+              generateLabels: (chart) => {
+                const data = chart.data || {}
+                const ds = (data.datasets && data.datasets[0]) || {}
+                const vals = ds.data || []
+                const total = vals.reduce((sum, v) => sum + Number(v || 0), 0)
+                const bg = ds.backgroundColor || []
+                return (data.labels || []).map((label, index) => {
+                  const raw = Number(vals[index] || 0)
+                  const pct = total ? Math.round((raw / total) * 100) : 0
+                  return {
+                    text: `${label} (${pct}%)`,
+                    fillStyle: bg[index] || '#10B981',
+                    strokeStyle: '#ffffff',
+                    lineWidth: 2,
+                    hidden: raw === 0 || Number.isNaN(raw),
+                    index
+                  }
+                })
+              }
+            }
+          }
+        },
+        animation: { duration: 800 }
+      }
     })
   }, [periodBarangayData])
 
@@ -333,7 +401,9 @@ export default function AdminDashboard() {
       }),
       backgroundColor: colors[idx],
       borderRadius: 8,
-      maxBarThickness: 22
+      maxBarThickness: 28,
+      barPercentage: 0.9,
+      categoryPercentage: 0.7
     }))
     displacedChart.current = new window.Chart(displacedRef.current, {
       type: 'bar',
@@ -342,8 +412,8 @@ export default function AdminDashboard() {
         responsive: true,
         indexAxis: 'y',
         scales: {
-          x: { grid: { color: 'rgba(16,185,129,0.1)' }, ticks: { display: false, stepSize: 1 } },
-          y: { grid: { display: false }, ticks: { color: '#374151' } }
+          x: { grid: { color: 'rgba(16,185,129,0.06)' }, ticks: { display: false, stepSize: 1 } },
+          y: { grid: { display: false }, ticks: { color: '#374151', autoSkip: false, padding: 4 } }
         },
         plugins: {
           legend: {
@@ -378,7 +448,9 @@ export default function AdminDashboard() {
       }),
       backgroundColor: colors[idx],
       borderRadius: 8,
-      maxBarThickness: 22
+      maxBarThickness: 28,
+      barPercentage: 0.9,
+      categoryPercentage: 0.7
     }))
     doubleUpChart.current = new window.Chart(doubleUpRef.current, {
       type: 'bar',
@@ -387,8 +459,8 @@ export default function AdminDashboard() {
         responsive: true,
         indexAxis: 'y',
         scales: {
-          x: { grid: { color: 'rgba(16,185,129,0.1)' }, ticks: { display: false, stepSize: 1 } },
-          y: { grid: { display: false }, ticks: { color: '#374151' } }
+          x: { grid: { color: 'rgba(16,185,129,0.06)' }, ticks: { display: false, stepSize: 1 } },
+          y: { grid: { display: false }, ticks: { color: '#374151', autoSkip: false, padding: 4 } }
         },
         plugins: {
           legend: {
@@ -423,7 +495,9 @@ export default function AdminDashboard() {
       }),
       backgroundColor: colors[idx],
       borderRadius: 8,
-      maxBarThickness: 22
+      maxBarThickness: 28,
+      barPercentage: 0.9,
+      categoryPercentage: 0.7
     }))
     homelessChart.current = new window.Chart(homelessRef.current, {
       type: 'bar',
@@ -432,8 +506,8 @@ export default function AdminDashboard() {
         responsive: true,
         indexAxis: 'y',
         scales: {
-          x: { grid: { color: 'rgba(16,185,129,0.1)' }, ticks: { display: false, stepSize: 1 } },
-          y: { grid: { display: false }, ticks: { color: '#374151' } }
+          x: { grid: { color: 'rgba(16,185,129,0.06)' }, ticks: { display: false, stepSize: 1 } },
+          y: { grid: { display: false }, ticks: { color: '#374151', autoSkip: false, padding: 4 } }
         },
         plugins: {
           legend: {
@@ -459,7 +533,7 @@ export default function AdminDashboard() {
     const b = indicators.economic?.bands || { '0_2999': 0, '3000_5999': 0, '6000_8999': 0, '9000_12999': 0, '13000_plus': 0 }
     const labels = ['0–2,999','3,000–5,999','6,000–8,999','9,000–12,999','13,000+']
     const values = [Number(b['0_2999']||0), Number(b['3000_5999']||0), Number(b['6000_8999']||0), Number(b['9000_12999']||0), Number(b['13000_plus']||0)]
-    const colors = ['#10B981','#34D399','#6EE7B7','#A7F3D0','#D1FAE5']
+    const colors = emeraldColors(labels.length)
     incomeChart.current = new window.Chart(incomeRef.current, {
       type: 'bar',
       data: { labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 8, maxBarThickness: 22 }] },
@@ -485,8 +559,8 @@ export default function AdminDashboard() {
     const colors = emeraldColors(labels.length)
     educationChart.current = new window.Chart(educationRef.current, {
       type: 'doughnut',
-      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: '#fff', borderWidth: 2, hoverOffset: 6 }] },
-      options: { responsive: true, cutout: '72%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle' } } }, animation: { duration: 800 } }
+      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: '#fff', borderWidth: 2, hoverOffset: 4 }] },
+      options: { responsive: true, cutout: '70%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle' } } }, animation: { duration: 800 } }
     })
   }, [indicators])
 
@@ -509,12 +583,12 @@ export default function AdminDashboard() {
           backgroundColor: colors,
           borderColor: '#fff',
           borderWidth: 2,
-          hoverOffset: 6
+          hoverOffset: 4
         }]
       },
       options: {
         responsive: true,
-        cutout: '72%',
+        cutout: '70%',
         plugins: {
           legend: {
             position: 'bottom',
@@ -549,6 +623,7 @@ export default function AdminDashboard() {
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         scales: {
           x: { grid: { display: false }, ticks: { color: '#374151' } },
           y: { grid: { color: 'rgba(16,185,129,0.08)' }, ticks: { stepSize: 1, color: '#374151' } }
@@ -569,13 +644,14 @@ export default function AdminDashboard() {
     const labels = totals.map(r => String(r.ym || ''))
     const followupVals = labels.map(l => fuMap.get(l) || 0)
     const newVals = totals.map(r => Math.max(0, Number(r.count || 0) - (fuMap.get(String(r.ym || '')) || 0)))
+    const stackColors = emeraldColors(2)
     followupMonthChart.current = new window.Chart(followupMonthRef.current, {
       type: 'bar',
       data: {
         labels,
         datasets: [
-          { label: 'New', data: newVals, backgroundColor: '#34D399', borderRadius: 8, maxBarThickness: 22 },
-          { label: 'Follow-up', data: followupVals, backgroundColor: '#10B981', borderRadius: 8, maxBarThickness: 22 }
+          { label: 'New', data: newVals, backgroundColor: stackColors[0], borderRadius: 8, maxBarThickness: 22 },
+          { label: 'Follow-up', data: followupVals, backgroundColor: stackColors[1], borderRadius: 8, maxBarThickness: 22 }
         ]
       },
       options: {
@@ -674,8 +750,6 @@ export default function AdminDashboard() {
     }))
   }, [mapPoints])
 
-  const classOrder = ['Displaced', 'Double-up', 'Homeless', 'Upgrading of Land Tenure']
-
   const barangayCrosstabTop = (() => {
     const map = new Map()
     for (const row of (crosstabClassificationBarangay || [])) {
@@ -694,8 +768,78 @@ export default function AdminDashboard() {
     return [...map.values()].sort((a, b) => b.total - a.total).slice(0, 10)
   })()
 
+  const globalIsfSummary = (() => {
+    const counts = overallClassificationData || {}
+    const items = classOrder.map(name => ({
+      name,
+      value: Number(counts[name] || 0),
+    })).filter(item => item.value > 0)
+    const total = items.reduce((sum, item) => sum + item.value, 0)
+    return { items, total }
+  })()
+
+  const displacedSubclassTable = (() => {
+    const barangayMap = new Map()
+    const subclassSet = new Set()
+    for (const row of (subclassDisplacedData || [])) {
+      const barangay = row.barangay || 'Unknown'
+      const subclass = row.subclass_displaced || 'Unknown'
+      const count = Number(row.count || 0)
+      subclassSet.add(subclass)
+      if (!barangayMap.has(barangay)) {
+        barangayMap.set(barangay, { barangay, total: 0, counts: {} })
+      }
+      const entry = barangayMap.get(barangay)
+      entry.total += count
+      entry.counts[subclass] = (entry.counts[subclass] || 0) + count
+    }
+    const subclasses = [...subclassSet].sort((a, b) => String(a).localeCompare(String(b)))
+    const rows = [...barangayMap.values()].sort((a, b) => String(a.barangay).localeCompare(String(b.barangay)))
+    return { subclasses, rows }
+  })()
+
+  const doubleUpSubclassTable = (() => {
+    const barangayMap = new Map()
+    const subclassSet = new Set()
+    for (const row of (subclassDoubleUpData || [])) {
+      const barangay = row.barangay || 'Unknown'
+      const subclass = row.subclass_doubleup || 'Unknown'
+      const count = Number(row.count || 0)
+      subclassSet.add(subclass)
+      if (!barangayMap.has(barangay)) {
+        barangayMap.set(barangay, { barangay, total: 0, counts: {} })
+      }
+      const entry = barangayMap.get(barangay)
+      entry.total += count
+      entry.counts[subclass] = (entry.counts[subclass] || 0) + count
+    }
+    const subclasses = [...subclassSet].sort((a, b) => String(a).localeCompare(String(b)))
+    const rows = [...barangayMap.values()].sort((a, b) => String(a.barangay).localeCompare(String(b.barangay)))
+    return { subclasses, rows }
+  })()
+
+  const homelessSubclassTable = (() => {
+    const barangayMap = new Map()
+    const subclassSet = new Set()
+    for (const row of (subclassHomelessData || [])) {
+      const barangay = row.barangay || 'Unknown'
+      const count = Number(row.count || 0)
+      const subclass = row.subclass_homeless || 'Unknown'
+      subclassSet.add(subclass)
+      if (!barangayMap.has(barangay)) {
+        barangayMap.set(barangay, { barangay, total: 0, counts: {} })
+      }
+      const entry = barangayMap.get(barangay)
+      entry.total += count
+      entry.counts[subclass] = (entry.counts[subclass] || 0) + count
+    }
+    const subclasses = [...subclassSet].sort((a, b) => String(a).localeCompare(String(b)))
+    const rows = [...barangayMap.values()].sort((a, b) => String(a.barangay).localeCompare(String(b.barangay)))
+    return { subclasses, rows }
+  })()
+
   return (
-    <div className={`flex h-screen overflow-hidden transition-opacity duration-500 ease-in-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
+    <div className={`admin-dashboard-root flex h-screen overflow-hidden transition-opacity duration-500 ease-in-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
       <aside className="hidden md:block w-64 flex flex-col flex-shrink-0 bg-white text-gray-700 p-6 border-r border-gray-200 h-screen sticky top-0 overflow-hidden">
         <div className="flex items-center gap-3 mb-8">
           <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
@@ -718,14 +862,14 @@ export default function AdminDashboard() {
             <img src="/icons/assignmenticon.png" alt="Assignments" className="w-5 h-5"/>
             <span className="tracking-wider uppercase text-xs">Assignments</span>
           </Link>
+          <Link href="/admin/mapping" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/mapping') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+            <img src="/icons/projectsiteicon.png" alt="Mapping" className="w-5 h-5"/>
+            <span className="tracking-wider uppercase text-xs">Mapping</span>
+          </Link>
           <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
             <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
             <span className="tracking-wider uppercase text-xs">My Profile</span>
           </Link>
-          <a href="#" className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-gray-100 hover:text-emerald-700">
-            <img src="/icons/abouticon.png" alt="About" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">About</span>
-          </a>
           <div className="mt-auto">
             <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
               <img src="/icons/logouticon.png" alt="Log out" className="w-5 h-5"/>
@@ -760,13 +904,13 @@ export default function AdminDashboard() {
                 <img src="/icons/assignmenticon.png" alt="Assignments" className="w-5 h-5"/>
                 <span className="tracking-wider uppercase text-xs">Assignments</span>
               </Link>
+              <Link href="/admin/mapping" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/mapping') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+                <img src="/icons/projectsiteicon.png" alt="Mapping" className="w-5 h-5"/>
+                <span className="tracking-wider uppercase text-xs">Mapping</span>
+              </Link>
               <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
                 <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
                 <span className="tracking-wider uppercase text-xs">My Profile</span>
-              </Link>
-              <Link href="/admin/about" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/about') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/abouticon.png" alt="About" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">About</span>
               </Link>
               <div className="mt-auto">
                 <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
@@ -779,9 +923,9 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      <main className="flex-1 h-screen overflow-y-auto p-6 bg-gray-50">
+      <main className="admin-dashboard-main flex-1 h-screen overflow-y-auto p-6 bg-gray-50">
         <DashboardFade delay={0}>
-          <div className="md:hidden mb-4 flex items-center justify-between">
+          <div className="md:hidden mb-4 flex items-center justify-between no-print">
             <button onClick={() => setMobileNavOpen(true)} className="px-3 py-2 rounded-2xl bg-white ring-2 ring-emerald-300 text-emerald-700" aria-label="Open Menu">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
             </button>
@@ -789,18 +933,18 @@ export default function AdminDashboard() {
           </div>
         </DashboardFade>
 
-        <div className="relative z-[2000]"> 
-          <DashboardFade delay={100}>
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-              <div className="md:col-span-9 relative">
-                <input type="text" placeholder="Search" className="w-full rounded-2xl bg-white text-gray-900 px-4 py-3 pl-12 ring-2 ring-emerald-300 focus:ring-2 focus:ring-emerald-400 outline-none shadow-sm" />
-                <svg className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <DashboardFade delay={200} className={`relative z-[50] ${mobileNavOpen ? 'hidden md:block' : ''}`}>
+          <div className="mt-4 relative rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 p-6 text-white no-print">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm opacity-90">Welcome back, Admin!</div>
+                <div className="mt-2 text-xs opacity-85">Today is {new Date().toLocaleDateString()}. You have <span className="font-semibold">{totals.total_validated}</span> new validated forms awaiting your review.</div>
               </div>
-              <div className="md:col-span-3 flex md:justify-end">
-                <div className="relative z-[1000]">
+              <div className="flex items-center gap-3 text-white/90">
+                <div className="relative">
                   <button
                     onClick={toggleNotifPanel}
-                    className="px-3 py-3 rounded-2xl bg-white ring-2 ring-emerald-300 text-emerald-700 hover:ring-emerald-400 flex items-center gap-2 shadow-sm relative transition-colors"
+                    className="px-3 py-3 rounded-2xl bg-white/10 ring-2 ring-emerald-100 text-white hover:bg-white/20 hover:ring-emerald-50 flex items-center gap-2 shadow-sm relative transition-colors"
                     aria-label="Notifications"
                     aria-haspopup="true"
                     aria-expanded={showNotifPanel}
@@ -879,26 +1023,11 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </div>
-          </DashboardFade>
-        </div>
-
-        <DashboardFade delay={200}>
-          <div className="mt-4 relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 p-6 text-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm opacity-90">Welcome back, Admin!</div>
-                <div className="mt-2 text-xs opacity-85">Today is {new Date().toLocaleDateString()}. You have <span className="font-semibold">{totals.total_validated}</span> new validated forms awaiting your review.</div>
-              </div>
-              <div className="hidden md:flex items-center gap-3 text-white/90">
-                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="14" rx="3"/><path d="M7 8h10M7 12h6"/></svg>
-                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20l9-16H3l9 16z"/></svg>
-              </div>
-            </div>
           </div>
         </DashboardFade>
 
         <DashboardFade delay={300}>
-          <section className="mt-6">
+          <section className="mt-6 no-print">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="text-left bg-white rounded-2xl border border-gray-200 shadow-sm p-6 min-h-[160px] w-full">
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
@@ -908,194 +1037,184 @@ export default function AdminDashboard() {
                 <div className="mt-1 text-sm text-gray-600">Overall Data</div>
               </div>
 
-            <div className="text-left bg-white rounded-2xl border border-gray-200 shadow-sm p-6 min-h-[160px]">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
-                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 12l2 2 4-4"/><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <div className="text-left bg-white rounded-2xl border border-gray-200 shadow-sm p-6 min-h-[160px]">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 12l2 2 4-4"/><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <div className="mt-4 text-3xl font-semibold text-gray-900">{totals.total_validated}</div>
+                <div className="mt-1 text-sm text-gray-600">Total Validated</div>
+                <div className="mt-1 text-xs text-gray-500">Awaiting review</div>
               </div>
-              <div className="mt-4 text-3xl font-semibold text-gray-900">{totals.total_validated}</div>
-              <div className="mt-1 text-sm text-gray-600">Total Validated</div>
-              <div className="mt-1 text-xs text-gray-500">Awaiting review</div>
-            </div>
 
-
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 min-h-[160px]">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
-                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6H9l-2 4H4v8h16V6z"/><path d="M6 14h4M10 10v4"/></svg>
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 min-h-[160px]">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+                  <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6H9l-2 4H4v8h16V6z"/><path d="M6 14h4M10 10v4"/></svg>
+                </div>
+                <div className="mt-4 text-3xl font-semibold text-gray-900">{assignedCount}</div>
+                <div className="mt-1 text-sm text-gray-600">Total Assigned</div>
+                <div className="mt-1 text-xs text-gray-500">Across all projects</div>
               </div>
-              <div className="mt-4 text-3xl font-semibold text-gray-900">{assignedCount}</div>
-              <div className="mt-1 text-sm text-gray-600">Total Assigned</div>
-              <div className="mt-1 text-xs text-gray-500">Across all projects</div>
             </div>
-          </div>
           </section>
 
         </DashboardFade>
 
         <DashboardFade delay={500}>
-          <section className="mt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className={`bg-white rounded-2xl border border-gray-200 p-6 min-h-[340px] ${!showClassification && 'hidden'}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-lg font-semibold text-emerald-800">By Year Summary ({rangeMode === 'past' ? `Past ${rangeYears} years` : `${classificationPeriod.start} - ${classificationPeriod.end}`})</h3>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={rangeMode}
-                      onChange={(e) => setRangeMode(e.target.value)}
-                      className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300"
-                    >
-                      <option value="past">Past years</option>
-                      <option value="custom">Custom range</option>
-                    </select>
-                    {rangeMode === 'past' ? (
-                      <select
-                        value={String(rangeYears)}
-                        onChange={(e) => setRangeYears(Number(e.target.value))}
-                        className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300"
-                      >
-                        <option value="1">Past 1 year</option>
-                        <option value="2">Past 2 years</option>
-                        <option value="3">Past 3 years</option>
-                      </select>
-                    ) : (
+          <section className="mt-6 admin-analytics-print">
+            {initialLoading ? (
+              <div className="mt-6 bg-white rounded-2xl border border-gray-200 p-6 animate-pulse">
+                <div className="h-4 w-40 bg-emerald-100 rounded mb-6" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-gray-50 rounded-2xl border border-gray-100 p-4">
+                    <div className="h-3 w-32 bg-gray-200 rounded mb-4" />
+                    <div className="h-32 w-full bg-gray-100 rounded" />
+                    <div className="mt-4 h-3 w-3/4 bg-gray-100 rounded" />
+                  </div>
+                  <div className="bg-gray-50 rounded-2xl border border-gray-100 p-4">
+                    <div className="h-3 w-44 bg-gray-200 rounded mb-4" />
+                    <div className="space-y-3">
+                      <div className="h-2.5 w-full bg-gray-100 rounded" />
+                      <div className="h-2.5 w-5/6 bg-gray-100 rounded" />
+                      <div className="h-2.5 w-3/4 bg-gray-100 rounded" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-6 bg-white rounded-2xl border border-gray-200 p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className={`bg-gray-50 rounded-2xl border border-gray-100 p-4 ${!showClassification && 'hidden'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-medium text-emerald-800">By Year Summary ({rangeMode === 'past' ? `Past ${rangeYears} years` : `${classificationPeriod.start} - ${classificationPeriod.end}`})</h3>
                       <div className="flex items-center gap-2">
                         <select
-                          value={String(classificationPeriod.start)}
-                          onChange={(e) => setClassificationPeriod(p => ({ ...p, start: Number(e.target.value) }))}
-                          className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300"
+                          value={rangeMode}
+                          onChange={(e) => setRangeMode(e.target.value)}
+                          className="text-[10px] rounded-lg bg-white ring-1 ring-emerald-100 px-2 py-1 text-emerald-700 hover:ring-emerald-200"
                         >
-                          {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(y => (
-                            <option key={`s-${y}`} value={y}>{y}</option>
-                          ))}
+                          <option value="past">Past years</option>
+                          <option value="custom">Custom range</option>
                         </select>
-                        <span className="text-xs text-gray-500">to</span>
-                        <select
-                          value={String(classificationPeriod.end)}
-                          onChange={(e) => setClassificationPeriod(p => ({ ...p, end: Number(e.target.value) }))}
-                          className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-2 py-1 text-emerald-700 hover:ring-emerald-300"
-                        >
-                          {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(y => (
-                            <option key={`e-${y}`} value={y}>{y}</option>
-                          ))}
-                        </select>
+                        {rangeMode === 'past' ? (
+                          <select
+                            value={String(rangeYears)}
+                            onChange={(e) => setRangeYears(Number(e.target.value))}
+                            className="text-[10px] rounded-lg bg-white ring-1 ring-emerald-100 px-2 py-1 text-emerald-700 hover:ring-emerald-200"
+                          >
+                            <option value="1">Past 1 year</option>
+                            <option value="2">Past 2 years</option>
+                            <option value="3">Past 3 years</option>
+                          </select>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <select
+                              value={String(classificationPeriod.start)}
+                              onChange={(e) => setClassificationPeriod(p => ({ ...p, start: Number(e.target.value) }))}
+                              className="text-[10px] rounded-lg bg-white ring-1 ring-emerald-100 px-2 py-1 text-emerald-700 hover:ring-emerald-200"
+                            >
+                              {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                                <option key={`s-${y}`} value={y}>{y}</option>
+                              ))}
+                            </select>
+                            <span className="text-[10px] text-gray-400">to</span>
+                            <select
+                              value={String(classificationPeriod.end)}
+                              onChange={(e) => setClassificationPeriod(p => ({ ...p, end: Number(e.target.value) }))}
+                              className="text-[10px] rounded-lg bg-white ring-1 ring-emerald-100 px-2 py-1 text-emerald-700 hover:ring-emerald-200"
+                            >
+                              {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                                <option key={`e-${y}`} value={y}>{y}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
+                    <canvas ref={classificationRef} style={{ height: 140 }} />
+                    <div className="mt-3 text-[11px] text-gray-600 line-clamp-2">{describeBarangayCounts(periodBarangayData)}</div>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-2xl border border-gray-100 p-6 print-include">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-lg font-medium text-emerald-800">Global ISF classification</h3>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-semibold text-emerald-900">{globalIsfSummary.total || 0}</span>
+                      <span className="text-sm text-gray-500">Total ISF households</span>
+                    </div>
+                    <div className="mt-6 space-y-4">
+                      {globalIsfSummary.items.length === 0 && (
+                        <div className="text-xs text-gray-400 italic">No data available yet.</div>
+                      )}
+                      {globalIsfSummary.items.map((item, index) => {
+                        const pct = globalIsfSummary.total
+                          ? Math.round((item.value / globalIsfSummary.total) * 100)
+                          : 0
+                        const barColors = emeraldColors(globalIsfSummary.items.length)
+                        const barColor = barColors[index] || '#10B981'
+                        return (
+                          <div key={item.name} className="flex items-center gap-4">
+                            <div className="flex-1">
+                              <div className="flex justify-between text-sm text-gray-500">
+                                <span>{item.name}</span>
+                                <span>{pct}%</span>
+                              </div>
+                              <div className="mt-2 h-2.5 rounded-full bg-gray-200/50 overflow-hidden">
+                                <div
+                                  className="h-2.5 rounded-full global-isf-bar"
+                                  style={{ width: `${pct}%`, backgroundColor: barColor }}
+                                />
+                              </div>
+                            </div>
+                            <div className="w-14 text-right text-sm font-medium text-gray-700">
+                              {item.value}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
-                <canvas ref={classificationRef} style={{ height: 200 }} />
-                <div className="mt-3 text-sm text-gray-700">{describeBarangayCounts(periodBarangayData)}</div>
               </div>
-              <div className="bg-white rounded-2xl border border-gray-200 p-6 min-h-[340px]">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-emerald-800">Map</h3>
-                  <div className="flex items-center gap-1 bg-emerald-50 p-1 rounded-xl ring-1 ring-emerald-100">
-                    <button onClick={() => setMapScope('all')} className={`px-3 py-1 rounded-lg text-xs ${mapScope==='all' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200' : 'text-emerald-700 hover:bg-emerald-100'}`}>All</button>
-                    <button onClick={() => setMapScope('validated')} className={`px-3 py-1 rounded-lg text-xs ${mapScope==='validated' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200' : 'text-emerald-700 hover:bg-emerald-100'}`}>Validated</button>
-                    <button onClick={() => setMapScope('assigned')} className={`px-3 py-1 rounded-lg text-xs ${mapScope==='assigned' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200' : 'text-emerald-700 hover:bg-emerald-100'}`}>Assigned</button>
-                  </div>
-                </div>
-                <div
-                  ref={mapRef}
-                  className="mt-4 aspect-square w-full rounded-xl overflow-hidden border"
-                />
-              </div>
-            </div>
-            <div className="mt-6 bg-white rounded-2xl border border-gray-200 p-6">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div>
-                  <h3 className="text-lg font-semibold text-emerald-800">Enhanced Descriptive Analytics</h3>
-                  <div className="text-xs text-gray-500">Counts, percentages, and averages using existing data.</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFilterBarangay('')
-                    setFilterClass('')
-                    setFilterIncome('')
-                    setFilterWater('')
-                    setFilterElectricity('')
-                  }}
-                  className="text-xs px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100 hover:bg-emerald-100"
-                >
-                  Reset filters
-                </button>
-              </div>
+            )}
 
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-5 gap-3">
-                <select value={filterBarangay} onChange={(e) => setFilterBarangay(e.target.value)} className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-3 py-2 text-emerald-800 hover:ring-emerald-300">
-                  <option value="">All barangays</option>
-                  {barangays.map(b => (<option key={b} value={b}>{String(b).replace(/_/g, ' ')}</option>))}
-                </select>
-                <select value={filterClass} onChange={(e) => setFilterClass(e.target.value)} className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-3 py-2 text-emerald-800 hover:ring-emerald-300">
-                  <option value="">All classifications</option>
-                  <option value="Displaced">Displaced</option>
-                  <option value="Double-up">Double-up</option>
-                  <option value="Homeless">Homeless</option>
-                  <option value="Upgrading of Land Tenure">Upgrading of Land Tenure</option>
-                </select>
-                <select value={filterIncome} onChange={(e) => setFilterIncome(e.target.value)} className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-3 py-2 text-emerald-800 hover:ring-emerald-300">
-                  <option value="">All income bands</option>
-                  <option value="0_2999">0–2,999</option>
-                  <option value="3000_5999">3,000–5,999</option>
-                  <option value="6000_8999">6,000–8,999</option>
-                  <option value="9000_12999">9,000–12,999</option>
-                  <option value="13000_plus">13,000+</option>
-                </select>
-                <select value={filterWater} onChange={(e) => setFilterWater(e.target.value)} className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-3 py-2 text-emerald-800 hover:ring-emerald-300">
-                  <option value="">Water (all)</option>
-                  <option value="has">Has water</option>
-                  <option value="none">No water</option>
-                </select>
-                <select value={filterElectricity} onChange={(e) => setFilterElectricity(e.target.value)} className="text-xs rounded-xl bg-white ring-1 ring-emerald-200 px-3 py-2 text-emerald-800 hover:ring-emerald-300">
-                  <option value="">Electricity (all)</option>
-                  <option value="has">Has electricity</option>
-                  <option value="none">No electricity</option>
-                </select>
-              </div>
-
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="rounded-2xl bg-emerald-50 ring-1 ring-emerald-100 p-4">
-                  <div className="text-xs text-emerald-700">Filtered total</div>
-                  <div className="mt-1 text-2xl font-semibold text-emerald-900">{indicators?.base_total ?? timeSeries?.base_total ?? 0}</div>
-                </div>
-                <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4">
-                  <div className="text-xs text-gray-600">No lot ownership</div>
-                  <div className="mt-1 text-2xl font-semibold text-gray-900">{indicators?.vulnerability?.no_lot?.pct ?? 0}%</div>
-                  <div className="mt-1 text-xs text-gray-500">{indicators?.vulnerability?.no_lot?.count ?? 0}/{indicators?.vulnerability?.no_lot?.total ?? 0}</div>
-                </div>
-                <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4">
-                  <div className="text-xs text-gray-600">No house ownership</div>
-                  <div className="mt-1 text-2xl font-semibold text-gray-900">{indicators?.vulnerability?.no_house?.pct ?? 0}%</div>
-                  <div className="mt-1 text-xs text-gray-500">{indicators?.vulnerability?.no_house?.count ?? 0}/{indicators?.vulnerability?.no_house?.total ?? 0}</div>
-                </div>
-                <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4">
-                  <div className="text-xs text-gray-600">Temporary living area</div>
-                  <div className="mt-1 text-2xl font-semibold text-gray-900">{indicators?.vulnerability?.temporary_living?.pct ?? 0}%</div>
-                  <div className="mt-1 text-xs text-gray-500">{indicators?.vulnerability?.temporary_living?.count ?? 0}/{indicators?.vulnerability?.temporary_living?.total ?? 0}</div>
-                </div>
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4">
-                  <div className="text-xs text-gray-600">Has water</div>
-                  <div className="mt-1 text-2xl font-semibold text-gray-900">{indicators?.service?.has_water?.pct ?? 0}%</div>
-                  <div className="mt-1 text-xs text-gray-500">{indicators?.service?.has_water?.count ?? 0}/{indicators?.service?.has_water?.total ?? 0}</div>
-                </div>
-                <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4">
-                  <div className="text-xs text-gray-600">Has electricity</div>
-                  <div className="mt-1 text-2xl font-semibold text-gray-900">{indicators?.service?.has_electricity?.pct ?? 0}%</div>
-                  <div className="mt-1 text-xs text-gray-500">{indicators?.service?.has_electricity?.count ?? 0}/{indicators?.service?.has_electricity?.total ?? 0}</div>
-                </div>
-                <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4">
-                  <div className="text-xs text-gray-600">Has livelihood skills</div>
-                  <div className="mt-1 text-2xl font-semibold text-gray-900">{indicators?.education_skills?.skills_for_living?.pct ?? 0}%</div>
-                  <div className="mt-1 text-xs text-gray-500">{indicators?.education_skills?.skills_for_living?.yes_count ?? 0}/{indicators?.education_skills?.skills_for_living?.total ?? 0}</div>
-                </div>
-              </div>
-
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                  <div className="mb-2 font-medium text-emerald-800">Subclass Displaced</div>
-                  <canvas ref={displacedRef} />
+                  <div className="mb-3 font-medium text-emerald-800">Subclass Displaced per barangay</div>
+                  <div className="mt-2 overflow-x-auto">
+                    <table className="min-w-full text-xs">
+                      <thead>
+                        <tr className="text-left text-gray-600 border-b">
+                          <th className="py-2 pr-3">Barangay</th>
+                          {displacedSubclassTable.subclasses.map(sub => (
+                            <th key={sub} className="py-2 pr-3 text-right">{String(sub).replace(/_/g, ' ')}</th>
+                          ))}
+                          <th className="py-2 pr-3 text-right">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {displacedSubclassTable.rows.map(row => (
+                          <tr key={row.barangay} className="border-b last:border-0">
+                            <td className="py-1.5 pr-3 text-gray-900">{String(row.barangay).replace(/_/g, ' ')}</td>
+                            {displacedSubclassTable.subclasses.map(sub => (
+                              <td
+                                key={`${row.barangay}-${sub}`}
+                                className="py-1.5 pr-3 text-right text-gray-800"
+                              >
+                                {row.counts?.[sub] || 0}
+                              </td>
+                            ))}
+                            <td className="py-1.5 pr-3 text-right text-gray-900 font-medium">{row.total}</td>
+                          </tr>
+                        ))}
+                        {displacedSubclassTable.rows.length === 0 && (
+                          <tr>
+                            <td className="py-3 text-gray-500" colSpan={displacedSubclassTable.subclasses.length + 2}>No data</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                   <div className="mt-3">
                     <button
                       onClick={() => setShowDisplacedDesc(v => !v)}
@@ -1111,9 +1230,43 @@ export default function AdminDashboard() {
                     )}
                   </div>
                 </div>
+
                 <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                  <div className="mb-2 font-medium text-emerald-800">Subclass Double-Up</div>
-                  <canvas ref={doubleUpRef} />
+                  <div className="mb-3 font-medium text-emerald-800">Subclass Double-Up per barangay</div>
+                  <div className="mt-2 overflow-x-auto">
+                    <table className="min-w-full text-xs">
+                      <thead>
+                        <tr className="text-left text-gray-600 border-b">
+                          <th className="py-2 pr-3">Barangay</th>
+                          {doubleUpSubclassTable.subclasses.map(sub => (
+                            <th key={sub} className="py-2 pr-3 text-right">{String(sub).replace(/_/g, ' ')}</th>
+                          ))}
+                          <th className="py-2 pr-3 text-right">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {doubleUpSubclassTable.rows.map(row => (
+                          <tr key={row.barangay} className="border-b last:border-0">
+                            <td className="py-1.5 pr-3 text-gray-900">{String(row.barangay).replace(/_/g, ' ')}</td>
+                            {doubleUpSubclassTable.subclasses.map(sub => (
+                              <td
+                                key={`${row.barangay}-${sub}`}
+                                className="py-1.5 pr-3 text-right text-gray-800"
+                              >
+                                {row.counts?.[sub] || 0}
+                              </td>
+                            ))}
+                            <td className="py-1.5 pr-3 text-right text-gray-900 font-medium">{row.total}</td>
+                          </tr>
+                        ))}
+                        {doubleUpSubclassTable.rows.length === 0 && (
+                          <tr>
+                            <td className="py-3 text-gray-500" colSpan={doubleUpSubclassTable.subclasses.length + 2}>No data</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                   <div className="mt-3">
                     <button
                       onClick={() => setShowDoubleUpDesc(v => !v)}
@@ -1129,9 +1282,43 @@ export default function AdminDashboard() {
                     )}
                   </div>
                 </div>
+
                 <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                  <div className="mb-2 font-medium text-emerald-800">Subclass Homeless</div>
-                  <canvas ref={homelessRef} />
+                  <div className="mb-3 font-medium text-emerald-800">Subclass Homeless per barangay</div>
+                  <div className="mt-2 overflow-x-auto">
+                    <table className="min-w-full text-xs">
+                      <thead>
+                        <tr className="text-left text-gray-600 border-b">
+                          <th className="py-2 pr-3">Barangay</th>
+                          {homelessSubclassTable.subclasses.map(sub => (
+                            <th key={sub} className="py-2 pr-3 text-right">{String(sub).replace(/_/g, ' ')}</th>
+                          ))}
+                          <th className="py-2 pr-3 text-right">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {homelessSubclassTable.rows.map(row => (
+                          <tr key={row.barangay} className="border-b last:border-0">
+                            <td className="py-1.5 pr-3 text-gray-900">{String(row.barangay).replace(/_/g, ' ')}</td>
+                            {homelessSubclassTable.subclasses.map(sub => (
+                              <td
+                                key={`${row.barangay}-${sub}`}
+                                className="py-1.5 pr-3 text-right text-gray-800"
+                              >
+                                {row.counts?.[sub] || 0}
+                              </td>
+                            ))}
+                            <td className="py-1.5 pr-3 text-right text-gray-900 font-medium">{row.total}</td>
+                          </tr>
+                        ))}
+                        {homelessSubclassTable.rows.length === 0 && (
+                          <tr>
+                            <td className="py-3 text-gray-500" colSpan={homelessSubclassTable.subclasses.length + 2}>No data</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                   <div className="mt-3">
                     <button
                       onClick={() => setShowHomelessDesc(v => !v)}
@@ -1149,32 +1336,130 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-gray-50 rounded-2xl border border-gray-200 p-5">
-                  <div className="text-sm font-medium text-emerald-800">Income distribution</div>
-                  <div className="mt-3">
-                    <canvas ref={incomeRef} />
+              <div className="mt-10 pt-6 border-t border-gray-100">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    <SmoothSelect
+                      value={filterBarangay}
+                      onChange={setFilterBarangay}
+                      options={barangayFilterOptions}
+                      buttonClassName={filterSelectClass}
+                    />
+                    <SmoothSelect
+                      value={filterClass}
+                      onChange={setFilterClass}
+                      options={classFilterOptions}
+                      buttonClassName={filterSelectClass}
+                    />
+                    <SmoothSelect
+                      value={filterIncome}
+                      onChange={setFilterIncome}
+                      options={incomeFilterOptions}
+                      buttonClassName={filterSelectClass}
+                    />
+                    <SmoothSelect
+                      value={filterWater}
+                      onChange={setFilterWater}
+                      options={waterFilterOptions}
+                      buttonClassName={filterSelectClass}
+                    />
+                    <SmoothSelect
+                      value={filterElectricity}
+                      onChange={setFilterElectricity}
+                      options={electricityFilterOptions}
+                      buttonClassName={filterSelectClass}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFilterBarangay('')
+                        setFilterClass('')
+                        setFilterIncome('')
+                        setFilterWater('')
+                        setFilterElectricity('')
+                      }}
+                      className="text-xs px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100 hover:bg-emerald-100 no-print"
+                    >
+                      Reset filters
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      className="text-xs px-3 py-2 rounded-xl bg-white text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-50 no-print"
+                    >
+                      Print analytics
+                    </button>
                   </div>
                 </div>
-                <div className="bg-gray-50 rounded-2xl border border-gray-200 p-5">
-                  <div className="text-sm font-medium text-emerald-800">Highest education</div>
-                  <div className="mt-3">
-                    <canvas ref={educationRef} />
-                  </div>
-                </div>
-              </div>
 
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-gray-50 rounded-2xl border border-gray-200 p-5">
-                  <div className="text-sm font-medium text-emerald-800">Surveys per month</div>
-                  <div className="mt-3">
-                    <canvas ref={surveysMonthRef} />
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="rounded-2xl bg-emerald-50 ring-1 ring-emerald-100 p-4">
+                    <div className="text-xs text-emerald-700">Filtered total</div>
+                    <div className="mt-1 text-2xl font-semibold text-emerald-900">{indicators?.base_total ?? timeSeries?.base_total ?? 0}</div>
+                  </div>
+                  <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4">
+                    <div className="text-xs text-gray-600">No lot ownership</div>
+                    <div className="mt-1 text-2xl font-semibold text-gray-900">{indicators?.vulnerability?.no_lot?.pct ?? 0}%</div>
+                    <div className="mt-1 text-xs text-gray-500">{indicators?.vulnerability?.no_lot?.count ?? 0}/{indicators?.vulnerability?.no_lot?.total ?? 0}</div>
+                  </div>
+                  <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4">
+                    <div className="text-xs text-gray-600">No house ownership</div>
+                    <div className="mt-1 text-2xl font-semibold text-gray-900">{indicators?.vulnerability?.no_house?.pct ?? 0}%</div>
+                    <div className="mt-1 text-xs text-gray-500">{indicators?.vulnerability?.no_house?.count ?? 0}/{indicators?.vulnerability?.no_house?.total ?? 0}</div>
+                  </div>
+                  <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4">
+                    <div className="text-xs text-gray-600">Temporary living area</div>
+                    <div className="mt-1 text-2xl font-semibold text-gray-900">{indicators?.vulnerability?.temporary_living?.pct ?? 0}%</div>
+                    <div className="mt-1 text-xs text-gray-500">{indicators?.vulnerability?.temporary_living?.count ?? 0}/{indicators?.vulnerability?.temporary_living?.total ?? 0}</div>
                   </div>
                 </div>
-                <div className="bg-gray-50 rounded-2xl border border-gray-200 p-5">
-                  <div className="text-sm font-medium text-emerald-800">ISF classification</div>
-                  <div className="mt-3">
-                    <canvas ref={isfClassificationRef} />
+
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4">
+                    <div className="text-xs text-gray-600">Has water</div>
+                    <div className="mt-1 text-2xl font-semibold text-gray-900">{indicators?.service?.has_water?.pct ?? 0}%</div>
+                    <div className="mt-1 text-xs text-gray-500">{indicators?.service?.has_water?.count ?? 0}/{indicators?.service?.has_water?.total ?? 0}</div>
+                  </div>
+                  <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4">
+                    <div className="text-xs text-gray-600">Has electricity</div>
+                    <div className="mt-1 text-2xl font-semibold text-gray-900">{indicators?.service?.has_electricity?.pct ?? 0}%</div>
+                    <div className="mt-1 text-xs text-gray-500">{indicators?.service?.has_electricity?.count ?? 0}/{indicators?.service?.has_electricity?.total ?? 0}</div>
+                  </div>
+                  <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4">
+                    <div className="text-xs text-gray-600">Has livelihood skills</div>
+                    <div className="mt-1 text-2xl font-semibold text-gray-900">{indicators?.education_skills?.skills_for_living?.pct ?? 0}%</div>
+                    <div className="mt-1 text-xs text-gray-500">{indicators?.education_skills?.skills_for_living?.yes_count ?? 0}/{indicators?.education_skills?.skills_for_living?.total ?? 0}</div>
+                  </div>
+                </div>
+
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-gray-50 rounded-2xl border border-gray-200 p-5">
+                    <div className="text-sm font-medium text-emerald-800">Income distribution</div>
+                    <div className="mt-3">
+                      <canvas ref={incomeRef} style={{ height: 170 }} />
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 rounded-2xl border border-gray-200 p-5">
+                    <div className="text-sm font-medium text-emerald-800">Highest education</div>
+                    <div className="mt-3">
+                      <canvas ref={educationRef} style={{ height: 170 }} />
+                    </div>
+                  </div>
+                  <div className="bg-gray-50 rounded-2xl border border-gray-200 p-5">
+                    <div className="text-sm font-medium text-emerald-800">ISF classification (filtered)</div>
+                    <div className="mt-3">
+                      <canvas ref={isfClassificationRef} style={{ height: 170 }} />
+                    </div>
+                  </div>
+                </div>
+
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-1 gap-6">
+                <div className="bg-gray-50 rounded-2xl border border-gray-200 p-10">
+                  <div className="text-sm font-medium text-emerald-800">Surveys per month</div>
+                  <div className="mt-4">
+                    <canvas ref={surveysMonthRef} style={{ height: 200 }} />
                   </div>
                 </div>
               </div>
@@ -1248,9 +1533,9 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               </div>
-            </div>
-          </section>
-        </DashboardFade>
+          </div>
+        </section>
+      </DashboardFade>
 
       </main>
 
@@ -1260,7 +1545,7 @@ export default function AdminDashboard() {
 
       
       <Modal show={notifModal.open} onClose={() => setNotifModal({ open: false, item: null })} maxWidth="sm" closeable={true}>
-        <div className="p-6 bg-white">
+        <div className="p-6 bg-white no-print">
           <div className="text-lg font-semibold text-emerald-800">Notification</div>
           <div className="mt-2 text-sm text-gray-700">
             {notifModal.item ? `${notifModal.item.name || 'Validator'} changed password on ${new Date(notifModal.item.created_at).toLocaleString()}.` : ''}
@@ -1274,7 +1559,81 @@ export default function AdminDashboard() {
   )
 }
 
-function DashboardFade({ children, delay = 0 }) {
+function SmoothSelect({ value, onChange, options, buttonClassName, disabled = false }) {
+  const selected = options.find(o => o.value === value)
+  const showPlaceholder = value === '' || value == null
+  const label = showPlaceholder ? (options[0]?.label ?? '') : (selected?.label ?? '')
+
+  return (
+    <Listbox value={value} onChange={onChange} disabled={disabled}>
+      {({ open }) => (
+        <div className="relative">
+          <Listbox.Button
+            type="button"
+            className={`${buttonClassName} ${disabled ? 'cursor-not-allowed opacity-60' : ''} flex items-center justify-between gap-2`}
+          >
+            <span className={`block min-w-0 flex-1 truncate ${showPlaceholder ? 'text-gray-400' : 'text-gray-900'}`}>{label}</span>
+            <svg className="h-4 w-4 flex-shrink-0 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              {open ? (
+                <path
+                  fillRule="evenodd"
+                  d="M14.77 12.79a.75.75 0 0 1-1.06-.02L10 8.83l-3.71 3.94a.75.75 0 0 1-1.08-1.04l4.25-4.5a.75.75 0 0 1 1.08 0l4.25 4.5a.75.75 0 0 1-.02 1.06Z"
+                  clipRule="evenodd"
+                />
+              ) : (
+                <path
+                  fillRule="evenodd"
+                  d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
+                  clipRule="evenodd"
+                />
+              )}
+            </svg>
+          </Listbox.Button>
+
+          <Transition
+            as={Fragment}
+            show={open && !disabled}
+            enter="transition ease-out duration-100"
+            enterFrom="opacity-0 translate-y-1"
+            enterTo="opacity-100 translate-y-0"
+            leave="transition ease-in duration-75"
+            leaveFrom="opacity-100 translate-y-0"
+            leaveTo="opacity-0 translate-y-1"
+          >
+            <Listbox.Options className="absolute left-0 z-50 mt-2 max-h-64 w-full overflow-auto rounded-2xl bg-white p-1 shadow-lg ring-1 ring-black/5 focus:outline-none">
+              {options.map((opt, idx) => (
+                <Listbox.Option
+                  key={`${opt.value ?? 'opt'}-${idx}`}
+                  value={opt.value}
+                  className={({ active }) =>
+                    `cursor-pointer select-none rounded-xl px-3 py-2 text-sm ${active ? 'bg-emerald-50 text-emerald-900' : 'text-gray-900'}`
+                  }
+                >
+                  {({ selected: isSelected }) => (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className={`min-w-0 flex-1 truncate ${isSelected ? 'font-medium text-emerald-700' : ''}`}>{opt.label}</span>
+                      {isSelected && (
+                        <svg className="h-4 w-4 flex-shrink-0 text-emerald-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                          <path
+                            fillRule="evenodd"
+                            d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.5 7.58a1 1 0 0 1-1.43.003L3.29 9.76a1 1 0 1 1 1.42-1.41l3.05 3.07 6.79-6.86a1 1 0 0 1 1.414-.006Z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                  )}
+                </Listbox.Option>
+              ))}
+            </Listbox.Options>
+          </Transition>
+        </div>
+      )}
+    </Listbox>
+  )
+}
+
+function DashboardFade({ children, delay = 0, className = "" }) {
   const [isVisible, setIsVisible] = useState(false)
   const ref = useRef(null)
 
@@ -1295,7 +1654,7 @@ function DashboardFade({ children, delay = 0 }) {
   return (
     <div
       ref={ref}
-      className={`transition-all duration-500 ease-in-out transform motion-reduce:transition-none motion-reduce:transform-none ${
+      className={`transition-all duration-500 ease-in-out transform motion-reduce:transition-none motion-reduce:transform-none ${className} ${
         isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
       }`}
       style={{ transitionDelay: `${delay}ms` }}
@@ -1306,8 +1665,25 @@ function DashboardFade({ children, delay = 0 }) {
 }
 
   function emeraldColors(n) {
-    const baseHue = 158
-    return Array.from({ length: n }, (_, i) => `hsl(${baseHue},70%,${60 - i * (30 / Math.max(n, 1))}%)`)
+    const palette = [
+      '#0EA5E9','#22C55E','#F97316','#6366F1','#EC4899','#F59E0B','#14B8A6',
+      '#8B5CF6','#EF4444','#10B981','#3B82F6','#A855F7','#EAB308','#FB7185',
+      '#22D3EE','#2DD4BF','#4ADE80','#FACC15','#FBBF24','#FDBA74','#C4B5FD',
+      '#F9A8D4','#FED7AA','#6EE7B7','#1D4ED8','#7C3AED'
+    ]
+    if (!n || n <= 0) return []
+    return Array.from({ length: n }, (_, i) => palette[i % palette.length])
+  }
+  function byYearColors(n) {
+    const palette = [
+      '#1F77B4','#FF7F0E','#2CA02C','#D62728','#9467BD','#8C564B',
+      '#E377C2','#7F7F7F','#BCBD22','#17BECF',
+      '#AEC7E8','#FFBB78','#98DF8A','#FF9896','#C5B0D5','#C49C94',
+      '#F7B6D2','#C7C7C7','#DBDB8D','#9EDAE5',
+      '#003F5C','#58508D','#BC5090','#FF6361','#FFA600','#2F4B7C'
+    ]
+    if (!n || n <= 0) return []
+    return Array.from({ length: n }, (_, i) => palette[i % palette.length])
   }
   function withAlpha(c, a) {
     return c.startsWith('hsl(') ? c.replace('hsl(', 'hsla(').replace(')', `, ${a})`) : c
@@ -1325,6 +1701,18 @@ function DashboardFade({ children, delay = 0 }) {
     const tbCount = topBarangay? Number(topBarangay[1]||0) : 0
     return `${top.k} is most prevalent with ${top.t} (${pct(top.t)}%). Highest concentration is in ${tbName} (${tbCount}). Combined total is ${grand}, with ${sorted.slice(1).map(i=>i.k+' '+i.t+' ('+pct(i.t)+'%)').join(', ')}.`
   }
+  function describeGlobalIsf(summary) {
+    const items = summary?.items || []
+    if (!items.length || !summary.total) return 'Global ISF classification will appear here once data is available.'
+    const sorted = [...items].sort((a, b) => b.value - a.value)
+    const top = sorted[0]
+    const second = sorted[1]
+    const pct = (n) => Math.round((n / summary.total) * 100)
+    if (!second) {
+      return `${top.name} households are the only recorded ISF group with ${top.value} (${pct(top.value)}%) out of ${summary.total} households.`
+    }
+    return `${top.name} households are the largest ISF group with ${top.value} (${pct(top.value)}%) of ${summary.total} total households, followed by ${second.name} with ${second.value} (${pct(second.value)}%).`
+  }
   function describeBarangayCounts(rows) {
     if (!rows || rows.length===0) return 'Report will appear here once data is available.'
     const normalized = rows
@@ -1332,16 +1720,42 @@ function DashboardFade({ children, delay = 0 }) {
       .filter(r => r.count > 0)
     if (normalized.length===0) return 'Report will appear here once data is available.'
     const total = normalized.reduce((s, i) => s + i.count, 0)
+    if (!total) return 'Report will appear here once data is available.'
     const sorted = [...normalized].sort((a, b) => b.count - a.count)
     const pct = (n) => total ? Math.round((n / total) * 100) : 0
-    const top = sorted[0]
-    const second = sorted[1]
-    const third = sorted[2]
+    const topCount = sorted[0].count
+    const leaders = sorted.filter(r => r.count === topCount)
+    const others = sorted.filter(r => r.count < topCount)
     const parts = []
-    parts.push(`${top.barangay} has the highest share with ${top.count} (${pct(top.count)}%).`)
-    if (second) parts.push(`${second.barangay} follows with ${second.count} (${pct(second.count)}%).`)
-    if (third) parts.push(`${third.barangay} ranks third with ${third.count} (${pct(third.count)}%).`)
-    parts.push(`Total within this range: ${total}.`)
+
+    if (leaders.length === 1) {
+      const l = leaders[0]
+      parts.push(`${l.barangay} has the highest share with ${l.count} (${pct(l.count)}%).`)
+    } else {
+      const names = leaders.slice(0, 3).map(r => r.barangay)
+      const namesText = names.length === 2
+        ? `${names[0]} and ${names[1]}`
+        : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+      parts.push(`${namesText} are tied for the highest share, each with ${topCount} (${pct(topCount)}%).`)
+      if (leaders.length > 3) {
+        const extra = leaders.length - 3
+        parts.push(`${extra} other barangay${extra > 1 ? 's' : ''} share the same count.`)
+      }
+    }
+
+    if (others.length) {
+      const secondCount = others[0].count
+      const seconds = others.filter(r => r.count === secondCount)
+      const names = seconds.slice(0, 3).map(r => r.barangay)
+      const namesText = names.length === 1
+        ? names[0]
+        : names.length === 2
+          ? `${names[0]} and ${names[1]}`
+          : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+      parts.push(`${namesText} follow with ${secondCount} (${pct(secondCount)}%).`)
+    }
+
+    parts.push(`Total within this range: ${total} across ${normalized.length} barangays.`)
     return parts.join(' ')
   }
   function describeDisplaced(rows) {

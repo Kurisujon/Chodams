@@ -342,10 +342,8 @@ export default function AdminBeneficiaries() {
     }
     if (activeTab === 'non') {
       fetchValidated(page, filters)
-    } else if (activeTab === 'aff') {
-      fetchAffiliated(page, filters)
     } else {
-      fetchMayorEndorsed(page, filters)
+      fetchAffiliated(page, filters)
     }
   }
 
@@ -412,10 +410,30 @@ export default function AdminBeneficiaries() {
     applyFilters(1, next)
   }
 
-  const pages = (total, perPage) => Array.from({ length: Math.ceil((total || 0) / (perPage || perPageDefault)) }, (_, i) => i + 1)
+  const getPageNumbers = () => {
+    const total = activeTab === 'non' ? validated.total : affiliated.total;
+    const perPage = activeTab === 'non' ? validated.per_page : affiliated.per_page;
+    const currentPage = activeTab === 'non' ? validated.page : affiliated.page;
+    const totalPages = Math.ceil((total || 0) / (perPage || perPageDefault));
+    
+    const maxButtons = 10;
+    let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+    let endPage = startPage + maxButtons - 1;
+
+    if (endPage > totalPages) {
+      endPage = totalPages;
+      startPage = Math.max(1, endPage - maxButtons + 1);
+    }
+
+    const pages = [];
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    return { pages, currentPage, totalPages };
+  };
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen flex-col md:flex-row">
       <aside className="hidden md:block w-64 flex flex-col flex-shrink-0 bg-white text-gray-700 p-6 border-r border-gray-200 h-screen sticky top-0 overflow-hidden">
         <div className="flex items-center gap-3 mb-8">
           <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
@@ -438,13 +456,13 @@ export default function AdminBeneficiaries() {
             <img src="/icons/assignmenticon.png" alt="Assignments" className="w-5 h-5"/>
             <span className="tracking-wider uppercase text-xs">Assignments</span>
           </Link>
+          <Link href="/admin/mapping" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/mapping') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+            <img src="/icons/projectsiteicon.png" alt="Mapping" className="w-5 h-5"/>
+            <span className="tracking-wider uppercase text-xs">Mapping</span>
+          </Link>
           <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
             <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
             <span className="tracking-wider uppercase text-xs">My Profile</span>
-          </Link>
-          <Link href="/admin/about" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/about') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/abouticon.png" alt="About" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">About</span>
           </Link>
           <div className="mt-auto">
             <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
@@ -480,13 +498,13 @@ export default function AdminBeneficiaries() {
                 <img src="/icons/assignmenticon.png" alt="Assignments" className="w-5 h-5"/>
                 <span className="tracking-wider uppercase text-xs">Assignments</span>
               </Link>
+              <Link href="/admin/mapping" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/mapping') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+                <img src="/icons/projectsiteicon.png" alt="Mapping" className="w-5 h-5"/>
+                <span className="tracking-wider uppercase text-xs">Mapping</span>
+              </Link>
               <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
                 <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
                 <span className="tracking-wider uppercase text-xs">My Profile</span>
-              </Link>
-              <Link href="/admin/about" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/about') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/abouticon.png" alt="About" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">About</span>
               </Link>
               <div className="mt-auto">
                 <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
@@ -499,7 +517,7 @@ export default function AdminBeneficiaries() {
         </div>
       )}
 
-      <main className="flex-1 p-6 bg-gray-50">
+      <main className="flex-1 p-4 sm:p-6 bg-gray-50">
         <DashboardFade delay={0}>
           <div className="md:hidden mb-4 flex items-center justify-between">
             <button onClick={() => setMobileNavOpen(true)} className="px-3 py-2 rounded-2xl bg-white ring-2 ring-emerald-300 text-emerald-700" aria-label="Open Menu">
@@ -512,7 +530,7 @@ export default function AdminBeneficiaries() {
           {error && <div className="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700">{error}</div>}
         </DashboardFade>
         <DashboardFade delay={200}>
-          <header className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-200">
+          <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-white p-4 rounded-2xl border border-gray-200">
             <div>
               <div className="text-sm text-gray-500">Hello Admin!</div>
               <h2 className="text-2xl text-emerald-800 font-semibold">Beneficiaries</h2>
@@ -523,10 +541,10 @@ export default function AdminBeneficiaries() {
         </DashboardFade>
 
         <DashboardFade delay={300}>
-          <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-6">
+          <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-4 sm:p-6">
           <div className="flex flex-col gap-4 mb-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="inline-flex rounded-full bg-gray-100 p-1">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div className="inline-flex flex-wrap justify-center rounded-full bg-gray-100 p-1">
                 <button
                   type="button"
                   onClick={() => setActiveTab('non')}
@@ -549,7 +567,7 @@ export default function AdminBeneficiaries() {
                 >
                   Affiliated
                 </button>
-                <button
+                {/* <button
                   type="button"
                   onClick={() => setActiveTab('mayor')}
                   className={`px-4 py-2 rounded-full text-xs font-medium ${
@@ -559,7 +577,7 @@ export default function AdminBeneficiaries() {
                   }`}
                 >
                   Mayor-endorsed
-                </button>
+                </button> */}
               </div>
               <div className="flex items-center gap-2">
                 {loading && <span className="text-xs font-medium text-gray-500">Loading…</span>}
@@ -836,8 +854,8 @@ export default function AdminBeneficiaries() {
             )}
           </div>
           <h3 className="text-lg font-semibold text-emerald-800 mb-3">{activeTab === 'non' ? 'Validated Beneficiaries (Non-affiliated)' : activeTab === 'aff' ? 'Affiliated Beneficiaries' : 'Mayor-Endorsed Beneficiaries'}</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+          <div className="overflow-x-auto overflow-y-hidden">
+            <table className="min-w-full text-xs sm:text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Date</th>
@@ -864,7 +882,7 @@ export default function AdminBeneficiaries() {
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Action</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody key={`${activeTab}-${activeTab === 'non' ? validated.page : activeTab === 'aff' ? affiliated.page : mayor.page}`} className="animate-table-fade">
                 {(activeTab === 'non' ? validated.data : activeTab === 'aff' ? affiliated.data : mayor.data).map(b => (
                   <tr
                     key={b.survey_id}
@@ -915,7 +933,7 @@ export default function AdminBeneficiaries() {
                     </td>
                   </tr>
                 ))}
-                {!((activeTab === 'non' ? validated.data.length : activeTab === 'aff' ? affiliated.data.length : mayor.data.length)) && (
+                {!((activeTab === 'non' ? validated.data.length : affiliated.data.length)) && (
                   <tr>
                     <td
                       className="px-3 py-6 text-center text-sm text-gray-500"
@@ -928,19 +946,37 @@ export default function AdminBeneficiaries() {
               </tbody>
             </table>
           </div>
-          <div className="mt-4 flex justify-center gap-2">
-            {pages(
-              activeTab === 'non' ? validated.total : activeTab === 'aff' ? affiliated.total : mayor.total,
-              activeTab === 'non' ? validated.per_page : activeTab === 'aff' ? affiliated.per_page : mayor.per_page
-            ).map(i => (
-              <button
-                key={i}
-                onClick={() => applyFilters(i)}
-                className={`px-3 py-1 rounded border ${(
-                  activeTab === 'non' ? validated.page : activeTab === 'aff' ? affiliated.page : mayor.page
-                ) === i ? 'bg-emerald-600 text-white' : 'text-emerald-700 hover:bg-gray-100'}`}
-              >{i}</button>
-            ))}
+          <div className="mt-4 flex flex-wrap justify-center items-center gap-2">
+            {(() => {
+              const { pages, currentPage, totalPages } = getPageNumbers();
+              return (
+                <>
+                  <button
+                    onClick={() => applyFilters(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 rounded border text-emerald-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Prev
+                  </button>
+                  {pages.map(i => (
+                    <button
+                      key={i}
+                      onClick={() => applyFilters(i)}
+                      className={`px-3 py-1 rounded border ${
+                        currentPage === i ? 'bg-emerald-600 text-white' : 'text-emerald-700 hover:bg-gray-100'
+                      }`}
+                    >{i}</button>
+                  ))}
+                  <button
+                    onClick={() => applyFilters(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 rounded border text-emerald-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </>
+              );
+            })()}
           </div>
         </section>
         </DashboardFade>

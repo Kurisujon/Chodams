@@ -95,6 +95,8 @@ export default function ValidatorDashboard() {
   const [barangayFilter, setBarangayFilter] = useState('')
   const [exportClass, setExportClass] = useState('')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [selectedSurveyIds, setSelectedSurveyIds] = useState([])
+  const [batchConfirm, setBatchConfirm] = useState({ open: false, ids: [] })
   const barangays = [
     'Aplaya','Balabag','Binaton','Cogon','Colorado','Dawis','Dulangan','Goma','Igpit','Kapatagan','Kiagot','Lungag','Mahayahay','Matti','Ruparan','San_Agustin','San_Jose','San_Miguel','San_Roque','Sinawilan','Soong','Tiguman','Tres_De_Mayo','Zone_1','Zone_2','Zone_3'
   ]
@@ -174,6 +176,48 @@ export default function ValidatorDashboard() {
     setSubmitConfirm({ open: false, surveyId: null })
   }
 
+  function toggleSelectSurvey(id) {
+    setSelectedSurveyIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  function toggleSelectAllCurrent(surveysOnPage) {
+    if (!surveysOnPage.length) return
+    const idsOnPage = surveysOnPage.map(r => r.survey_id)
+    const allSelected = idsOnPage.every(id => selectedSurveyIds.includes(id))
+    if (allSelected) {
+      setSelectedSurveyIds(prev => prev.filter(id => !idsOnPage.includes(id)))
+    } else {
+      const merged = [...selectedSurveyIds]
+      idsOnPage.forEach(id => {
+        if (!merged.includes(id)) merged.push(id)
+      })
+      setSelectedSurveyIds(merged)
+    }
+  }
+
+  function handleBatchSubmitOpen(surveysOnPage) {
+    const idsOnPage = surveysOnPage.map(r => r.survey_id)
+    const ids = idsOnPage.filter(id => selectedSurveyIds.includes(id))
+    if (!ids.length) return
+    setBatchConfirm({ open: true, ids })
+  }
+
+  async function confirmBatchSubmit() {
+    const ids = batchConfirm.ids || []
+    if (!ids.length) {
+      setBatchConfirm({ open: false, ids: [] })
+      return
+    }
+    try {
+      await axios.post('/validator/api/submit-batch', { survey_ids: ids })
+      setSelectedSurveyIds(prev => prev.filter(id => !ids.includes(id)))
+      fetchSurveys(surveys.page)
+      fetchSubmitted(submitted.page)
+      fetchTotals()
+    } catch (e) { console.error(e) }
+    setBatchConfirm({ open: false, ids: [] })
+  }
+
   function openModalWithSurveyRows(rows) {
     setModalRows(rows)
     setModalOpen(true)
@@ -203,10 +247,23 @@ export default function ValidatorDashboard() {
   }
 
   // small UI helpers
-  const pages = (total) => {
-    const count = Math.ceil(total / perPage)
-    return Array.from({length: count}, (_,i) => i+1)
-  }
+  const getPageNumbers = (total, currentPage) => {
+    const totalPages = Math.ceil(total / perPage);
+    const maxButtons = 10;
+    let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+    let endPage = startPage + maxButtons - 1;
+
+    if (endPage > totalPages) {
+      endPage = totalPages;
+      startPage = Math.max(1, endPage - maxButtons + 1);
+    }
+
+    const pagesList = [];
+    for (let i = startPage; i <= endPage; i++) {
+      pagesList.push(i);
+    }
+    return { pages: pagesList, currentPage, totalPages };
+  };
 
   const pending = Math.max(0, (totals.total_surveyed || 0) - (totals.total_submitted || 0))
   const q = search.trim().toLowerCase()
@@ -222,6 +279,8 @@ export default function ValidatorDashboard() {
   const surveysFinal = applyRowFilters(surveysFiltered)
   const submittedFinal = applyRowFilters(submittedFiltered)
   const deletedFinal = applyRowFilters(deletedFiltered)
+  const selectedOnPageCount = surveysFinal.filter(r => selectedSurveyIds.includes(r.survey_id)).length
+  const allSelectedOnPage = surveysFinal.length > 0 && surveysFinal.every(r => selectedSurveyIds.includes(r.survey_id))
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
@@ -427,11 +486,31 @@ export default function ValidatorDashboard() {
               </svg>
               <span>Export CSV</span>
             </button>
+            <button
+              type="button"
+              onClick={() => handleBatchSubmitOpen(surveysFinal)}
+              disabled={selectedOnPageCount === 0}
+              className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium shadow-sm ${
+                selectedOnPageCount === 0
+                  ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-700'
+              }`}
+            >
+              <span>Submit Selected{selectedOnPageCount ? ` (${selectedOnPageCount})` : ''}</span>
+            </button>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-hidden">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                      checked={allSelectedOnPage}
+                      onChange={() => toggleSelectAllCurrent(surveysFinal)}
+                    />
+                  </th>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Date</th>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Barangay</th>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Purok</th>
@@ -443,12 +522,20 @@ export default function ValidatorDashboard() {
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Action</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody key={surveys.page} className="animate-table-fade">
                 {surveysFinal.map(row => (
                   <tr
                     key={row.survey_id}
                     className="group border-b border-gray-100 last:border-b-0 transition-colors duration-150 hover:bg-emerald-50"
                   >
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                        checked={selectedSurveyIds.includes(row.survey_id)}
+                        onChange={() => toggleSelectSurvey(row.survey_id)}
+                      />
+                    </td>
                     <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.date_interviewed}</td>
                     <td className="px-3 py-3 whitespace-nowrap text-gray-700">{String(row.barangay || '').replace(/_/g,' ')}</td>
                     <td className="px-3 py-3 whitespace-nowrap text-gray-700">{row.purok}</td>
@@ -487,20 +574,56 @@ export default function ValidatorDashboard() {
                     </td>
                   </tr>
                 ))}
-                {!surveysFinal.length && <tr><td className="p-3" colSpan="8">No surveyed applicants found.</td></tr>}
+                {!surveysFinal.length && <tr><td className="p-3" colSpan="10">No surveyed applicants found.</td></tr>}
               </tbody>
             </table>
           </div>
 
           {/* Pagination */}
-          <div className="mt-4 flex justify-center gap-2">
-            {pages(surveys.total).map(i => (
-              <button key={i}
-                      onClick={() => { fetchSurveys(i, search); setSurveys(prev => ({...prev, page: i})) }}
-                      className={`px-3 py-1 rounded border ${surveys.page === i ? 'bg-emerald-600 text-white' : 'text-emerald-800'}`}>
-                {i}
-              </button>
-            ))}
+          <div className="mt-4 flex justify-center items-center gap-2">
+            {(() => {
+              const { pages, currentPage, totalPages } = getPageNumbers(surveys.total, surveys.page);
+              return (
+                <>
+                  <button
+                    onClick={() => {
+                      const prev = currentPage - 1;
+                      fetchSurveys(prev, search);
+                      setSurveys(p => ({ ...p, page: prev }));
+                    }}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 rounded border text-emerald-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Prev
+                  </button>
+                  {pages.map(i => (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        fetchSurveys(i, search);
+                        setSurveys(prev => ({ ...prev, page: i }));
+                      }}
+                      className={`px-3 py-1 rounded border ${
+                        currentPage === i ? 'bg-emerald-600 text-white' : 'text-emerald-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {i}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => {
+                      const next = currentPage + 1;
+                      fetchSurveys(next, search);
+                      setSurveys(p => ({ ...p, page: next }));
+                    }}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 rounded border text-emerald-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </>
+              );
+            })()}
           </div>
             </section>
           </DashboardFade>
@@ -561,7 +684,7 @@ export default function ValidatorDashboard() {
               <span>Export CSV</span>
             </button>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto overflow-y-hidden">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
@@ -576,7 +699,7 @@ export default function ValidatorDashboard() {
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Action</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody key={submitted.page} className="animate-table-fade">
                 {submittedFinal.map(row => (
                   <tr
                     key={row.survey_id}
@@ -617,14 +740,50 @@ export default function ValidatorDashboard() {
             </table>
           </div>
 
-          <div className="mt-4 flex justify-center gap-2">
-            {pages(submitted.total).map(i => (
-              <button key={i}
-                      onClick={() => { fetchSubmitted(i, search); setSubmitted(prev => ({...prev, page: i})) }}
-                      className={`px-3 py-1 rounded border ${submitted.page === i ? 'bg-emerald-600 text-white' : 'text-emerald-800'}`}>
-                {i}
-              </button>
-            ))}
+          <div className="mt-4 flex justify-center items-center gap-2">
+            {(() => {
+              const { pages, currentPage, totalPages } = getPageNumbers(submitted.total, submitted.page);
+              return (
+                <>
+                  <button
+                    onClick={() => {
+                      const prev = currentPage - 1;
+                      fetchSubmitted(prev, search);
+                      setSubmitted(p => ({ ...p, page: prev }));
+                    }}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 rounded border text-emerald-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Prev
+                  </button>
+                  {pages.map(i => (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        fetchSubmitted(i, search);
+                        setSubmitted(prev => ({ ...prev, page: i }));
+                      }}
+                      className={`px-3 py-1 rounded border ${
+                        currentPage === i ? 'bg-emerald-600 text-white' : 'text-emerald-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {i}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => {
+                      const next = currentPage + 1;
+                      fetchSubmitted(next, search);
+                      setSubmitted(p => ({ ...p, page: next }));
+                    }}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 rounded border text-emerald-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </>
+              );
+            })()}
           </div>
             </section>
           </DashboardFade>
@@ -661,7 +820,7 @@ export default function ValidatorDashboard() {
                   widthClass="w-56"
                 />
               </div>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto overflow-y-hidden">
                 <table className="min-w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100">
@@ -673,7 +832,7 @@ export default function ValidatorDashboard() {
                       <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Action</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody key={deleted.page} className="animate-table-fade">
                     {deletedFinal.map(row => (
                       <tr
                         key={row.survey_id}
@@ -713,19 +872,50 @@ export default function ValidatorDashboard() {
                   </tbody>
                 </table>
               </div>
-              <div className="mt-4 flex justify-center gap-2">
-                {pages(deleted.total).map(i => (
-                  <button
-                    key={i}
-                    onClick={() => {
-                      fetchDeleted(i, search)
-                      setDeleted(prev => ({ ...prev, page: i }))
-                    }}
-                    className={`px-3 py-1 rounded border ${deleted.page === i ? 'bg-red-600 text-white' : 'text-red-800'}`}
-                  >
-                    {i}
-                  </button>
-                ))}
+              <div className="mt-4 flex justify-center items-center gap-2">
+                {(() => {
+                  const { pages, currentPage, totalPages } = getPageNumbers(deleted.total, deleted.page);
+                  return (
+                    <>
+                      <button
+                        onClick={() => {
+                          const prev = currentPage - 1;
+                          fetchDeleted(prev, search);
+                          setDeleted(p => ({ ...p, page: prev }));
+                        }}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1 rounded border text-emerald-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Prev
+                      </button>
+                      {pages.map(i => (
+                        <button
+                          key={i}
+                          onClick={() => {
+                            fetchDeleted(i, search);
+                            setDeleted(prev => ({ ...prev, page: i }));
+                          }}
+                          className={`px-3 py-1 rounded border ${
+                            currentPage === i ? 'bg-red-600 text-white' : 'text-red-700 hover:bg-red-50'
+                          }`}
+                        >
+                          {i}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => {
+                          const next = currentPage + 1;
+                          fetchDeleted(next, search);
+                          setDeleted(p => ({ ...p, page: next }));
+                        }}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1 rounded border text-emerald-700 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Next
+                      </button>
+                    </>
+                  );
+                })()}
               </div>
             </section>
         </DashboardFade>
@@ -748,6 +938,35 @@ export default function ValidatorDashboard() {
             <button
               type="button"
               onClick={confirmSubmitSurvey}
+              className="px-3 py-2 rounded-xl bg-emerald-600 text-sm font-medium text-white hover:bg-emerald-700"
+            >
+              Proceed
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal show={batchConfirm.open} onClose={() => setBatchConfirm({ open: false, ids: [] })} maxWidth="sm">
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-emerald-800 mb-2">Submit selected surveys to admin?</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            This will send the selected surveys to the admin for validation. You will not be able to edit them afterwards.
+          </p>
+          <div className="flex justify-between items-center mb-4 text-sm text-gray-700">
+            <span>Selected surveys:</span>
+            <span className="font-semibold">{batchConfirm.ids.length}</span>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setBatchConfirm({ open: false, ids: [] })}
+              className="px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmBatchSubmit}
               className="px-3 py-2 rounded-xl bg-emerald-600 text-sm font-medium text-white hover:bg-emerald-700"
             >
               Proceed

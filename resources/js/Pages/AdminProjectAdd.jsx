@@ -152,35 +152,35 @@ export default function AdminProjectAdd() {
               <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
               <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
             </div>
-            <nav className="space-y-2 flex flex-col flex-1">
-              <Link href="/admin/dashboard" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/dashboard') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/dashboardicon.png" alt="Dashboard" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Dashboard</span>
-              </Link>
-              <Link href="/admin/beneficiaries" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/beneficiaries') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/beneficiariesicon.png" alt="Beneficiaries" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Beneficiaries</span>
-              </Link>
-              <Link href="/admin/project-sites" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/project-sites') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/projectsiteicon.png" alt="Project Sites" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Project Sites</span>
-              </Link>
-              <Link href="/admin/assignments" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/assignments') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/assignmenticon.png" alt="Assignments" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Assignments</span>
-              </Link>
-              <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">My Profile</span>
-              </Link>
-              <Link href="/admin/about" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/about') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/abouticon.png" alt="About" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">About</span>
-              </Link>
-              <div className="mt-auto">
-                <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
-                  <img src="/icons/logouticon.png" alt="Log out" className="w-5 h-5"/>
-                  <span className="tracking-wider uppercase text-xs">Log out</span>
+        <nav className="space-y-2 flex flex-col flex-1">
+          <Link href="/admin/dashboard" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/dashboard') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+            <img src="/icons/dashboardicon.png" alt="Dashboard" className="w-5 h-5"/>
+            <span className="tracking-wider uppercase text-xs">Dashboard</span>
+          </Link>
+          <Link href="/admin/beneficiaries" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/beneficiaries') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+            <img src="/icons/beneficiariesicon.png" alt="Beneficiaries" className="w-5 h-5"/>
+            <span className="tracking-wider uppercase text-xs">Beneficiaries</span>
+          </Link>
+          <Link href="/admin/project-sites" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/project-sites') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+            <img src="/icons/projectsiteicon.png" alt="Project Sites" className="w-5 h-5"/>
+            <span className="tracking-wider uppercase text-xs">Project Sites</span>
+          </Link>
+          <Link href="/admin/assignments" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/assignments') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+            <img src="/icons/assignmenticon.png" alt="Assignments" className="w-5 h-5"/>
+            <span className="tracking-wider uppercase text-xs">Assignments</span>
+          </Link>
+          <Link href="/admin/mapping" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/mapping') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+            <img src="/icons/projectsiteicon.png" alt="Mapping" className="w-5 h-5"/>
+            <span className="tracking-wider uppercase text-xs">Mapping</span>
+          </Link>
+          <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+            <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
+            <span className="tracking-wider uppercase text-xs">My Profile</span>
+          </Link>
+          <div className="mt-auto">
+            <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
+              <img src="/icons/logouticon.png" alt="Log out" className="w-5 h-5"/>
+              <span className="tracking-wider uppercase text-xs">Log out</span>
                 </button>
               </div>
             </nav>

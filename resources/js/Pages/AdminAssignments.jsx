@@ -340,7 +340,7 @@ export default function AdminAssignments() {
   ]
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen flex-col md:flex-row">
       <aside className="hidden md:block w-64 flex flex-col flex-shrink-0 bg-white text-gray-700 p-6 border-r border-gray-200 h-screen sticky top-0 overflow-hidden">
         <div className="flex items-center gap-3 mb-8">
           <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
@@ -363,13 +363,13 @@ export default function AdminAssignments() {
             <img src="/icons/assignmenticon.png" alt="Assignments" className="w-5 h-5"/>
             <span className="tracking-wider uppercase text-xs">Assignments</span>
           </Link>
+          <Link href="/admin/mapping" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/mapping') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+            <img src="/icons/projectsiteicon.png" alt="Mapping" className="w-5 h-5"/>
+            <span className="tracking-wider uppercase text-xs">Mapping</span>
+          </Link>
           <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
             <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
             <span className="tracking-wider uppercase text-xs">My Profile</span>
-          </Link>
-          <Link href="/admin/about" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/about') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/abouticon.png" alt="About" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">About</span>
           </Link>
           <div className="mt-auto">
             <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
@@ -405,13 +405,13 @@ export default function AdminAssignments() {
                 <img src="/icons/assignmenticon.png" alt="Assignments" className="w-5 h-5"/>
                 <span className="tracking-wider uppercase text-xs">Assignments</span>
               </Link>
+              <Link href="/admin/mapping" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/mapping') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+                <img src="/icons/projectsiteicon.png" alt="Mapping" className="w-5 h-5"/>
+                <span className="tracking-wider uppercase text-xs">Mapping</span>
+              </Link>
               <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
                 <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
                 <span className="tracking-wider uppercase text-xs">My Profile</span>
-              </Link>
-              <Link href="/admin/about" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/about') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/abouticon.png" alt="About" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">About</span>
               </Link>
               <div className="mt-auto">
                 <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
@@ -424,7 +424,7 @@ export default function AdminAssignments() {
         </div>
       )}
 
-      <main className="flex-1 p-6 bg-gray-50">
+      <main className="flex-1 p-4 sm:p-6 bg-gray-50">
         <DashboardFade delay={0}>
           <div className="md:hidden mb-4 flex items-center justify-between">
             <button onClick={() => setMobileNavOpen(true)} className="px-3 py-2 rounded-2xl bg-white ring-2 ring-emerald-300 text-emerald-700" aria-label="Open Menu">
@@ -437,7 +437,7 @@ export default function AdminAssignments() {
           {error && <div className="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700">{error}</div>}
         </DashboardFade>
         <DashboardFade delay={200}>
-          <header className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-200">
+          <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-white p-4 rounded-2xl border border-gray-200">
             <div>
               <div className="text-sm text-gray-500">Hello Admin!</div>
               <h2 className="text-2xl text-emerald-800 font-semibold">Assignments</h2>
@@ -450,7 +450,7 @@ export default function AdminAssignments() {
         </DashboardFade>
 
         <DashboardFade delay={300}>
-        <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-6">
+        <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-4 sm:p-6">
           <h3 className="text-lg font-semibold text-emerald-800 mb-3">Pending Approval Assignments</h3>
           <form
             className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2"
@@ -495,7 +495,7 @@ export default function AdminAssignments() {
         </DashboardFade>
 
         <DashboardFade delay={400}>
-        <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-6">
+        <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-4 sm:p-6">
           <h3 className="text-lg font-semibold text-emerald-800 mb-3">Assigned Beneficiaries</h3>
           <form
             className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2"

@@ -218,7 +218,6 @@ class ValidatorDashboardController extends Controller
         ]);
     }
 
-    // Submit a survey to admin (change is_submitted)
     public function submitSurvey(Request $request)
     {
         $validator_id = session('validator_id');
@@ -242,6 +241,39 @@ class ValidatorDashboardController extends Controller
         $updated = $updateQuery->update(['is_submitted' => 1]);
 
         return response()->json(['updated' => (bool) $updated]);
+    }
+
+    public function submitSurveysBatch(Request $request)
+    {
+        $validator_id = session('validator_id');
+        if (! $validator_id) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $ids = $request->input('survey_ids');
+        if (! is_array($ids) || empty($ids)) {
+            return response()->json(['message' => 'Missing survey_ids'], 400);
+        }
+
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        $ids = array_filter($ids, function ($v) {
+            return $v > 0;
+        });
+        if (empty($ids)) {
+            return response()->json(['message' => 'Missing survey_ids'], 400);
+        }
+
+        $hasDeletedAt = Schema::hasTable('survey') && Schema::hasColumn('survey', 'deleted_at');
+        $updateQuery = DB::table('survey')
+            ->where('validator_id', $validator_id)
+            ->whereIn('survey_id', $ids)
+            ->where('is_submitted', 0);
+        if ($hasDeletedAt) {
+            $updateQuery->whereNull('deleted_at');
+        }
+        $updated = $updateQuery->update(['is_submitted' => 1]);
+
+        return response()->json(['updated' => (int) $updated]);
     }
 
     public function deleted(Request $request)
@@ -619,12 +651,13 @@ class ValidatorDashboardController extends Controller
 
         $file = $request->file('house_photo');
         $house_photo_path = '';
-        if ($file) {
+        if ($file && $file->isValid()) {
             if ($file->getSize() > 5 * 1024 * 1024) {
                 return response()->json(['message' => 'File too large'], 422);
             }
             $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
-            if (! in_array($file->getMimeType(), $allowed)) {
+            $mime = $file->getClientMimeType() ?: 'image/jpeg';
+            if (! in_array($mime, $allowed)) {
                 return response()->json(['message' => 'Invalid file type'], 422);
             }
             $ext = $file->getClientOriginalExtension() ?: 'jpg';
@@ -635,12 +668,13 @@ class ValidatorDashboardController extends Controller
 
         $person_photo_path = null;
         $personFile = $request->file('person_photo');
-        if ($personFile) {
+        if ($personFile && $personFile->isValid()) {
             if ($personFile->getSize() > 5 * 1024 * 1024) {
                 return response()->json(['message' => 'File too large'], 422);
             }
             $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
-            if (! in_array($personFile->getMimeType(), $allowed)) {
+            $mime = $personFile->getClientMimeType() ?: 'image/jpeg';
+            if (! in_array($mime, $allowed)) {
                 return response()->json(['message' => 'Invalid file type'], 422);
             }
             $ext = $personFile->getClientOriginalExtension() ?: 'jpg';
@@ -1045,12 +1079,13 @@ class ValidatorDashboardController extends Controller
         };
         $house_photo_path = null;
         $file = $request->file('house_photo');
-        if ($file) {
+        if ($file && $file->isValid()) {
             if ($file->getSize() > 5 * 1024 * 1024) {
                 return response()->json(['message' => 'File too large'], 422);
             }
             $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
-            if (! in_array($file->getMimeType(), $allowed)) {
+            $mime = $file->getClientMimeType() ?: 'image/jpeg';
+            if (! in_array($mime, $allowed)) {
                 return response()->json(['message' => 'Invalid file type'], 422);
             }
             $ext = $file->getClientOriginalExtension() ?: 'jpg';
@@ -1060,12 +1095,13 @@ class ValidatorDashboardController extends Controller
         }
         $person_photo_path = null;
         $personFile = $request->file('person_photo');
-        if ($personFile) {
+        if ($personFile && $personFile->isValid()) {
             if ($personFile->getSize() > 5 * 1024 * 1024) {
                 return response()->json(['message' => 'File too large'], 422);
             }
             $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
-            if (! in_array($personFile->getMimeType(), $allowed)) {
+            $mime = $personFile->getClientMimeType() ?: 'image/jpeg';
+            if (! in_array($mime, $allowed)) {
                 return response()->json(['message' => 'Invalid file type'], 422);
             }
             $ext = $personFile->getClientOriginalExtension() ?: 'jpg';
@@ -1319,20 +1355,142 @@ class ValidatorDashboardController extends Controller
     public function profile(Request $request)
     {
         $validator_id = session('validator_id');
-        if (! $validator_id) {
+        if (!$validator_id) {
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
         $row = DB::table('validator')
-            ->select('validator_id', 'username', 'name', 'email')
+            ->select('validator_id','username','name','email')
             ->where('validator_id', $validator_id)
             ->first();
-
         return response()->json(['profile' => $row]);
     }
 
     public function updatePassword(Request $request)
     {
-        return response()->json(['message' => 'Password changes require a reset token. Use the reset link sent to your email.'], 403);
+        $validator_id = session('validator_id');
+        if (!$validator_id) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $current = (string) $request->input('current_password');
+        $password = (string) $request->input('password');
+        $confirmation = (string) $request->input('password_confirmation');
+
+        $errors = [];
+        if ($current === '') {
+            $errors['current_password'][] = 'Current password is required';
+        }
+        if ($password === '') {
+            $errors['password'][] = 'New password is required';
+        } elseif (strlen($password) < 8) {
+            $errors['password'][] = 'Password must be at least 8 characters';
+        }
+        if ($confirmation === '') {
+            $errors['password_confirmation'][] = 'Please confirm your new password';
+        } elseif ($password !== '' && $password !== $confirmation) {
+            $errors['password_confirmation'][] = 'Passwords do not match';
+        }
+        if (!empty($errors)) {
+            return response()->json(['errors' => $errors], 422);
+        }
+
+        $row = DB::table('validator')->select('password','name','email','validator_id')->where('validator_id', $validator_id)->first();
+        if (!$row) {
+            return response()->json(['message' => 'Account not found'], 404);
+        }
+
+        $stored = is_string($row->password ?? null) ? $row->password : '';
+        $valid = ($stored !== '' && password_verify($current, $stored)) || $current === $stored || (md5($current) === $stored);
+        if (!$valid) {
+            return response()->json(['errors' => ['current_password' => ['Current password is incorrect']]], 422);
+        }
+
+        DB::table('validator')->where('validator_id', $validator_id)->update([
+            'password' => password_hash($password, PASSWORD_BCRYPT),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('notifications')->insert([
+            'type' => 'validator_password_reset',
+            'title' => 'Password changed',
+            'payload' => json_encode([
+                'validator_id' => $row->validator_id ?? null,
+                'name' => $row->name ?? null,
+                'email' => $row->email ?? null,
+            ]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return response()->json(['ok' => true]);
+    }
+
+    public function updateEmail(Request $request)
+    {
+        $validator_id = session('validator_id');
+        if (! $validator_id) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $email = trim((string) $request->input('email', ''));
+        $errors = [];
+
+        if ($email === '') {
+            $errors['email'][] = 'Email is required';
+        } elseif (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors['email'][] = 'Enter a valid email address';
+        } else {
+            $exists = DB::table('validator')
+                ->where('email', $email)
+                ->where('validator_id', '!=', $validator_id)
+                ->exists();
+            if ($exists) {
+                $errors['email'][] = 'Email is already in use';
+            }
+        }
+
+        if (! empty($errors)) {
+            return response()->json(['errors' => $errors], 422);
+        }
+
+        $row = DB::table('validator')
+            ->select('validator_id', 'name', 'email')
+            ->where('validator_id', $validator_id)
+            ->first();
+        if (! $row) {
+            return response()->json(['message' => 'Account not found'], 404);
+        }
+
+        if ((string) ($row->email ?? '') === $email) {
+            return response()->json(['ok' => true, 'message' => 'Email is unchanged']);
+        }
+
+        DB::table('validator')->where('validator_id', $validator_id)->update([
+            'email' => $email,
+            'updated_at' => now(),
+        ]);
+
+        DB::table('notifications')->insert([
+            'type' => 'validator_email_changed',
+            'title' => 'Email updated',
+            'payload' => json_encode([
+                'validator_id' => $row->validator_id ?? null,
+                'name' => $row->name ?? null,
+                'email' => $email,
+                'old_email' => $row->email ?? null,
+            ]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'profile' => [
+                'validator_id' => $row->validator_id ?? null,
+                'name' => $row->name ?? null,
+                'email' => $email,
+            ],
+        ]);
     }
 
     public function previewTagNumber(Request $request)
@@ -1702,19 +1860,29 @@ class ValidatorDashboardController extends Controller
 
         if (is_numeric($pointsMin)) {
             $min = (float) $pointsMin;
-            $scored->havingRaw("$pointsExpr >= ?", [$min]);
+            $scored->whereRaw("$pointsExpr >= ?", [$min]);
         }
         if (is_numeric($pointsMax)) {
             $max = (float) $pointsMax;
-            $scored->havingRaw("$pointsExpr <= ?", [$max]);
+            $scored->whereRaw("$pointsExpr <= ?", [$max]);
         }
 
         $total = (clone $scored)->count();
 
-        $rows = $scored
-            ->orderBy('d.barangay')
-            ->orderBy('c.classification')
-            ->orderByDesc('points')
+        $rowsQuery = $scored;
+        if (is_numeric($pointsMin) || is_numeric($pointsMax)) {
+            $rowsQuery = $rowsQuery
+                ->orderByDesc('points')
+                ->orderBy('d.barangay')
+                ->orderBy('c.classification');
+        } else {
+            $rowsQuery = $rowsQuery
+                ->orderBy('d.barangay')
+                ->orderBy('c.classification')
+                ->orderByDesc('points');
+        }
+
+        $rows = $rowsQuery
             ->offset($offset)
             ->limit($perPage)
             ->get()
@@ -1899,19 +2067,29 @@ class ValidatorDashboardController extends Controller
 
         if (is_numeric($pointsMin)) {
             $min = (float) $pointsMin;
-            $scored->havingRaw("$pointsExpr >= ?", [$min]);
+            $scored->whereRaw("$pointsExpr >= ?", [$min]);
         }
         if (is_numeric($pointsMax)) {
             $max = (float) $pointsMax;
-            $scored->havingRaw("$pointsExpr <= ?", [$max]);
+            $scored->whereRaw("$pointsExpr <= ?", [$max]);
         }
 
         $total = (clone $scored)->count();
 
-        $rows = $scored
-            ->orderBy('d.barangay')
-            ->orderBy('c.classification')
-            ->orderByDesc('points')
+        $rowsQuery = $scored;
+        if (is_numeric($pointsMin) || is_numeric($pointsMax)) {
+            $rowsQuery = $rowsQuery
+                ->orderByDesc('points')
+                ->orderBy('d.barangay')
+                ->orderBy('c.classification');
+        } else {
+            $rowsQuery = $rowsQuery
+                ->orderBy('d.barangay')
+                ->orderBy('c.classification')
+                ->orderByDesc('points');
+        }
+
+        $rows = $rowsQuery
             ->offset($offset)
             ->limit($perPage)
             ->get()
@@ -2125,19 +2303,29 @@ class ValidatorDashboardController extends Controller
 
         if (is_numeric($pointsMin)) {
             $min = (float) $pointsMin;
-            $scored->havingRaw("$pointsExpr >= ?", [$min]);
+            $scored->whereRaw("$pointsExpr >= ?", [$min]);
         }
         if (is_numeric($pointsMax)) {
             $max = (float) $pointsMax;
-            $scored->havingRaw("$pointsExpr <= ?", [$max]);
+            $scored->whereRaw("$pointsExpr <= ?", [$max]);
         }
 
         $total = (clone $scored)->count();
 
-        $rows = $scored
-            ->orderBy('d.barangay')
-            ->orderBy('c.classification')
-            ->orderByDesc('points')
+        $rowsQuery = $scored;
+        if (is_numeric($pointsMin) || is_numeric($pointsMax)) {
+            $rowsQuery = $rowsQuery
+                ->orderByDesc('points')
+                ->orderBy('d.barangay')
+                ->orderBy('c.classification');
+        } else {
+            $rowsQuery = $rowsQuery
+                ->orderBy('d.barangay')
+                ->orderBy('c.classification')
+                ->orderByDesc('points');
+        }
+
+        $rows = $rowsQuery
             ->offset($offset)
             ->limit($perPage)
             ->get()
@@ -5285,7 +5473,7 @@ class ValidatorDashboardController extends Controller
         }
         $limit = (int) ($request->get('limit') ?? 10);
         $rows = DB::table('notifications')
-            ->whereIn('type', ['validator_password_reset'])
+            ->whereIn('type', ['validator_password_reset', 'validator_email_changed'])
             ->orderBy('id', 'desc')
             ->limit(max(1, $limit))
             ->get()
@@ -5532,19 +5720,42 @@ class ValidatorDashboardController extends Controller
             }
         }
         if (! $house_photo_blob) {
-            $file = $request->file('house_photo');
-            if ($file) {
-                if ($file->getSize() > 5 * 1024 * 1024) {
-                    return response()->json(['message' => 'File too large'], 422);
+            try {
+                $file = $request->file('house_photo');
+                if ($file && $file->isValid()) {
+                    $realPath = $file->getRealPath();
+                    if (! $realPath || ! is_readable($realPath)) {
+                        \Log::warning('mobileSubmitSurvey: house_photo temp file missing or unreadable', [
+                            'realPath' => $realPath,
+                        ]);
+                    } else {
+                        if ($file->getSize() > 5 * 1024 * 1024) {
+                            return response()->json(['message' => 'File too large'], 422);
+                        }
+                        $originalName = $file->getClientOriginalName();
+                        $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+                        if ($ext === '') {
+                            $ext = 'jpg';
+                        }
+                        $allowedExt = ['jpg', 'jpeg', 'png', 'gif'];
+                        if (! in_array($ext, $allowedExt, true)) {
+                            return response()->json(['message' => 'Invalid file type'], 422);
+                        }
+                        $house_photo_blob = file_get_contents($realPath);
+                        $house_photo_filename = $originalName;
+                        if ($ext === 'png') {
+                            $house_photo_type = 'image/png';
+                        } elseif ($ext === 'gif') {
+                            $house_photo_type = 'image/gif';
+                        } else {
+                            $house_photo_type = 'image/jpeg';
+                        }
+                    }
                 }
-                $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
-                $mime = $file->getClientMimeType() ?: 'image/jpeg';
-                if (! in_array($mime, $allowed)) {
-                    return response()->json(['message' => 'Invalid file type'], 422);
-                }
-                $house_photo_blob = file_get_contents($file->getRealPath());
-                $house_photo_filename = $file->getClientOriginalName();
-                $house_photo_type = $mime;
+            } catch (\Throwable $e) {
+                \Log::error('mobileSubmitSurvey: exception processing house_photo upload', [
+                    'error' => $e->getMessage(),
+                ]);
             }
         }
 
@@ -5595,19 +5806,42 @@ class ValidatorDashboardController extends Controller
             }
         }
         if (! $person_photo_blob) {
-            $file = $request->file('person_photo');
-            if ($file) {
-                if ($file->getSize() > 5 * 1024 * 1024) {
-                    return response()->json(['message' => 'File too large'], 422);
+            try {
+                $file = $request->file('person_photo');
+                if ($file && $file->isValid()) {
+                    $realPath = $file->getRealPath();
+                    if (! $realPath || ! is_readable($realPath)) {
+                        \Log::warning('mobileSubmitSurvey: person_photo temp file missing or unreadable', [
+                            'realPath' => $realPath,
+                        ]);
+                    } else {
+                        if ($file->getSize() > 5 * 1024 * 1024) {
+                            return response()->json(['message' => 'File too large'], 422);
+                        }
+                        $originalName = $file->getClientOriginalName();
+                        $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+                        if ($ext === '') {
+                            $ext = 'jpg';
+                        }
+                        $allowedExt = ['jpg', 'jpeg', 'png', 'gif'];
+                        if (! in_array($ext, $allowedExt, true)) {
+                            return response()->json(['message' => 'Invalid file type'], 422);
+                        }
+                        $person_photo_blob = file_get_contents($realPath);
+                        $person_photo_filename = $originalName;
+                        if ($ext === 'png') {
+                            $person_photo_type = 'image/png';
+                        } elseif ($ext === 'gif') {
+                            $person_photo_type = 'image/gif';
+                        } else {
+                            $person_photo_type = 'image/jpeg';
+                        }
+                    }
                 }
-                $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
-                $mime = $file->getClientMimeType() ?: 'image/jpeg';
-                if (! in_array($mime, $allowed)) {
-                    return response()->json(['message' => 'Invalid file type'], 422);
-                }
-                $person_photo_blob = file_get_contents($file->getRealPath());
-                $person_photo_filename = $file->getClientOriginalName();
-                $person_photo_type = $mime;
+            } catch (\Throwable $e) {
+                \Log::error('mobileSubmitSurvey: exception processing person_photo upload', [
+                    'error' => $e->getMessage(),
+                ]);
             }
         }
         if ($person_photo_blob) {
@@ -5628,7 +5862,21 @@ class ValidatorDashboardController extends Controller
 
         // Prepare variables and handle 'Others' logic
         $classification = $val('classification');
+        if (is_string($classification)) {
+            $cNorm = trim($classification);
+            if (strcasecmp($cNorm, 'Doubled-up') === 0) {
+                $classification = 'Double-up';
+            }
+        }
+
         $subclass_displaced = $val('subclass_displaced') ?: $val('sub_class_displaced');
+        if (is_string($subclass_displaced)) {
+            $sdNorm = strtolower(trim($subclass_displaced));
+            if ($sdNorm === 'infra-projects') {
+                $subclass_displaced = 'Infra Projects';
+            }
+        }
+
         $subclass_doubleup = $val('subclass_doubleup') ?: $val('sub_class_double_up');
         $subclass_homeless = $val('subclass_homeless') ?: $val('sub_class_homeless');
 

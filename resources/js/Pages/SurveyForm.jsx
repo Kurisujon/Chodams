@@ -3,6 +3,7 @@ import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, usePage } from '@inertiajs/react'
 import axios from 'axios'
 import { Listbox, Transition } from '@headlessui/react'
+import Modal from '@/Components/Modal'
 
 const barangays = [
   'Aplaya','Balabag','Binaton','Cogon','Colorado','Dawis','Dulangan','Goma','Igpit','Kapatagan','Kiagot','Lungag','Mahayahay','Matti','Ruparan','San_Agustin','San_Jose','San_Miguel','San_Roque','Sinawilan','Soong','Tiguman','Tres_De_Mayo','Zone_1','Zone_2','Zone_3'
@@ -258,6 +259,8 @@ export default function SurveyForm() {
   const [lat, setLat] = useState('')
   const [lon, setLon] = useState('')
   const rSigRef = useRef(null)
+  const [showConsent, setShowConsent] = useState(false)
+  const [agreed, setAgreed] = useState(false)
   const [signatureDirty, setSignatureDirty] = useState(false)
   const [respondentSignatureDataUrl, setRespondentSignatureDataUrl] = useState('')
   const [existingHousePhotoUrl, setExistingHousePhotoUrl] = useState('')
@@ -519,6 +522,18 @@ export default function SurveyForm() {
             return raw
           }
 
+          const normalizeIncomeRange = (stored) => {
+            const raw = norm(stored)
+            if (!raw) return ''
+            const lower = raw.toLowerCase().replace(/\s+/g, ' ')
+            if (lower === '0 - 2,999 php') return '0 - 2,999 PHP'
+            if (lower === '3,000 - 5,999 php') return '3,000 - 5,999 PHP'
+            if (lower === '6,000 - 8,999 php') return '6,000 - 8,999 PHP'
+            if (lower === '9,000 - 12,999 php' || lower === '9,000 - 12,999_php') return '9,000 - 12,999_PHP'
+            if (lower === '13,000 php and above' || lower === '13,000 and above') return '13,000 and above'
+            return raw
+          }
+
           const normalizeSkill = (stored) => {
             const raw = norm(stored)
             if (!raw) return ''
@@ -597,7 +612,6 @@ export default function SurveyForm() {
             spouse_gender: sv.spouse_gender || d.spouse_gender,
             affiliation: sv.affiliation ? toKey(sv.affiliation) : (d.affiliation || ''),
             affiliations: affiliationsStr || d.affiliations,
-            endorsed_by_mayor: ynToYesNo(sv.endorsed_by_mayor) || d.endorsed_by_mayor,
             lot_ownership: sv.lot_ownership || d.lot_ownership,
             house_ownership: sv.house_ownership || d.house_ownership,
             avail_socialized_housing: sv.avail_socialized_housing || d.avail_socialized_housing,
@@ -615,8 +629,8 @@ export default function SurveyForm() {
             work_status: ws.v || d.work_status,
             other_work_status: ws.other || d.other_work_status,
             work_location_head: sv.work_location_head || d.work_location_head,
-            monthly_salary: sv.monthly_salary || d.monthly_salary,
-            combine_monthly_income: sv.combine_monthly_income || d.combine_monthly_income,
+            monthly_salary: normalizeIncomeRange(sv.monthly_salary || d.monthly_salary),
+            combine_monthly_income: normalizeIncomeRange(sv.combine_monthly_income || d.combine_monthly_income),
             skills_for_living: sv.skills_for_living || d.skills_for_living,
             specific_skill: sk.v || d.specific_skill,
             other_skill: sk.other || d.other_skill,
@@ -1012,7 +1026,7 @@ export default function SurveyForm() {
           <DashboardFade delay={300}>
             <div className="bg-white rounded-2xl border border-gray-200 p-6">
           {step === 0 && (
-            <div className="rounded-2xl bg-gray-50 p-6">
+            <div className="rounded-2xl bg-gray-50 p-6 animate-form-step">
               <StepHeader number={1} title="Basic Details" />
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1097,7 +1111,7 @@ export default function SurveyForm() {
           )}
 
           {step === 1 && (
-            <div className="rounded-2xl bg-gray-50 p-6">
+            <div className="rounded-2xl bg-gray-50 p-6 animate-form-step">
               <StepHeader number={2} title="Personal Information" />
               <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1187,7 +1201,19 @@ export default function SurveyForm() {
                     buttonClassName={selectClass}
                   />
                 </div>
-                <div><div className="text-sm text-gray-500">Contact Number</div><input className={inputClass} value={data.contact_number} onChange={e=>setData({...data, contact_number:e.target.value})}/></div>
+                <div>
+                  <div className="text-sm text-gray-500">Contact Number</div>
+                  <input
+                    className={inputClass}
+                    value={data.contact_number}
+                    maxLength={11}
+                    onChange={e => {
+                      const raw = e.target.value || ''
+                      const digits = raw.replace(/\D/g, '').slice(0, 11)
+                      setData({ ...data, contact_number: digits })
+                    }}
+                  />
+                </div>
                 <div>
                   <div className="text-sm text-gray-500">Language</div>
                   <SmoothSelect
@@ -1211,23 +1237,23 @@ export default function SurveyForm() {
                   />
                 </div>
                 <div>
-                  <div className="text-sm text-gray-500">Tribe</div>
+                  <div className="text-sm text-gray-500">Tribe/Ethnicity</div>
                   <SmoothSelect
                     value={data.tribe}
                     onChange={v => setData({ ...data, tribe: v })}
                     options={buildOptions([
-                      'Manobo',
+                      'Cebuano/Bisaya',
                       'Bagobo',
-                      "B'laan",
                       'Bagobo-Tagabawa',
-                      'Kaolo',
+                      "B'laan",
+                      'Tagakaulo',
+                      'Maguindanaon',
+                      'Kalagan/Kagan',
                       'Kalagan (Kaagan)',
-                      'Bisaya/Cebuano',
-                      'Ilonggo',
+                      'Ilonggo/Hiligaynon',
                       'Ilocano',
+                      'Manobo',
                       'Leyteño',
-                      'Muslim',
-                      'Badjao',
                       'Others',
                     ])}
                     buttonClassName={selectClass}
@@ -1282,17 +1308,19 @@ export default function SurveyForm() {
                         value={data.spouse_tribe}
                         onChange={v => setData({ ...data, spouse_tribe: v })}
                         options={buildOptions([
-                          'Manobo',
+                          'Cebuano/Bisaya',
                           'Bagobo',
-                          "B'laan",
                           'Bagobo-Tagabawa',
-                          'Kaolo',
+                          "B'laan",
+                          'Tagakaulo',
+                          'Maguindanaon',
+                          'Kalagan/Kagan',
                           'Kalagan (Kaagan)',
-                          'Bisaya/Cebuano',
-                          'Ilonggo',
+                          'Ilonggo/Hiligaynon',
                           'Ilocano',
+                          'Manobo',
                           'Leyteño',
-                          'Muslim',
+                          'Others',
                         ])}
                         buttonClassName={selectClass}
                       />
@@ -1337,16 +1365,6 @@ export default function SurveyForm() {
                     </label>
                   ))}
                 </div>
-              </div>
-
-              <div className="mt-6">
-                <div className="text-lg font-semibold text-emerald-800">Endorsed by Mayor</div>
-                <SmoothSelect
-                  value={data.endorsed_by_mayor}
-                  onChange={v => setData({ ...data, endorsed_by_mayor: v })}
-                  options={yesNoOptions}
-                  buttonClassName={selectClass}
-                />
               </div>
 
               <div className="mt-6">
@@ -1453,35 +1471,109 @@ export default function SurveyForm() {
           )}
 
           {step === 2 && (
-            <div className="rounded-2xl bg-gray-50 p-6">
+            <div className="rounded-2xl bg-gray-50 p-6 animate-form-step">
               <StepHeader number={3} title="Household & Utilities" />
               <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <div className="text-sm text-gray-500">Lot Ownership</div>
-                  <SmoothSelect value={data.lot_ownership} onChange={v => setData({ ...data, lot_ownership: v })} options={yesNoOptions} buttonClassName={selectClass} />
+                  <div className="text-sm text-gray-500 mb-1">Lot Ownership</div>
+                  <div className="flex items-center gap-4">
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="radio"
+                        name="lot_ownership"
+                        className="h-4 w-4 text-emerald-600"
+                        checked={data.lot_ownership === 'Yes'}
+                        onChange={() => setData({ ...data, lot_ownership: 'Yes' })}
+                      />
+                      <span>Yes</span>
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="radio"
+                        name="lot_ownership"
+                        className="h-4 w-4 text-emerald-600"
+                        checked={data.lot_ownership === 'No'}
+                        onChange={() => setData({ ...data, lot_ownership: 'No' })}
+                      />
+                      <span>No</span>
+                    </label>
+                  </div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-500">House Ownership</div>
-                  <SmoothSelect value={data.house_ownership} onChange={v => setData({ ...data, house_ownership: v })} options={yesNoOptions} buttonClassName={selectClass} />
+                  <div className="text-sm text-gray-500 mb-1">House Ownership</div>
+                  <div className="flex items-center gap-4">
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="radio"
+                        name="house_ownership"
+                        className="h-4 w-4 text-emerald-600"
+                        checked={data.house_ownership === 'Yes'}
+                        onChange={() => setData({ ...data, house_ownership: 'Yes' })}
+                      />
+                      <span>Yes</span>
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="radio"
+                        name="house_ownership"
+                        className="h-4 w-4 text-emerald-600"
+                        checked={data.house_ownership === 'No'}
+                        onChange={() => setData({ ...data, house_ownership: 'No' })}
+                      />
+                      <span>No</span>
+                    </label>
+                  </div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-500">Avail Socialized Housing</div>
-                  <SmoothSelect
-                    value={data.avail_socialized_housing}
-                    onChange={v => setData({ ...data, avail_socialized_housing: v })}
-                    options={yesNoOptions}
-                    buttonClassName={selectClass}
-                  />
+                  <div className="text-sm text-gray-500 mb-1">Avail Socialized Housing</div>
+                  <div className="flex items-center gap-4">
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="radio"
+                        name="avail_socialized_housing"
+                        className="h-4 w-4 text-emerald-600"
+                        checked={data.avail_socialized_housing === 'Yes'}
+                        onChange={() => setData({ ...data, avail_socialized_housing: 'Yes' })}
+                      />
+                      <span>Yes</span>
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="radio"
+                        name="avail_socialized_housing"
+                        className="h-4 w-4 text-emerald-600"
+                        checked={data.avail_socialized_housing === 'No'}
+                        onChange={() => setData({ ...data, avail_socialized_housing: 'No' })}
+                      />
+                      <span>No</span>
+                    </label>
+                  </div>
                 </div>
                 <div>
-                  <div className="text-sm text-gray-500">Temporary Dwelling</div>
-                  <SmoothSelect
-                    value={data.temporary_living_area}
-                    onChange={v => setData({ ...data, temporary_living_area: v })}
-                    options={yesNoOptions}
-                    buttonClassName={selectClass}
-                  />
+                  <div className="text-sm text-gray-500 mb-1">Temporary Dwelling</div>
+                  <div className="flex items-center gap-4">
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="radio"
+                        name="temporary_living_area"
+                        className="h-4 w-4 text-emerald-600"
+                        checked={data.temporary_living_area === 'Yes'}
+                        onChange={() => setData({ ...data, temporary_living_area: 'Yes' })}
+                      />
+                      <span>Yes</span>
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="radio"
+                        name="temporary_living_area"
+                        className="h-4 w-4 text-emerald-600"
+                        checked={data.temporary_living_area === 'No'}
+                        onChange={() => setData({ ...data, temporary_living_area: 'No' })}
+                      />
+                      <span>No</span>
+                    </label>
+                  </div>
                 </div>
               </div>
 
@@ -1613,7 +1705,7 @@ export default function SurveyForm() {
           )}
 
           {step === 4 && (
-            <div className="rounded-2xl bg-gray-50 p-6">
+            <div className="rounded-2xl bg-gray-50 p-6 animate-form-step">
               <StepHeader number={5} title="Income & Organization" />
               <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1696,7 +1788,7 @@ export default function SurveyForm() {
           )}
 
           {step === 5 && (
-            <div className="rounded-2xl bg-gray-50 p-6">
+            <div className="rounded-2xl bg-gray-50 p-6 animate-form-step">
               <StepHeader number={6} title="Final Details" />
               <div className="space-y-4">
               <div>
@@ -1763,13 +1855,105 @@ export default function SurveyForm() {
             {step < 5 ? (
               <button type="button" className={buttonPrimaryClass} onClick={()=>setStep(s=>Math.min(5, s+1))}>Next</button>
             ) : (
-              <button type="button" className={buttonPrimaryClass} onClick={submit} disabled={submitting}>{submitting ? 'Submitting...' : 'Submit'}</button>
+              <button
+                type="button"
+                className={buttonPrimaryClass}
+                onClick={() => {
+                  setAgreed(false)
+                  setShowConsent(true)
+                }}
+                disabled={submitting}
+              >
+                {submitting ? 'Submitting...' : 'Submit'}
+              </button>
             )}
           </div>
             </div>
           </DashboardFade>
         </div>
       </main>
+
+      <Modal
+        show={showConsent}
+        onClose={() => setShowConsent(false)}
+        maxWidth="lg"
+      >
+        <div className="flex flex-col h-full max-h-[90vh]">
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 border-b border-gray-100">
+            <h3 className="text-lg font-semibold text-gray-800">
+              Data Privacy Agreement
+            </h3>
+            <button 
+              onClick={() => setShowConsent(false)}
+              className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Content Area */}
+          <div className="p-6 overflow-y-auto bg-white">
+            <div className="space-y-4">
+              <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <p className="text-sm leading-relaxed text-gray-600">
+                  I hereby certify that the above statement and information are true and correct to the best of my knowledge. I further understand that any misrepresentation and/or deliberate omission of facts and information contained herein shall constitute ground for my disqualification. I voluntarily and freely consent to the collection and processing of the above personal information only in relation to Data Privacy Act.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Agreement Checkbox */}
+          <div className="px-6 py-4">
+            <label className="flex items-center gap-3 cursor-pointer group">
+              <div className="relative flex items-center">
+                <input 
+                  type="checkbox" 
+                  className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-gray-300 checked:border-emerald-600 checked:bg-emerald-600 transition-all"
+                  checked={agreed}
+                  onChange={(e) => setAgreed(e.target.checked)}
+                />
+                <svg className="absolute w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <span className="text-sm text-gray-700 font-medium group-hover:text-emerald-700 transition-colors">
+                I agree to the terms and conditions.
+              </span>
+            </label>
+          </div>
+
+          {/* Footer */}
+          <div className="p-4 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
+            <button
+              type="button"
+              onClick={() => setShowConsent(false)}
+              className="px-6 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-white hover:shadow-sm transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (agreed) {
+                  setShowConsent(false)
+                  submit()
+                }
+              }}
+              className={`px-6 py-2 rounded-xl text-sm font-semibold text-white transition-all shadow-sm ${
+                agreed 
+                  ? 'bg-emerald-600 hover:bg-emerald-700 active:scale-95' 
+                  : 'bg-emerald-300 cursor-not-allowed'
+              }`}
+              disabled={!agreed || submitting}
+            >
+              {submitting ? 'Submitting...' : 'Agree and Continue'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

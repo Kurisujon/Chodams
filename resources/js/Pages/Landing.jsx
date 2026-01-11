@@ -16,6 +16,24 @@ export default function Landing() {
     }
   }, [])
 
+  const scrollToSection = (e, id) => {
+    e.preventDefault();
+    const element = document.getElementById(id);
+    if (element) {
+      const offset = 80; // Adjust this value based on your header height
+      const bodyRect = document.body.getBoundingClientRect().top;
+      const elementRect = element.getBoundingClientRect().top;
+      const elementPosition = elementRect - bodyRect;
+      const offsetPosition = elementPosition - offset;
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+      setMobileMenuOpen(false);
+    }
+  };
+
   function submit(e) { e.preventDefault(); post('/login', { onSuccess: () => { setShowLogin(false); reset(); } }) }
   return (
     <div className={`min-h-screen bg-white overflow-x-hidden transition-opacity duration-700 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
@@ -27,10 +45,10 @@ export default function Landing() {
               <span className="text-lg sm:text-xl font-semibold text-gray-900 truncate">CHoDaMS</span>  
             </Link>
             <nav className="hidden md:flex items-center gap-8 mr-8">
-              <a href="#home" className="text-gray-700 hover:text-gray-900">Home</a>
-              <a href="#about" className="text-gray-700 hover:text-gray-900">About</a>
-              <a href="#department" className="text-gray-700 hover:text-gray-900">Department</a>
-              <a href="#contact" className="text-gray-700 hover:text-gray-900">Contact</a>
+              <a href="#home" onClick={(e) => scrollToSection(e, 'home')} className="text-gray-700 hover:text-gray-900 transition-colors">Home</a>
+              <a href="#about" onClick={(e) => scrollToSection(e, 'about')} className="text-gray-700 hover:text-gray-900 transition-colors">About</a>
+              <a href="#department" onClick={(e) => scrollToSection(e, 'department')} className="text-gray-700 hover:text-gray-900 transition-colors">Department</a>
+              <a href="#contact" onClick={(e) => scrollToSection(e, 'contact')} className="text-gray-700 hover:text-gray-900 transition-colors">Contact</a>
             </nav>
             <div className="flex items-center gap-4">
               <button onClick={() => setShowLogin(true)} className="hidden md:block px-4 py-2 rounded-lg bg-emerald-600 text-white shadow hover:bg-emerald-700 transition">Login</button>
@@ -53,10 +71,10 @@ export default function Landing() {
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-gray-100 bg-white absolute top-full left-0 w-full shadow-lg">
             <div className="flex flex-col p-4 space-y-3">
-              <a href="#home" className="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>Home</a>
-              <a href="#about" className="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>About</a>
-              <a href="#department" className="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>Department</a>
-              <a href="#contact" className="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-emerald-600" onClick={() => setMobileMenuOpen(false)}>Contact</a>
+              <a href="#home" onClick={(e) => scrollToSection(e, 'home')} className="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-emerald-600">Home</a>
+              <a href="#about" onClick={(e) => scrollToSection(e, 'about')} className="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-emerald-600">About</a>
+              <a href="#department" onClick={(e) => scrollToSection(e, 'department')} className="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-emerald-600">Department</a>
+              <a href="#contact" onClick={(e) => scrollToSection(e, 'contact')} className="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-gray-50 hover:text-emerald-600">Contact</a>
               <div className="pt-2">
                 <button onClick={() => { setShowLogin(true); setMobileMenuOpen(false); }} className="w-full px-4 py-2 rounded-lg bg-emerald-600 text-white text-center shadow hover:bg-emerald-700">Login</button>
               </div>
@@ -65,7 +83,7 @@ export default function Landing() {
         )}
       </header>
 
-      <section id="home" className="pt-28 md:pt-40 scroll-mt-40">
+      <section id="home" className="pt-28 md:pt-40 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center py-10 md:py-14">
             <Reveal>
@@ -160,7 +178,7 @@ export default function Landing() {
           </div>
         </div>
       )}
-      <section id="beneficiaries" className="py-20 md:py-24 bg-white-50 scroll-mt-40">
+      <section id="beneficiaries" className="py-20 md:py-24 bg-white-50 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
             {/* Left Side: Image */}
@@ -203,13 +221,13 @@ export default function Landing() {
         </div>
       </section>
 
-      <section id="strategic-direction" className="py-8 scroll-mt-40 bg-gray-50/50">
+      <section id="strategic-direction" className="py-8 scroll-mt-20 bg-gray-50/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
             
             {/* Mission - First Column */}
-            <Reveal>
-              <div className="bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 text-center hover:shadow-lg transition duration-300 flex flex-col">
+            <Reveal className="h-full">
+              <div className="h-full bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 text-center hover:shadow-lg transition duration-300 flex flex-col">
                   <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 mb-6 mx-auto">
                       <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                   </div>
@@ -221,8 +239,8 @@ export default function Landing() {
             </Reveal>
 
             {/* Vision - Second Column */}
-            <Reveal delay={200}>
-              <div className="bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 text-center hover:shadow-lg transition duration-300 flex flex-col">
+            <Reveal delay={200} className="h-full">
+              <div className="h-full bg-white rounded-2xl p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 text-center hover:shadow-lg transition duration-300 flex flex-col">
                   <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 mb-6 mx-auto">
                       <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
                   </div>
@@ -240,7 +258,7 @@ export default function Landing() {
 
 
 
-      <section id="about" className="py-24 scroll-mt-40">
+      <section id="about" className="py-24 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
             <Reveal>
@@ -273,7 +291,7 @@ export default function Landing() {
       </section>
 
       
-      <section id="department" className="py-24 scroll-mt-40">
+      <section id="department" className="py-24 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
             <div>
@@ -336,14 +354,14 @@ export default function Landing() {
         </div>
       </section>
 
-      <section id="contact" className="py-24 scroll-mt-40">
+      <section id="contact" className="py-24 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-start">
             <Reveal>
               <div>
                 <span className="text-emerald-600 font-semibold">Contact Us</span>
                 <h2 className="mt-2 text-3xl md:text-4xl font-bold text-gray-900">GET IN TOUCH WITH US</h2>
-                <p className="mt-4 text-gray-600 max-w-md">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+                <p className="mt-4 text-gray-600 max-w-md">Have questions about housing programs or census surveys? Reach out to our department for assistance and information regarding the City Housing Relocation Resettlement and Site Development Program.</p>
                 <div className="mt-8 space-y-6">
                   <div className="flex items-start gap-4">
                     <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-emerald-50 ring-1 ring-emerald-100 text-emerald-600">
@@ -351,8 +369,8 @@ export default function Landing() {
                     </div>
                     <div>
                       <p className="font-semibold text-gray-900">Our Location</p>
-                      <p className="text-gray-600">99 S.t Jomblo Park Pekanbaru</p>
-                      <p className="text-gray-600">28292, Indonesia</p>
+                      <p className="text-gray-600">Digos City Hall, Rizal Avenue,</p>
+                      <p className="text-gray-600">Digos City, Davao Del Sur</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-4">
@@ -361,7 +379,7 @@ export default function Landing() {
                     </div>
                     <div>
                       <p className="font-semibold text-gray-900">Phone Number</p>
-                      <p className="text-gray-600">(+62)81 414 257 9980</p>
+                      <p className="text-gray-600">(+63)970 2454 476</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-4">
@@ -370,7 +388,7 @@ export default function Landing() {
                     </div>
                     <div>
                       <p className="font-semibold text-gray-900">Email Address</p>
-                      <p className="text-gray-600">info@yourdomain.com</p>
+                      <p className="text-gray-600">digoscityhousing@gmail.com</p>
                     </div>
                   </div>
                 </div>
@@ -399,19 +417,10 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-4 py-12">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
-              <address className="not-italic">
-                <p>143 castle road 517</p>
-                <p className="mb-4">district, kiyev port south Canada</p>
-                <div className="flex items-center gap-6">
-                  <p className="mb-0">+3 123 456 789</p>
-                  <a href="mailto:info@yourmail.com" className="underline hover:text-emerald-200">info@yourmail.com</a>
-                </div>
-                <div className="flex items-center gap-6 mt-2">
-                  <p className="mb-0">+1 222 345 342</p>
-                  <a href="mailto:Marshmallow@yourmail.com" className="underline hover:text-emerald-200">Marshmallow@yourmail.com</a>
-                </div>
-              </address>
               <div className="mt-6">
+                <address className="not-italic">
+                <p className="mb-4">Digos City, Davao del Sur</p>
+              </address>
                 <h6 className="font-semibold">Social Share</h6>
                 <div className="mt-2 flex items-center gap-4">
                   <a href="#" className="hover:text-emerald-200">GitHub</a>
@@ -423,13 +432,11 @@ export default function Landing() {
             </div>
             <div className="grid grid-cols-3 gap-8">
               <div>
-                <h6 className="font-semibold">Social Share</h6>
                 <ul className="mt-2 space-y-2">
-                  <li><a href="#" className="underline hover:text-emerald-200">Home</a></li>
-                  <li><a href="#" className="underline hover:text-emerald-200">About</a></li>
-                  <li><a href="#" className="underline hover:text-emerald-200">Department</a></li>
-                  <li><a href="#" className="underline hover:text-emerald-200">Portfolio</a></li>
-                  <li><a href="#" className="underline hover:text-emerald-200">Contact</a></li>
+                  <li><a href="#home" onClick={(e) => scrollToSection(e, 'home')} className="underline hover:text-emerald-200 transition-colors">Home</a></li>
+                  <li><a href="#about" onClick={(e) => scrollToSection(e, 'about')} className="underline hover:text-emerald-200 transition-colors">About</a></li>
+                  <li><a href="#department" onClick={(e) => scrollToSection(e, 'department')} className="underline hover:text-emerald-200 transition-colors">Department</a></li>
+                  <li><a href="#contact" onClick={(e) => scrollToSection(e, 'contact')} className="underline hover:text-emerald-200 transition-colors">Contact</a></li>
                 </ul>
               </div>
             </div>
@@ -438,9 +445,8 @@ export default function Landing() {
         <div className="border-t border-emerald-800">
           <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row items-center justify-between gap-4 md:gap-0">
             <div className="flex flex-col md:flex-row items-center gap-2 md:gap-3 text-center md:text-left">
-              <span className="text-sm md:text-base">© 2019-2020 BootstrapDash. All rights reserved.</span>
+              <span className="text-sm md:text-base">©2025 City Housing Data Management System.</span>
               <span className="hidden md:inline text-emerald-600">|</span>
-              <span className="text-sm md:text-base">Distributed By: Themewagon</span>
             </div>
             <div className="flex items-center gap-4 text-sm md:text-base">
               <a href="#" className="hover:text-emerald-200">Privacy Policy</a>
@@ -453,7 +459,7 @@ export default function Landing() {
   );
 }
 
-function Reveal({ children, delay = 0, className = '', threshold = 0.5 }) {
+function Reveal({ children, delay = 0, className = '', threshold = 0.1 }) {
   const [isVisible, setIsVisible] = useState(false);
   const ref = useRef(null);
 
@@ -483,20 +489,20 @@ function Reveal({ children, delay = 0, className = '', threshold = 0.5 }) {
 
 function BrandMarquee() {
   const items = [
-    { name: 'Deloitte', abbr: 'D' },
-    { name: 'Ericsson', abbr: 'E' },
-    { name: 'Netflix', abbr: 'N' },
-    { name: 'Instagram', abbr: 'IG' },
-    { name: 'Coinbase', abbr: 'CB' },
-    { name: 'Deloitte', abbr: 'D' },
-    { name: 'Ericsson', abbr: 'E' },
-    { name: 'Netflix', abbr: 'N' },
-    { name: 'Instagram', abbr: 'IG' },
-    { name: 'Coinbase', abbr: 'CB' },
+    { name: 'DHSUD', abbr: 'DH' },
+    { name: 'NHA', abbr: 'NHA' },
+    { name: 'Pag-IBIG', abbr: 'PI' },
+    { name: 'LGU Digos', abbr: 'LD' },
+    { name: 'HUDCC', abbr: 'HU' },
+    { name: 'PCUP', abbr: 'PC' },
+    { name: 'DHSUD', abbr: 'DH' },
+    { name: 'NHA', abbr: 'NHA' },
+    { name: 'Pag-IBIG', abbr: 'PI' },
+    { name: 'LGU Digos', abbr: 'LD' },
   ];
 
   return (
-    <section id="clients" className="py-10 scroll-mt-40">
+    <section id="clients" className="py-10 scroll-mt-20">
       <style>{`
         @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
       `}</style>

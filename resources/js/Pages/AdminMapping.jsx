@@ -1,65 +1,66 @@
-// resources/js/Pages/AdminProfile.jsx
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { Link } from '@inertiajs/react'
-import AdminTable from '../Components/AdminTable'
 
-export default function AdminProfile() {
-  const [profile, setProfile] = useState(null)
-  const [validators, setValidators] = useState([])
-  const [search, setSearch] = useState('')
-  const [error, setError] = useState('')
+export default function AdminMapping() {
+  const [mapPoints, setMapPoints] = useState([])
+  const [mapScope, setMapScope] = useState('all')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const [validatorsPage, setValidatorsPage] = useState(1)
-  const [validatorsSortKey, setValidatorsSortKey] = useState('name')
-  const [validatorsSortDirection, setValidatorsSortDirection] = useState('asc')
 
-  const validatorsPageSize = 10
+  const mapRef = useRef(null)
+  const leafletMap = useRef(null)
+
+  const ensureLeaflet = () => new Promise((resolve) => {
+    if (window.L) { resolve(); return }
+    const onReady = () => resolve()
+    const existing = document.querySelector('script[data-leaflet]')
+    if (existing) { existing.addEventListener('load', onReady); return }
+    let link = document.querySelector('link[data-leaflet-css]')
+    if (!link) {
+      link = document.createElement('link')
+      link.rel = 'stylesheet'
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+      link.setAttribute('data-leaflet-css','1')
+      document.head.appendChild(link)
+    }
+    const script = document.createElement('script')
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+    script.async = true
+    script.setAttribute('data-leaflet','1')
+    script.onload = onReady
+    document.head.appendChild(script)
+  })
+
+  const ensureLeafletCluster = () => new Promise((resolve) => {
+    if (window.L && window.L.markerClusterGroup) { resolve(); return }
+    const onReady = () => resolve()
+    let link1 = document.querySelector('link[data-leaflet-cluster-css]')
+    if (!link1) {
+      link1 = document.createElement('link')
+      link1.rel = 'stylesheet'
+      link1.href = 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css'
+      link1.setAttribute('data-leaflet-cluster-css','1')
+      document.head.appendChild(link1)
+    }
+    let link2 = document.querySelector('link[data-leaflet-cluster-default-css]')
+    if (!link2) {
+      link2 = document.createElement('link')
+      link2.rel = 'stylesheet'
+      link2.href = 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css'
+      link2.setAttribute('data-leaflet-cluster-default-css','1')
+      document.head.appendChild(link2)
+    }
+    const existing = document.querySelector('script[data-leaflet-cluster]')
+    if (existing) { existing.addEventListener('load', onReady); return }
+    const script = document.createElement('script')
+    script.src = 'https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js'
+    script.async = true
+    script.setAttribute('data-leaflet-cluster','1')
+    script.onload = onReady
+    document.head.appendChild(script)
+  })
 
   const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-
-  useEffect(() => {
-    loadProfile()
-    loadValidators()
-  }, [])
-
-  async function loadProfile() {
-    try {
-      const res = await axios.get('/admin/api/profile')
-      setProfile(res.data.profile)
-      setError('')
-    } catch (e) {
-      if (e?.response?.status === 401) {
-        window.location.href = '/login'
-        return
-      }
-      setError('Failed to load admin profile.')
-    }
-  }
-
-  async function loadValidators(q = '') {
-    try {
-      const res = await axios.get('/admin/api/validators', { params: { search: q } })
-      setValidators(res.data.data || [])
-      setError('')
-      setValidatorsPage(1)
-    } catch (e) {
-      if (e?.response?.status === 401) {
-        window.location.href = '/login'
-        return
-      }
-      setError('Failed to load validators.')
-    }
-  }
-
-  async function changeStatus(id, status) {
-    try {
-      await axios.post(`/admin/api/validators/${id}/status`, { status }, { headers: { 'X-CSRF-TOKEN': csrf() } })
-      loadValidators(search)
-    } catch (e) {
-      setError('Failed to update status.')
-    }
-  }
 
   async function logoutAdmin() {
     try {
@@ -69,90 +70,98 @@ export default function AdminProfile() {
     }
   }
 
-  function handleValidatorSort(id) {
-    if (validatorsSortKey === id) {
-      setValidatorsSortDirection(validatorsSortDirection === 'asc' ? 'desc' : 'asc')
-    } else {
-      setValidatorsSortKey(id)
-      setValidatorsSortDirection('asc')
-    }
-    setValidatorsPage(1)
+  useEffect(() => {
+    fetchMapPoints(mapScope)
+  }, [mapScope])
+
+  async function fetchMapPoints(scope = mapScope) {
+    const res = await axios.get('/admin/api/map-points', { params: { scope, mode: 'survey' } })
+    setMapPoints(res.data.points || [])
   }
 
-  function getValidatorSortValue(v, key) {
-    if (key === 'name') return v.name || ''
-    if (key === 'username') return v.username || ''
-    if (key === 'email') return v.email || ''
-    if (key === 'status') return v.status || ''
-    return ''
-  }
-
-  const sortedValidators = [...validators].sort((a, b) => {
-    const av = getValidatorSortValue(a, validatorsSortKey)
-    const bv = getValidatorSortValue(b, validatorsSortKey)
-    if (av < bv) return validatorsSortDirection === 'asc' ? -1 : 1
-    if (av > bv) return validatorsSortDirection === 'asc' ? 1 : -1
-    return 0
-  })
-
-  const validatorColumns = [
-    {
-      id: 'name',
-      header: 'Name',
-      sortable: true,
-      render: v => v.name,
-      cellClassName: 'text-gray-900 font-medium',
-    },
-    {
-      id: 'username',
-      header: 'Username',
-      sortable: true,
-      render: v => v.username,
-    },
-    {
-      id: 'email',
-      header: 'Email',
-      sortable: true,
-      render: v => v.email,
-    },
-    {
-      id: 'status',
-      header: 'Status',
-      sortable: true,
-      render: v => (
-        <span
-          className={
-            v.status === 'approved'
-              ? 'inline-flex rounded-full px-2 py-0.5 text-xs bg-emerald-50 text-emerald-700'
-              : 'inline-flex rounded-full px-2 py-0.5 text-xs bg-gray-100 text-gray-700'
-          }
-        >
-          {v.status}
-        </span>
-      ),
-    },
-    {
-      id: 'action',
-      header: 'Action',
-      sortable: false,
-      render: v =>
-        v.status === 'deactivated' ? (
-          <button
-            onClick={() => changeStatus(v.validator_id, 'approved')}
-            className="px-3 py-1 border rounded text-sm text-emerald-800 hover:bg-emerald-50"
-          >
-            Activate
-          </button>
-        ) : (
-          <button
-            onClick={() => changeStatus(v.validator_id, 'deactivated')}
-            className="px-3 py-1 border rounded text-sm text-red-700 hover:bg-red-50"
-          >
-            Deactivate
-          </button>
-        ),
-    },
-  ]
+  useEffect(() => {
+    if (!mapRef.current) return
+    if (!mapPoints || mapPoints.length === 0) return
+    ensureLeaflet().then(() => ensureLeafletCluster().then(() => {
+      if (leafletMap.current) {
+        leafletMap.current.remove()
+        leafletMap.current = null
+      }
+      const valid = mapPoints.filter(p => typeof p.lat === 'number' && typeof p.lng === 'number')
+      const digosBounds = [[6.75, 125.35], [6.85, 125.45]]
+      const map = window.L.map(mapRef.current, { preferCanvas: true })
+      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map)
+      if (valid.length > 0) {
+        const bounds = window.L.latLngBounds(valid.map(p => [p.lat, p.lng]))
+        const pad = 0.05
+        const sw = bounds.getSouthWest()
+        const ne = bounds.getNorthEast()
+        const paddedBounds = window.L.latLngBounds([sw.lat - pad, sw.lng - pad],[ne.lat + pad, ne.lng + pad])
+        map.fitBounds(paddedBounds)
+      } else {
+        map.fitBounds(window.L.latLngBounds(digosBounds))
+      }
+      const cluster = window.L.markerClusterGroup({
+        showCoverageOnHover: false,
+        maxClusterRadius: 40,
+        iconCreateFunction: (grp) => {
+          const count = grp.getChildCount()
+          let size = 28
+          if (count >= 50) size = 40
+          else if (count >= 10) size = 32
+          const html = `<div style="background:#10B981;color:#fff;border-radius:9999px;border:2px solid #ECFDF5;width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;font-weight:700;letter-spacing:0.2px">${count}</div>`
+          return window.L.divIcon({ html, className: 'cluster-icon', iconSize: [size, size] })
+        }
+      })
+      valid.forEach(p => {
+        const dotHtml = `<span style="display:block;width:14px;height:14px;background:#10B981;border:2px solid #ECFDF5;border-radius:9999px"></span>`
+        const marker = window.L.marker([p.lat, p.lng], {
+          icon: window.L.divIcon({ className: 'dot-icon', html: dotHtml, iconSize: [16,16], iconAnchor: [8,8] })
+        })
+        marker.on('click', () => {
+          const name = p.name || 'Unknown'
+          const cls = p.classification || 'Unknown'
+          const status = p.is_submitted === 1 ? 'Validated' : (p.is_submitted === 2 ? 'Assigned' : '')
+          const tag = p.tag_number ? `<div style="margin-top:4px;background:#f0fdf4;color:#047857;padding:3px 8px;border-radius:6px;font-size:12px;display:inline-block">Tag: ${p.tag_number}</div>` : ''
+          const house = p.photo_url 
+            ? `<img src="${p.photo_url}" alt="House Photo" loading="lazy" style="width:100%;border-radius:8px;border:1px solid #e5e7eb"/>`
+            : `<div style="font-size:12px;color:#9ca3af;padding:12px;background:#f3f4f6;border-radius:8px;text-align:center;border:1px dashed #e5e7eb">No house photo</div>`
+          const person = p.person_photo_url 
+            ? `<img src="${p.person_photo_url}" alt="Person Photo" loading="lazy" style="width:100%;border-radius:8px;border:1px solid #e5e7eb"/>`
+            : `<div style="font-size:12px;color:#9ca3af;padding:12px;background:#f3f4f6;border-radius:8px;text-align:center;border:1px dashed #e5e7eb">No person photo</div>`
+          const html = `
+            <div style="min-width:280px">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div style="font-weight:700;color:#065f46;font-size:14px">${name}</div>
+                <div style="display:flex;gap:6px;align-items:center">${status ? `<span style="background:${p.is_submitted===2?'#eff6ff':'#ecfdf5'};color:${p.is_submitted===2?'#1d4ed8':'#065f46'};padding:4px 8px;border-radius:9999px;font-size:11px">${status}</span>` : ''}</div>
+              </div>
+              <div style="margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                <span style="background:#ecfdf5;color:#065f46;padding:4px 8px;border-radius:9999px;font-size:11px">${cls}</span>
+                ${tag}
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+                <div>
+                  <div style="font-size:11px;color:#374151;margin-bottom:4px">House</div>
+                  ${house}
+                </div>
+                <div>
+                  <div style="font-size:11px;color:#374151;margin-bottom:4px">Person</div>
+                  ${person}
+                </div>
+              </div>
+            </div>
+          `
+          if (marker.getPopup()) marker.unbindPopup()
+          marker.bindPopup(html, { maxWidth: 360, className: 'custom-popup' }).openPopup()
+        })
+        cluster.addLayer(marker)
+      })
+      map.addLayer(cluster)
+      setTimeout(() => { map.invalidateSize() }, 100)
+      setTimeout(() => { map.invalidateSize() }, 400)
+      leafletMap.current = map
+    }))
+  }, [mapPoints])
 
   return (
     <div className="flex min-h-screen">
@@ -250,61 +259,29 @@ export default function AdminProfile() {
         </DashboardFade>
 
         <DashboardFade delay={100}>
-          {error && <div className="mt-4 p-3 rounded bg-red-50 border border-red-200 text-red-700">{error}</div>}
+          <header className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-200">
+            <div>
+              <div className="text-sm text-gray-500">Hello Admin!</div>
+              <h2 className="text-2xl text-emerald-800 font-semibold">Mapping</h2>
+              <div className="text-xs text-gray-500">View beneficiary locations on the map</div>
+            </div>
+          </header>
         </DashboardFade>
 
         <DashboardFade delay={200}>
-          <section className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-2 bg-white rounded-2xl border border-gray-200 p-0 overflow-hidden">
-              <div className="grid grid-cols-1 gap-0">
-                <div className="bg-gray-100 h-72 md:h-96">
-                  <img src="/pics/office.png" alt="office" className="w-full h-full object-cover"/>
-                </div>
+          <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-6 min-h-[340px]">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-emerald-800">Map</h3>
+              <div className="flex items-center gap-1 bg-emerald-50 p-1 rounded-xl ring-1 ring-emerald-100">
+                <button onClick={() => setMapScope('all')} className={`px-3 py-1 rounded-lg text-xs ${mapScope==='all' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200' : 'text-emerald-700 hover:bg-emerald-100'}`}>All</button>
+                <button onClick={() => setMapScope('validated')} className={`px-3 py-1 rounded-lg text-xs ${mapScope==='validated' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200' : 'text-emerald-700 hover:bg-emerald-100'}`}>Validated</button>
+                <button onClick={() => setMapScope('assigned')} className={`px-3 py-1 rounded-lg text-xs ${mapScope==='assigned' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200' : 'text-emerald-700 hover:bg-emerald-100'}`}>Assigned</button>
               </div>
             </div>
-
-            <div className="md:col-span-1 bg-white rounded-2xl border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-emerald-800">Account</h3>
-                <Link href="/admin/profile/edit" className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-sm">Edit Profile</Link>
-              </div>
-              <div className="grid grid-cols-1 gap-4">
-                <div>
-                  <div className="text-sm text-gray-500">Username</div>
-                  <div className="font-medium text-gray-900">{profile?.username || '-'}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500">Email</div>
-                  <div className="font-medium text-gray-900">{profile?.email || '-'}</div>
-                </div>
-                <div className="mt-2">
-                  <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-xs">Active</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="md:col-span-3 bg-white rounded-2xl border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-emerald-800">Validators</h3>
-                <Link href="/admin/validators/create" className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-sm">Create</Link>
-              </div>
-              <form className="flex items-center gap-2 mb-4" onSubmit={e => { e.preventDefault(); loadValidators(search) }}>
-                <input className="border border-gray-300 rounded-xl p-2.5 w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-emerald-300" placeholder="Search" value={search} onChange={e=>setSearch(e.target.value)}/>
-                <button className="px-3 py-2 bg-emerald-600 text-white rounded-xl" type="submit">Search</button>
-              </form>
-              <AdminTable
-                columns={validatorColumns}
-                rows={sortedValidators}
-                getRowKey={v => v.validator_id}
-                page={validatorsPage}
-                pageSize={validatorsPageSize}
-                onPageChange={setValidatorsPage}
-                sortKey={validatorsSortKey}
-                sortDirection={validatorsSortDirection}
-                onSortChange={handleValidatorSort}
-                emptyMessage="No employees found."
-              />
-            </div>
+            <div
+              ref={mapRef}
+              className="mt-4 aspect-square w-full rounded-xl overflow-hidden border"
+            />
           </section>
         </DashboardFade>
       </main>
@@ -342,3 +319,4 @@ function DashboardFade({ children, delay = 0 }) {
     </div>
   )
 }
+

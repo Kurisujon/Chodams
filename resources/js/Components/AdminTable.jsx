@@ -20,6 +20,23 @@ export default function AdminTable({
   const endIndex = startIndex + safePageSize
   const visibleRows = rows.slice(startIndex, endIndex)
 
+  const getPageNumbers = () => {
+    const maxButtons = 10;
+    let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+    let endPage = startPage + maxButtons - 1;
+
+    if (endPage > totalPages) {
+      endPage = totalPages;
+      startPage = Math.max(1, endPage - maxButtons + 1);
+    }
+
+    const pages = [];
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    return pages;
+  };
+
   function handleSort(id) {
     if (!onSortChange) return
     onSortChange(id)
@@ -33,7 +50,7 @@ export default function AdminTable({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto border border-gray-100 rounded-2xl">
+      <div className="overflow-x-auto overflow-y-hidden border border-gray-100 rounded-2xl">
         <table className="min-w-full text-sm">
           <thead className="bg-white">
             <tr className="border-b border-gray-100">
@@ -68,7 +85,7 @@ export default function AdminTable({
               })}
             </tr>
           </thead>
-          <tbody>
+          <tbody key={currentPage} className="animate-table-fade">
             {visibleRows.length === 0 && (
               <tr>
                 <td
@@ -98,7 +115,7 @@ export default function AdminTable({
         </table>
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-xs text-gray-500">
           Showing{' '}
           {totalRows === 0 ? 0 : startIndex + 1}
@@ -120,7 +137,7 @@ export default function AdminTable({
           >
             Prev
           </button>
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map(num => (
+          {getPageNumbers().map(num => (
             <button
               key={num}
               type="button"

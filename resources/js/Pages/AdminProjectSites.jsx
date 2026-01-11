@@ -257,13 +257,13 @@ export default function AdminProjectSites() {
             <img src="/icons/assignmenticon.png" alt="Assignments" className="w-5 h-5"/>
             <span className="tracking-wider uppercase text-xs">Assignments</span>
           </Link>
+          <Link href="/admin/mapping" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/mapping') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+            <img src="/icons/projectsiteicon.png" alt="Mapping" className="w-5 h-5"/>
+            <span className="tracking-wider uppercase text-xs">Mapping</span>
+          </Link>
           <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
             <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
             <span className="tracking-wider uppercase text-xs">My Profile</span>
-          </Link>
-          <Link href="/admin/about" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/about') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/abouticon.png" alt="About" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">About</span>
           </Link>
           <div className="mt-auto">
             <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
@@ -299,13 +299,13 @@ export default function AdminProjectSites() {
                 <img src="/icons/assignmenticon.png" alt="Assignments" className="w-5 h-5"/>
                 <span className="tracking-wider uppercase text-xs">Assignments</span>
               </Link>
+              <Link href="/admin/mapping" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/mapping') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+                <img src="/icons/projectsiteicon.png" alt="Mapping" className="w-5 h-5"/>
+                <span className="tracking-wider uppercase text-xs">Mapping</span>
+              </Link>
               <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
                 <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
                 <span className="tracking-wider uppercase text-xs">My Profile</span>
-              </Link>
-              <Link href="/admin/about" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/about') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/abouticon.png" alt="About" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">About</span>
               </Link>
               <div className="mt-auto">
                 <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">

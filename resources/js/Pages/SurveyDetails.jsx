@@ -139,6 +139,21 @@ export default function SurveyDetails() {
   const respondentName = respondentNameParts.join(' ')
   const validatorName = survey.validator_name || ''
 
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr;
+      return date.toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="max-w-6xl mx-auto p-6 print:max-w-none print:p-0 print:m-0">
@@ -199,9 +214,9 @@ export default function SurveyDetails() {
             </div>
           </div>
         <style>{`
-          @page { size: 8.5in 13in; margin: 0in; }
+          @page { size: 8.5in 13in; margin: 0; }
           @media print {
-            html, body { margin: 0; padding: 0; }
+            html, body { margin: 0 !important; padding: 0 !important; }
             #print-root { padding: 0 !important; margin: 0 !important; width: 100% !important; }
             #print-root table { width: 100% !important; page-break-inside: auto; }
             #print-root table td, #print-root table th { padding: 2px 4px !important; font-size: 10px; }
@@ -226,22 +241,32 @@ export default function SurveyDetails() {
             #print-root .subclass-def { font-size: 10px !important; line-height: 1.2 !important; }
             #print-root .subclass-cell { min-height: 140px !important; display: flex !important; flex-direction: column !important; }
             #print-root .subclass-def { margin-top: auto !important; padding-top: 2px !important; }
+            header, footer, nav { display: none !important; }
           }
         `}</style>
 
         <div id="print-root" className="bg-white p-0 print:shadow-none" style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}>
           <div className="border-2 border-black survey-box">
             <div className="grid grid-cols-3">
-              <div className="col-span-1 p-0 border-r-2 border-black">
-                <div className="text-sm font-semibold chrrsdp-title">CHRRSDP FORM 2</div>
-                <div className="text-sm font-medium">{survey.date_interviewed || ''}</div>
-                <div className="text-xs">Form No.</div>
-                <div>{survey.form_no || ''}</div>
-              </div>
+              <div className="col-span-1 p-0 border-r-2 border-black pl-1">
+                  <div className="text-sm font-semibold chrrsdp-title">CHRRSDP FORM 2</div>
+                  <div className="text-sm font-medium">{formatDate(survey.date_interviewed)}</div>
+                  <div className="text-xs">Form No.</div>
+                  <div>{survey.form_no || ''}</div>
+                </div>
               <div className="col-span-2 p-0">
-                <div className="text-center font-semibold text-sm" style={{ lineHeight: '1' }}>CITY GOVERNMENT OF DIGOS</div>
-                <div className="text-center text-sm" style={{ lineHeight: '1' }}>CITY HOUSING RELOCATION RESETTLEMENT</div>
-                <div className="text-center text-sm" style={{ lineHeight: '1' }}>AND SITE DEVELOPMENT PROGRAM</div>
+                <div className="flex items-center h-16">
+                  <img
+                    src="/pics/digos-logo.png"
+                    alt="City Government of Digos"
+                    className="w-16 h-16 object-contain ml-2"
+                  />
+                  <div className="flex-1 flex flex-col items-center justify-center py-0">
+                     <div className="text-center font-bold italic text-lg leading-none m-0 p-0">CITY GOVERNMENT OF DIGOS</div>
+                     <div className="text-center font-bold italic text-lg leading-none m-0 p-0">CITY HOUSING RELOCATION RESETTLEMENT</div>
+                     <div className="text-center font-bold italic text-lg leading-none m-0 p-0">AND SITE DEVELOPMENT PROGRAM</div>
+                   </div>
+                </div>
               </div>
             </div>
             
@@ -257,10 +282,10 @@ export default function SurveyDetails() {
               </div>
             </div>
             <div className="letter-block p-[2px] border-t-2 border-black">
-              <div className="letter-title text-xs font-semibold leading-tight">Dear Sir/Madam:</div>
-              <div className="letter-text text-[10px] leading-tight">The <span className="font-semibold">City Housing Relocation Resettlement and Site Development Program</span> is collecting information to the <span className="font-semibold">Informal Settler Families</span> identified in the different barangays of Digos City. The <span className="font-semibold">Informal Settler Families Census Survey</span> aims to gather data about the demographic, socioeconomic and housing characteristics of every identified household. The collected data will be used by the City Government planners, policy makers, and administrators in formulating their social and economic development plans, policies, and programs.</div>
-              <div className="letter-text text-[10px] leading-tight">The <span className="font-semibold">City Housing Relocation Resettlement and Site Development Program</span> highly encourages your participation and cooperation by providing truthful and complete answers. All information provided are strictly confidential pursuant to Section 8 (Confidentiality) of Republic Act 10173 or the Data Privacy Act of 2012 and will not be used against you or to any of your household member for taxation, investigation, or law enforcement purposes.</div>
-              <div className="letter-text text-[10px] leading-tight">We at <span className="font-semibold">City Housing Relocation Resettlement and Site Development Program</span> would like to thank you for your trust in providing us with your personal information. Your information shall only be subject to reproduction, correction and/or deletion upon your personal request. For Data Privacy concern, you may send us an email at cityhousingrelocation@gmail.com.</div>
+              <div className="letter-title text-xs font-semibold leading-normal">Dear Sir/Madam:</div>
+              <div className="letter-text text-[10px] leading-normal">The <span className="font-semibold">City Housing Relocation Resettlement and Site Development Program</span> is collecting information to the <span className="font-semibold">Informal Settler Families</span> identified in the different barangays of Digos City. The <span className="font-semibold">Informal Settler Families Census Survey</span> aims to gather data about the demographic, socioeconomic and housing characteristics of every identified household. The collected data will be used by the City Government planners, policy makers, and administrators in formulating their social and economic development plans, policies, and programs.</div>
+              <div className="letter-text text-[10px] leading-normal">The <span className="font-semibold">City Housing Relocation Resettlement and Site Development Program</span> highly encourages your participation and cooperation by providing truthful and complete answers. All information provided are strictly confidential pursuant to Section 8 (Confidentiality) of Republic Act 10173 or the Data Privacy Act of 2012 and will not be used against you or to any of your household member for taxation, investigation, or law enforcement purposes.</div>
+              <div className="letter-text text-[10px] leading-normal">We at <span className="font-semibold">City Housing Relocation Resettlement and Site Development Program</span> would like to thank you for your trust in providing us with your personal information. Your information shall only be subject to reproduction, correction and/or deletion upon your personal request. For Data Privacy concern, you may send us an email at cityhousingrelocation@gmail.com.</div>
             </div>
           </div>
 
@@ -386,9 +411,9 @@ export default function SurveyDetails() {
               <div className="col-span-9 bg-blue-200 text-gray-900 font-semibold px-3 py-2">
                 II. DEMOGRAPHIC INFORMATION <span className="font-normal">(Put N/A if not applicable)</span>
               </div>
-              <div className="col-span-3 bg-amber-200 px-3 py-2 text-xs flex items-center justify-end">
-                <span className="mr-1">Tag Number :</span>
-                <span className="font-bold tracking-wider">{survey.tag_number || ''}</span>
+              <div className="col-span-3 bg-amber-400 px-3 py-2 text-xs flex items-center justify-start">
+                <span className="mr-1 text-red-600 font-bold">Tag Number :</span>
+                <span className="font-bold tracking-wider text-red-600">{survey.tag_number || ''}</span>
               </div>
             </div>
             <div className="border border-black px-3 py-2 text-xs">

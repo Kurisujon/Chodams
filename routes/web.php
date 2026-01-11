@@ -70,6 +70,13 @@ Route::middleware('role:admin')->group(function () {
         return Inertia::render('AdminDashboard');
     });
 
+    Route::get('/admin/mapping', function () {
+        return Inertia::render('AdminMapping');
+    });
+    Route::get('/admin/mapping', function () {
+        return Inertia::render('AdminMapping');
+    });
+
     Route::get('/admin/beneficiaries', function () {
         return Inertia::render('AdminBeneficiaries');
     });
@@ -93,9 +100,6 @@ Route::middleware('role:admin')->group(function () {
     });
     Route::get('/admin/validators/create', function () {
         return Inertia::render('ValidatorSignup');
-    });
-    Route::get('/admin/about', function () {
-        return Inertia::render('AdminAbout');
     });
 
     Route::get('/admin/beneficiaries/{survey_id}', function ($survey_id) {
@@ -190,9 +194,11 @@ Route::prefix('validator/api')->middleware('role:validator')->group(function () 
     Route::get('/export/barangay', [ValidatorDashboardController::class, 'validatorExportBarangayCsv']);
     Route::get('/profile', [ValidatorDashboardController::class, 'profile']);
     Route::post('/profile/password', [ValidatorDashboardController::class, 'updatePassword']);
+    Route::post('/profile/email', [ValidatorDashboardController::class, 'updateEmail']);
     Route::get('/tag-number/preview', [ValidatorDashboardController::class, 'previewTagNumber']);
     Route::post('/survey', [ValidatorDashboardController::class, 'createSurvey']);
     Route::post('/submit', [ValidatorDashboardController::class, 'submitSurvey']);
+    Route::post('/submit-batch', [ValidatorDashboardController::class, 'submitSurveysBatch']);
     Route::put('/survey/{survey_id}', [ValidatorDashboardController::class, 'updateSurvey']);
     Route::delete('/survey/{survey_id}', [ValidatorDashboardController::class, 'deleteSurvey']);
     Route::post('/survey/{survey_id}/restore', [ValidatorDashboardController::class, 'restoreSurvey']);
