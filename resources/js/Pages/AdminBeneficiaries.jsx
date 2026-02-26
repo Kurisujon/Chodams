@@ -3,6 +3,7 @@ import React, { Fragment, useEffect, useState, useRef } from 'react'
 import axios from 'axios'
 import { Link } from '@inertiajs/react'
 import { Listbox, Transition } from '@headlessui/react'
+import { AdminSidebarWrapper } from '../Components/AdminSidebar'
 
 const perPageDefault = 10
 
@@ -112,7 +113,7 @@ export default function AdminBeneficiaries() {
   const [dateTo, setDateTo] = useState('')
   const [pointsMin, setPointsMin] = useState('')
   const [pointsMax, setPointsMax] = useState('')
-  const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [advancedOpen, setAdvancedOpen] = useState(true)
   const [loading, setLoading] = useState(false)
   const [appliedFilters, setAppliedFilters] = useState({
     search: '',
@@ -128,8 +129,14 @@ export default function AdminBeneficiaries() {
   const [error, setError] = useState('')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const appliedFiltersRef = useRef(appliedFilters)
+  
+  // Format priority score with one decimal place and % suffix
+  const formatScore = (score) => {
+    if (score === null || score === undefined) return '0.0%'
+    return `${parseFloat(score).toFixed(1)}%`
+  }
   const barangays = [
-    'Aplaya','Balabag','Binaton','Cogon','Colorado','Dawis','Dulangan','Goma','Igpit','Kapatagan','Kiagot','Lungag','Mahayahay','Matti','Ruparan','San_Agustin','San_Jose','San_Miguel','San_Roque','Sinawilan','Soong','Tiguman','Tres_De_Mayo','Zone_1','Zone_2','Zone_3'
+    'Aplaya','Balabag','Binaton','Cogon','Colorado','Dawis','Dulangan','Goma','Igpit','Kapatagan','Kiagot','Lungag','Mahayahay','Matti','Ruparan','San_Agustin','San_Jose','San_Miguel','San_Roque','Sinawilan','Soong','Tiguman','Tres_De_Mayo','Zone_I','Zone_II','Zone_III'
   ]
 
   const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
@@ -158,6 +165,26 @@ export default function AdminBeneficiaries() {
     }, 350)
     return () => clearTimeout(handle)
   }, [search])
+
+  // Auto-apply filters when they change
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      const next = {
+        ...appliedFiltersRef.current,
+        classFilter: classFilter || '',
+        affType: affType || '',
+        statusFilter: statusFilter || 'submitted',
+        barangayFilter: barangayFilter || '',
+        dateFrom: dateFrom || '',
+        dateTo: dateTo || '',
+        pointsMin: pointsMin || '',
+        pointsMax: pointsMax || '',
+      }
+      setAppliedFilters(next)
+      applyFilters(1, next)
+    }, 300)
+    return () => clearTimeout(handle)
+  }, [classFilter, affType, statusFilter, barangayFilter, dateFrom, dateTo, pointsMin, pointsMax])
 
   function currentFilters() {
     return {
@@ -434,88 +461,11 @@ export default function AdminBeneficiaries() {
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      <aside className="hidden md:block w-64 flex flex-col flex-shrink-0 bg-white text-gray-700 p-6 border-r border-gray-200 h-screen sticky top-0 overflow-hidden">
-        <div className="flex items-center gap-3 mb-8">
-          <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
-          <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
-        </div>
-        <nav className="space-y-2 flex flex-col flex-1">
-          <Link href="/admin/dashboard" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/dashboard') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/dashboardicon.png" alt="Dashboard" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">Dashboard</span>
-          </Link>
-          <Link href="/admin/beneficiaries" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/beneficiaries') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/beneficiariesicon.png" alt="Beneficiaries" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">Beneficiaries</span>
-          </Link>
-          <Link href="/admin/project-sites" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/project-sites') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/projectsiteicon.png" alt="Project Sites" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">Project Sites</span>
-          </Link>
-          <Link href="/admin/assignments" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/assignments') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/assignmenticon.png" alt="Assignments" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">Assignments</span>
-          </Link>
-          <Link href="/admin/mapping" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/mapping') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/projectsiteicon.png" alt="Mapping" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">Mapping</span>
-          </Link>
-          <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">My Profile</span>
-          </Link>
-          <div className="mt-auto">
-            <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
-              <img src="/icons/logouticon.png" alt="Log out" className="w-5 h-5"/>
-              <span className="tracking-wider uppercase text-xs">Log out</span>
-            </button>
-          </div>
-        </nav>
-      </aside>
-
-      {mobileNavOpen && (
-        <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setMobileNavOpen(false)}></div>
-          <div className="absolute inset-y-0 left-0 w-72 bg-white p-6 shadow-xl flex flex-col h-full">
-            <div className="flex items-center gap-3 mb-8">
-              <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
-              <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
-            </div>
-            <nav className="space-y-2 flex flex-col flex-1">
-              <Link href="/admin/dashboard" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/dashboard') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/dashboardicon.png" alt="Dashboard" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Dashboard</span>
-              </Link>
-              <Link href="/admin/beneficiaries" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/beneficiaries') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/beneficiariesicon.png" alt="Beneficiaries" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Beneficiaries</span>
-              </Link>
-              <Link href="/admin/project-sites" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/project-sites') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/projectsiteicon.png" alt="Project Sites" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Project Sites</span>
-              </Link>
-              <Link href="/admin/assignments" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/assignments') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/assignmenticon.png" alt="Assignments" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Assignments</span>
-              </Link>
-              <Link href="/admin/mapping" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/mapping') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/projectsiteicon.png" alt="Mapping" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Mapping</span>
-              </Link>
-              <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">My Profile</span>
-              </Link>
-              <div className="mt-auto">
-                <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
-                  <img src="/icons/logouticon.png" alt="Log out" className="w-5 h-5"/>
-                  <span className="tracking-wider uppercase text-xs">Log out</span>
-                </button>
-              </div>
-            </nav>
-          </div>
-        </div>
-      )}
+      <AdminSidebarWrapper
+        mobileNavOpen={mobileNavOpen}
+        setMobileNavOpen={setMobileNavOpen}
+        onLogout={logoutAdmin}
+      />
 
       <main className="flex-1 p-4 sm:p-6 bg-gray-50">
         <DashboardFade delay={0}>
@@ -612,15 +562,7 @@ export default function AdminBeneficiaries() {
               </div>
             </div>
 
-            <form
-              className="flex flex-wrap items-center gap-3"
-              onSubmit={e => {
-                e.preventDefault()
-                const f = currentFilters()
-                setAppliedFilters(f)
-                applyFilters(1, f)
-              }}
-            >
+            <div className="flex flex-wrap items-center gap-3">
               <div className="flex-1 min-w-[220px]">
                 <div className="relative">
                   <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
@@ -654,7 +596,9 @@ export default function AdminBeneficiaries() {
                   options={[
                     { value: 'submitted', label: 'All' },
                     { value: 'validated', label: 'Validated' },
-                    { value: 'approved', label: 'Assigned' },
+                    { value: 'approved', label: 'Approved' },
+                    { value: 'assigned', label: 'Assigned' },
+                    { value: 'disapproved', label: 'Disapproved' },
                   ]}
                   widthClass="w-40"
                 />
@@ -706,69 +650,53 @@ export default function AdminBeneficiaries() {
 
                 <button
                   type="button"
-                  onClick={() => setAdvancedOpen(v => !v)}
-                  className="text-xs font-medium text-emerald-800 hover:text-emerald-900"
-                >
-                  {advancedOpen ? 'Hide Advanced' : 'Advanced'}
-                </button>
-
-                <button
-                  className="rounded-full bg-emerald-600 px-4 py-2 text-xs font-medium text-white hover:bg-emerald-700"
-                  type="submit"
-                >
-                  Apply
-                </button>
-                <button
-                  type="button"
                   className="text-xs font-medium text-gray-500 hover:text-emerald-700"
                   onClick={clearAll}
                 >
                   Clear all
                 </button>
               </div>
-            </form>
+            </div>
 
-            {advancedOpen && (
-              <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
-                <FilterPill label="Date">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="date"
-                      className="bg-transparent text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none"
-                      value={dateFrom}
-                      onChange={e => setDateFrom(e.target.value)}
-                    />
-                    <span className="text-gray-400">to</span>
-                    <input
-                      type="date"
-                      className="bg-transparent text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none"
-                      value={dateTo}
-                      onChange={e => setDateTo(e.target.value)}
-                    />
-                  </div>
-                </FilterPill>
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3">
+              <FilterPill label="Date">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    className="bg-transparent text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none"
+                    value={dateFrom}
+                    onChange={e => setDateFrom(e.target.value)}
+                  />
+                  <span className="text-gray-400">to</span>
+                  <input
+                    type="date"
+                    className="bg-transparent text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none"
+                    value={dateTo}
+                    onChange={e => setDateTo(e.target.value)}
+                  />
+                </div>
+              </FilterPill>
 
-                <FilterPill label="Points">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      className="w-16 bg-transparent text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none"
-                      value={pointsMin}
-                      onChange={e => setPointsMin(e.target.value)}
-                      placeholder="Min"
-                    />
-                    <span className="text-gray-400">to</span>
-                    <input
-                      type="number"
-                      className="w-16 bg-transparent text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none"
-                      value={pointsMax}
-                      onChange={e => setPointsMax(e.target.value)}
-                      placeholder="Max"
-                    />
-                  </div>
-                </FilterPill>
-              </div>
-            )}
+              <FilterPill label="Points">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    className="w-16 bg-transparent text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none"
+                    value={pointsMin}
+                    onChange={e => setPointsMin(e.target.value)}
+                    placeholder="Min"
+                  />
+                  <span className="text-gray-400">to</span>
+                  <input
+                    type="number"
+                    className="w-16 bg-transparent text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none"
+                    value={pointsMax}
+                    onChange={e => setPointsMax(e.target.value)}
+                    placeholder="Max"
+                  />
+                </div>
+              </FilterPill>
+            </div>
 
             {(appliedFilters.search ||
               appliedFilters.classFilter ||
@@ -878,12 +806,17 @@ export default function AdminBeneficiaries() {
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">
                     Sub-Class Homeless
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Points</th>
+                  <th 
+                    className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide"
+                  >
+                    Points (Highest to Lowest)
+                  </th>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Action</th>
                 </tr>
               </thead>
               <tbody key={`${activeTab}-${activeTab === 'non' ? validated.page : activeTab === 'aff' ? affiliated.page : mayor.page}`} className="animate-table-fade">
-                {(activeTab === 'non' ? validated.data : activeTab === 'aff' ? affiliated.data : mayor.data).map(b => (
+                {(activeTab === 'non' ? validated.data : activeTab === 'aff' ? affiliated.data : mayor.data)
+                  .map(b => (
                   <tr
                     key={b.survey_id}
                     className="group border-b border-gray-100 last:border-b-0 transition-colors duration-150 hover:bg-emerald-50"
@@ -912,24 +845,26 @@ export default function AdminBeneficiaries() {
                       </span>
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap">
-                      <Link
-                        className="inline-flex items-center gap-2 text-xs font-medium text-emerald-700 hover:text-emerald-800 transition-colors"
-                        href={`/admin/beneficiaries/${b.survey_id}`}
-                      >
-                        <span>View</span>
-                        <svg
-                          className="h-4 w-4"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
+                      <div className="flex items-center gap-2">
+                        <Link
+                          className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-800 transition-colors"
+                          href={`/admin/beneficiaries/${b.survey_id}`}
                         >
-                          <path d="M12 20h9" />
-                          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
-                        </svg>
-                      </Link>
+                          <span>View</span>
+                          <svg
+                            className="h-4 w-4"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M12 20h9" />
+                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+                          </svg>
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -937,7 +872,7 @@ export default function AdminBeneficiaries() {
                   <tr>
                     <td
                       className="px-3 py-6 text-center text-sm text-gray-500"
-                      colSpan={activeTab === 'aff' ? 11 : 10}
+                      colSpan={activeTab === 'aff' ? 12 : 11}
                     >
                       No results found.
                     </td>

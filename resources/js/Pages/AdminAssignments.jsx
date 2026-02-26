@@ -1,7 +1,10 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, Fragment } from 'react'
+import ReactDOM from 'react-dom'
 import axios from 'axios'
 import { Link } from '@inertiajs/react'
+import { Listbox, Transition } from '@headlessui/react'
 import AdminTable from '../Components/AdminTable'
+import { AdminSidebarWrapper } from '../Components/AdminSidebar'
 
 export default function AdminAssignments() {
   const [pending, setPending] = useState([])
@@ -15,6 +18,8 @@ export default function AdminAssignments() {
   const [busyId, setBusyId] = useState(null)
   const [assignForms, setAssignForms] = useState({})
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [searchingPending, setSearchingPending] = useState(false)
+  const [searchingAssigned, setSearchingAssigned] = useState(false)
 
   const [pendingPage, setPendingPage] = useState(1)
   const [assignedPage, setAssignedPage] = useState(1)
@@ -24,6 +29,8 @@ export default function AdminAssignments() {
   const [assignedSortDirection, setAssignedSortDirection] = useState('asc')
 
   const assignmentsPageSize = 10
+  const searchPendingTimeoutRef = useRef(null)
+  const searchAssignedTimeoutRef = useRef(null)
 
   const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
 
@@ -55,34 +62,177 @@ export default function AdminAssignments() {
     }
   }
 
-  async function searchPendingList() {
+  async function searchPendingList(query = searchPending) {
+    setSearchingPending(true)
     try {
-      const p1 = await axios.get('/admin/api/assignments/pending', { params: { search: searchPending } })
+      const p1 = await axios.get('/admin/api/assignments/pending', { params: { search: query } })
       setPending(p1.data.data || [])
       setError('')
       setPendingPage(1)
     } catch (e) {
       setError(e?.response?.data?.message || e.message)
+    } finally {
+      setSearchingPending(false)
     }
   }
 
-  async function searchAssignedList() {
+  async function searchAssignedList(query = searchAssigned) {
+    setSearchingAssigned(true)
     try {
-      const p2 = await axios.get('/admin/api/assignments', { params: { search: searchAssigned } })
+      const p2 = await axios.get('/admin/api/assignments', { params: { search: query } })
       setAssigned(p2.data.data || [])
       setError('')
       setAssignedPage(1)
     } catch (e) {
       setError(e?.response?.data?.message || e.message)
+    } finally {
+      setSearchingAssigned(false)
     }
   }
 
-  function ProjectSelect({ value, onChange }) {
+  // Debounced search for pending list
+  useEffect(() => {
+    if (searchPendingTimeoutRef.current) {
+      clearTimeout(searchPendingTimeoutRef.current)
+    }
+    
+    searchPendingTimeoutRef.current = setTimeout(() => {
+      if (searchPending.trim()) {
+        searchPendingList(searchPending)
+      } else {
+        // Reload all data when search is cleared
+        loadAll()
+      }
+    }, 400)
+    
+    return () => {
+      if (searchPendingTimeoutRef.current) {
+        clearTimeout(searchPendingTimeoutRef.current)
+      }
+    }
+  }, [searchPending])
+
+  // Debounced search for assigned list
+  useEffect(() => {
+    if (searchAssignedTimeoutRef.current) {
+      clearTimeout(searchAssignedTimeoutRef.current)
+    }
+    
+    searchAssignedTimeoutRef.current = setTimeout(() => {
+      if (searchAssigned.trim()) {
+        searchAssignedList(searchAssigned)
+      } else {
+        // Reload all data when search is cleared
+        loadAll()
+      }
+    }, 400)
+    
+    return () => {
+      if (searchAssignedTimeoutRef.current) {
+        clearTimeout(searchAssignedTimeoutRef.current)
+      }
+    }
+  }, [searchAssigned])
+
+  function SmoothSelect({ value, onChange, options, buttonClassName, disabled = false }) {
+    const selected = options.find(o => o.value === value)
+    const showPlaceholder = value === '' || value == null
+    const label = showPlaceholder ? (options[0]?.label ?? '') : (selected?.label ?? '')
+    const buttonRef = useRef(null)
+    const [dropdownStyle, setDropdownStyle] = useState({})
+
+    const updatePosition = () => {
+      if (buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect()
+        setDropdownStyle({
+          position: 'fixed',
+          top: rect.bottom + 4,
+          left: rect.left,
+          minWidth: rect.width,
+          zIndex: 1000,
+        })
+      }
+    }
+
     return (
-      <select className="border border-gray-300 rounded p-2" value={value} onChange={e=>onChange(e.target.value)}>
-        <option value="">Select Project</option>
-        {projects.map(p => <option key={p.project_id} value={p.project_id}>{p.project_name}</option>)}
-      </select>
+      <Listbox value={value} onChange={onChange} disabled={disabled}>
+        {({ open }) => {
+          if (open) {
+            setTimeout(updatePosition, 0)
+          }
+          return (
+            <div className={`relative ${open ? 'z-[1001]' : 'z-[1]'}`}>
+              <Listbox.Button
+                ref={buttonRef}
+                type="button"
+                className={`${buttonClassName} ${disabled ? 'cursor-not-allowed opacity-60' : ''} flex items-center justify-between gap-2`}
+              >
+                <span className={`block min-w-0 flex-1 truncate ${showPlaceholder ? 'text-gray-400' : 'text-gray-900'}`}>{label}</span>
+                <svg className="h-4 w-4 flex-shrink-0 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  {open ? (
+                    <path
+                      fillRule="evenodd"
+                      d="M14.77 12.79a.75.75 0 0 1-1.06-.02L10 8.83l-3.71 3.94a.75.75 0 0 1-1.08-1.04l4.25-4.5a.75.75 0 0 1 1.08 0l4.25 4.5a.75.75 0 0 1-.02 1.06Z"
+                      clipRule="evenodd"
+                    />
+                  ) : (
+                    <path
+                      fillRule="evenodd"
+                      d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z"
+                      clipRule="evenodd"
+                    />
+                  )}
+                </svg>
+              </Listbox.Button>
+
+              {open && !disabled && ReactDOM.createPortal(
+                <Transition
+                  as={Fragment}
+                  show={open && !disabled}
+                  enter="transition ease-out duration-100"
+                  enterFrom="opacity-0 translate-y-1"
+                  enterTo="opacity-100 translate-y-0"
+                  leave="transition ease-in duration-75"
+                  leaveFrom="opacity-100 translate-y-0"
+                  leaveTo="opacity-0 translate-y-1"
+                >
+                  <Listbox.Options 
+                    className="max-h-64 overflow-auto rounded-2xl bg-white p-1 shadow-lg ring-1 ring-black/5 focus:outline-none" 
+                    style={{ ...dropdownStyle, width: 'max-content', minWidth: dropdownStyle.minWidth || 200 }}
+                    static
+                  >
+                    {options.map((opt, idx) => (
+                      <Listbox.Option
+                        key={`${opt.value ?? 'opt'}-${idx}`}
+                        value={opt.value}
+                        className={({ active }) =>
+                          `cursor-pointer select-none rounded-xl px-3 py-2 text-sm ${active ? 'bg-emerald-50 text-emerald-900' : 'text-gray-900'}`
+                        }
+                      >
+                        {({ selected: isSelected }) => (
+                          <div className="flex items-center justify-between gap-3">
+                            <span className={`min-w-0 flex-1 truncate ${isSelected ? 'font-medium text-emerald-700' : ''}`}>{opt.label}</span>
+                            {isSelected && (
+                              <svg className="h-4 w-4 flex-shrink-0 text-emerald-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path
+                                  fillRule="evenodd"
+                                  d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.5 7.58a1 1 0 0 1-1.43.003L3.29 9.76a1 1 0 1 1 1.42-1.41l3.05 3.07 6.79-6.86a1 1 0 0 1 1.414-.006Z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                            )}
+                          </div>
+                        )}
+                      </Listbox.Option>
+                    ))}
+                  </Listbox.Options>
+                </Transition>,
+                document.body
+              )}
+            </div>
+          )
+        }}
+      </Listbox>
     )
   }
 
@@ -199,8 +349,12 @@ export default function AdminAssignments() {
       sortable: false,
       render: r => {
         const f = assignForms[r.survey_id] || { project_id: '', block_no: '', lot_no: '' }
+        const projectOptions = [
+          { value: '', label: 'Select Project' },
+          ...projects.map(p => ({ value: p.project_id, label: p.project_name }))
+        ]
         return (
-          <ProjectSelect
+          <SmoothSelect
             value={f.project_id}
             onChange={v => {
               setAssignForms(prev => ({
@@ -211,6 +365,8 @@ export default function AdminAssignments() {
                 loadBlocks(v)
               }
             }}
+            options={projectOptions}
+            buttonClassName="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-900 text-left focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
           />
         )
       },
@@ -222,13 +378,14 @@ export default function AdminAssignments() {
       render: r => {
         const f = assignForms[r.survey_id] || { project_id: '', block_no: '', lot_no: '' }
         const blocks = f.project_id ? blocksMap[f.project_id] || [] : []
+        const blockOptions = [
+          { value: '', label: 'Select Block' },
+          ...blocks.map(b => ({ value: b.block_no, label: `Block ${b.block_no} (${b.available_lots} left)` }))
+        ]
         return (
-          <select
-            className="w-28 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-900 text-left focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+          <SmoothSelect
             value={f.block_no}
-            disabled={!f.project_id}
-            onChange={e => {
-              const v = e.target.value
+            onChange={v => {
               setAssignForms(prev => ({
                 ...prev,
                 [r.survey_id]: { ...(prev[r.survey_id] || {}), project_id: f.project_id, block_no: v, lot_no: '' },
@@ -237,14 +394,10 @@ export default function AdminAssignments() {
                 loadAvailableLots(f.project_id, v)
               }
             }}
-          >
-            <option value="">Select Block</option>
-            {blocks.map(b => (
-              <option key={b.block_no} value={b.block_no}>
-                Block {b.block_no} ({b.available_lots} left)
-              </option>
-            ))}
-          </select>
+            options={blockOptions}
+            buttonClassName="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-900 text-left focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+            disabled={!f.project_id}
+          />
         )
       },
     },
@@ -256,26 +409,23 @@ export default function AdminAssignments() {
         const f = assignForms[r.survey_id] || { project_id: '', block_no: '', lot_no: '' }
         const lotsKey = `${f.project_id}#${f.block_no}`
         const lots = f.project_id && f.block_no ? lotsMap[lotsKey] || [] : []
+        const lotOptions = [
+          { value: '', label: 'Select Lot' },
+          ...lots.map(l => ({ value: l, label: `Lot ${l}` }))
+        ]
         return (
-          <select
-            className="w-24 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-900 text-left focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+          <SmoothSelect
             value={f.lot_no}
-            disabled={!f.project_id || !f.block_no}
-            onChange={e => {
-              const v = e.target.value
+            onChange={v => {
               setAssignForms(prev => ({
                 ...prev,
                 [r.survey_id]: { ...(prev[r.survey_id] || {}), project_id: f.project_id, block_no: f.block_no, lot_no: v },
               }))
             }}
-          >
-            <option value="">Select Lot</option>
-            {lots.map(l => (
-              <option key={l} value={l}>
-                Lot {l}
-              </option>
-            ))}
-          </select>
+            options={lotOptions}
+            buttonClassName="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-900 text-left focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+            disabled={!f.project_id || !f.block_no}
+          />
         )
       },
     },
@@ -285,14 +435,21 @@ export default function AdminAssignments() {
       sortable: false,
       render: r => {
         const f = assignForms[r.survey_id] || { project_id: '', block_no: '', lot_no: '' }
-        const disabled = busyId === r.survey_id
+        const isLoading = busyId === r.survey_id
         return (
           <button
-            className="px-3 py-1 border rounded text-sm text-emerald-800 hover:bg-emerald-50 disabled:opacity-60 disabled:cursor-not-allowed"
-            disabled={disabled}
+            className="px-3 py-1 border rounded-xl text-sm text-emerald-800 hover:bg-emerald-50 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 min-w-[70px]"
+            disabled={isLoading}
             onClick={() => assignRow(r.survey_id, f.project_id, f.block_no, f.lot_no)}
           >
-            {disabled ? 'Assigning...' : 'Assign'}
+            {isLoading ? (
+              <svg className="animate-spin h-4 w-4 text-emerald-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : (
+              'Assign'
+            )}
           </button>
         )
       },
@@ -341,88 +498,11 @@ export default function AdminAssignments() {
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      <aside className="hidden md:block w-64 flex flex-col flex-shrink-0 bg-white text-gray-700 p-6 border-r border-gray-200 h-screen sticky top-0 overflow-hidden">
-        <div className="flex items-center gap-3 mb-8">
-          <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
-          <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
-        </div>
-        <nav className="space-y-2 flex flex-col flex-1">
-          <Link href="/admin/dashboard" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/dashboard') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/dashboardicon.png" alt="Dashboard" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">Dashboard</span>
-          </Link>
-          <Link href="/admin/beneficiaries" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/beneficiaries') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/beneficiariesicon.png" alt="Beneficiaries" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">Beneficiaries</span>
-          </Link>
-          <Link href="/admin/project-sites" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/project-sites') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/projectsiteicon.png" alt="Project Sites" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">Project Sites</span>
-          </Link>
-          <Link href="/admin/assignments" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/assignments') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/assignmenticon.png" alt="Assignments" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">Assignments</span>
-          </Link>
-          <Link href="/admin/mapping" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/mapping') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/projectsiteicon.png" alt="Mapping" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">Mapping</span>
-          </Link>
-          <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">My Profile</span>
-          </Link>
-          <div className="mt-auto">
-            <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
-              <img src="/icons/logouticon.png" alt="Log out" className="w-5 h-5"/>
-              <span className="tracking-wider uppercase text-xs">Log out</span>
-            </button>
-          </div>
-        </nav>
-      </aside>
-
-      {mobileNavOpen && (
-        <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setMobileNavOpen(false)}></div>
-          <div className="absolute inset-y-0 left-0 w-72 bg-white p-6 shadow-xl flex flex-col h-full">
-            <div className="flex items-center gap-3 mb-8">
-              <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
-              <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
-            </div>
-            <nav className="space-y-2 flex flex-col flex-1">
-              <Link href="/admin/dashboard" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/dashboard') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/dashboardicon.png" alt="Dashboard" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Dashboard</span>
-              </Link>
-              <Link href="/admin/beneficiaries" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/beneficiaries') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/beneficiariesicon.png" alt="Beneficiaries" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Beneficiaries</span>
-              </Link>
-              <Link href="/admin/project-sites" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/project-sites') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/projectsiteicon.png" alt="Project Sites" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Project Sites</span>
-              </Link>
-              <Link href="/admin/assignments" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/assignments') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/assignmenticon.png" alt="Assignments" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Assignments</span>
-              </Link>
-              <Link href="/admin/mapping" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/mapping') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/projectsiteicon.png" alt="Mapping" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Mapping</span>
-              </Link>
-              <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">My Profile</span>
-              </Link>
-              <div className="mt-auto">
-                <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
-                  <img src="/icons/logouticon.png" alt="Log out" className="w-5 h-5"/>
-                  <span className="tracking-wider uppercase text-xs">Log out</span>
-                </button>
-              </div>
-            </nav>
-          </div>
-        </div>
-      )}
+      <AdminSidebarWrapper
+        mobileNavOpen={mobileNavOpen}
+        setMobileNavOpen={setMobileNavOpen}
+        onLogout={logoutAdmin}
+      />
 
       <main className="flex-1 p-4 sm:p-6 bg-gray-50">
         <DashboardFade delay={0}>
@@ -450,15 +530,9 @@ export default function AdminAssignments() {
         </DashboardFade>
 
         <DashboardFade delay={300}>
-        <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-4 sm:p-6">
+        <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 overflow-visible relative z-20">
           <h3 className="text-lg font-semibold text-emerald-800 mb-3">Pending Approval Assignments</h3>
-          <form
-            className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2"
-            onSubmit={e => {
-              e.preventDefault()
-              searchPendingList()
-            }}
-          >
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2">
             <div className="flex-1 min-w-[220px]">
               <div className="relative">
                 <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
@@ -468,42 +542,43 @@ export default function AdminAssignments() {
                   </svg>
                 </span>
                 <input
-                  className="w-full rounded-full border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100"
-                  placeholder="Search pending approvals"
+                  className="w-full rounded-full border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-10 text-sm text-gray-900 placeholder:text-gray-400 focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-all duration-200"
+                  placeholder="Search pending approvals..."
                   value={searchPending}
                   onChange={e => setSearchPending(e.target.value)}
                 />
+                {searchingPending && (
+                  <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                    <svg className="animate-spin h-4 w-4 text-emerald-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </span>
+                )}
               </div>
             </div>
-            <button className="inline-flex items-center justify-center rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700" type="submit">
-              Search
-            </button>
-          </form>
-          <AdminTable
-            columns={pendingColumns}
-            rows={sortedPending}
-            getRowKey={r => r.survey_id}
-            page={pendingPage}
-            pageSize={assignmentsPageSize}
-            onPageChange={setPendingPage}
-            sortKey={pendingSortKey}
-            sortDirection={pendingSortDirection}
-            onSortChange={handlePendingSort}
-            emptyMessage="No pending approved beneficiaries."
-          />
+          </div>
+          <div className={`transition-opacity duration-300 overflow-visible ${searchingPending ? 'opacity-50' : 'opacity-100'}`}>
+            <AdminTable
+              columns={pendingColumns}
+              rows={sortedPending}
+              getRowKey={r => r.survey_id}
+              page={pendingPage}
+              pageSize={assignmentsPageSize}
+              onPageChange={setPendingPage}
+              sortKey={pendingSortKey}
+              sortDirection={pendingSortDirection}
+              onSortChange={handlePendingSort}
+              emptyMessage="No pending approved beneficiaries."
+            />
+          </div>
         </section>
         </DashboardFade>
 
         <DashboardFade delay={400}>
-        <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-4 sm:p-6">
+        <section className="mt-6 bg-white rounded-2xl border border-gray-200 p-4 sm:p-6 overflow-visible relative z-10">
           <h3 className="text-lg font-semibold text-emerald-800 mb-3">Assigned Beneficiaries</h3>
-          <form
-            className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2"
-            onSubmit={e => {
-              e.preventDefault()
-              searchAssignedList()
-            }}
-          >
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2">
             <div className="flex-1 min-w-[220px]">
               <div className="relative">
                 <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
@@ -513,29 +588,36 @@ export default function AdminAssignments() {
                   </svg>
                 </span>
                 <input
-                  className="w-full rounded-full border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100"
-                  placeholder="Search assigned beneficiaries"
+                  className="w-full rounded-full border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-10 text-sm text-gray-900 placeholder:text-gray-400 focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100 transition-all duration-200"
+                  placeholder="Search assigned beneficiaries..."
                   value={searchAssigned}
                   onChange={e => setSearchAssigned(e.target.value)}
                 />
+                {searchingAssigned && (
+                  <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                    <svg className="animate-spin h-4 w-4 text-emerald-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </span>
+                )}
               </div>
             </div>
-            <button className="inline-flex items-center justify-center rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700" type="submit">
-              Search
-            </button>
-          </form>
-          <AdminTable
-            columns={assignedColumns}
-            rows={sortedAssigned}
-            getRowKey={a => a.assignment_id}
-            page={assignedPage}
-            pageSize={assignmentsPageSize}
-            onPageChange={setAssignedPage}
-            sortKey={assignedSortKey}
-            sortDirection={assignedSortDirection}
-            onSortChange={handleAssignedSort}
-            emptyMessage="No assignments yet."
-          />
+          </div>
+          <div className={`transition-opacity duration-300 overflow-visible ${searchingAssigned ? 'opacity-50' : 'opacity-100'}`}>
+            <AdminTable
+              columns={assignedColumns}
+              rows={sortedAssigned}
+              getRowKey={a => a.assignment_id}
+              page={assignedPage}
+              pageSize={assignmentsPageSize}
+              onPageChange={setAssignedPage}
+              sortKey={assignedSortKey}
+              sortDirection={assignedSortDirection}
+              onSortChange={handleAssignedSort}
+              emptyMessage="No assignments yet."
+            />
+          </div>
         </section>
         </DashboardFade>
 

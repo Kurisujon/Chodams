@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { Link } from '@inertiajs/react'
+import { AdminSidebarWrapper } from '../Components/AdminSidebar'
 
 export default function AdminMapping() {
   const [mapPoints, setMapPoints] = useState([])
@@ -121,7 +122,7 @@ export default function AdminMapping() {
         marker.on('click', () => {
           const name = p.name || 'Unknown'
           const cls = p.classification || 'Unknown'
-          const status = p.is_submitted === 1 ? 'Validated' : (p.is_submitted === 2 ? 'Assigned' : '')
+          const status = p.is_submitted === 1 ? 'Validated' : (p.is_submitted === 2 ? 'Approved' : (p.is_submitted === 3 ? 'Assigned' : ''))
           const tag = p.tag_number ? `<div style="margin-top:4px;background:#f0fdf4;color:#047857;padding:3px 8px;border-radius:6px;font-size:12px;display:inline-block">Tag: ${p.tag_number}</div>` : ''
           const house = p.photo_url 
             ? `<img src="${p.photo_url}" alt="House Photo" loading="lazy" style="width:100%;border-radius:8px;border:1px solid #e5e7eb"/>`
@@ -133,7 +134,7 @@ export default function AdminMapping() {
             <div style="min-width:280px">
               <div style="display:flex;align-items:center;justify-content:space-between">
                 <div style="font-weight:700;color:#065f46;font-size:14px">${name}</div>
-                <div style="display:flex;gap:6px;align-items:center">${status ? `<span style="background:${p.is_submitted===2?'#eff6ff':'#ecfdf5'};color:${p.is_submitted===2?'#1d4ed8':'#065f46'};padding:4px 8px;border-radius:9999px;font-size:11px">${status}</span>` : ''}</div>
+                <div style="display:flex;gap:6px;align-items:center">${status ? `<span style="background:${p.is_submitted===3?'#eff6ff':(p.is_submitted===2?'#fef3c7':'#ecfdf5')};color:${p.is_submitted===3?'#1d4ed8':(p.is_submitted===2?'#92400e':'#065f46')};padding:4px 8px;border-radius:9999px;font-size:11px">${status}</span>` : ''}</div>
               </div>
               <div style="margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
                 <span style="background:#ecfdf5;color:#065f46;padding:4px 8px;border-radius:9999px;font-size:11px">${cls}</span>
@@ -165,88 +166,11 @@ export default function AdminMapping() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="hidden md:block w-64 flex flex-col flex-shrink-0 bg-white text-gray-700 p-6 border-r border-gray-200 h-screen sticky top-0 overflow-hidden">
-        <div className="flex items-center gap-3 mb-8">
-          <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
-          <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
-        </div>
-        <nav className="space-y-2 flex flex-col flex-1">
-          <Link href="/admin/dashboard" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/dashboard') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/dashboardicon.png" alt="Dashboard" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">Dashboard</span>
-          </Link>
-          <Link href="/admin/beneficiaries" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/beneficiaries') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/beneficiariesicon.png" alt="Beneficiaries" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">Beneficiaries</span>
-          </Link>
-          <Link href="/admin/project-sites" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/project-sites') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/projectsiteicon.png" alt="Project Sites" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">Project Sites</span>
-          </Link>
-          <Link href="/admin/assignments" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/assignments') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/assignmenticon.png" alt="Assignments" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">Assignments</span>
-          </Link>
-          <Link href="/admin/mapping" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/mapping') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/projectsiteicon.png" alt="Mapping" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">Mapping</span>
-          </Link>
-          <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">My Profile</span>
-          </Link>
-          <div className="mt-auto">
-            <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
-              <img src="/icons/logouticon.png" alt="Log out" className="w-5 h-5"/>
-              <span className="tracking-wider uppercase text-xs">Log out</span>
-            </button>
-          </div>
-        </nav>
-      </aside>
-
-      {mobileNavOpen && (
-        <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setMobileNavOpen(false)}></div>
-          <div className="absolute inset-y-0 left-0 w-72 bg-white p-6 shadow-xl flex flex-col h-full">
-            <div className="flex items-center gap-3 mb-8">
-              <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
-              <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
-            </div>
-            <nav className="space-y-2 flex flex-col flex-1">
-              <Link href="/admin/dashboard" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/dashboard') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/dashboardicon.png" alt="Dashboard" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Dashboard</span>
-              </Link>
-              <Link href="/admin/beneficiaries" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/beneficiaries') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/beneficiariesicon.png" alt="Beneficiaries" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Beneficiaries</span>
-              </Link>
-              <Link href="/admin/project-sites" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/project-sites') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/projectsiteicon.png" alt="Project Sites" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Project Sites</span>
-              </Link>
-              <Link href="/admin/assignments" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/assignments') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/assignmenticon.png" alt="Assignments" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Assignments</span>
-              </Link>
-              <Link href="/admin/mapping" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/mapping') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/projectsiteicon.png" alt="Mapping" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Mapping</span>
-              </Link>
-              <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">My Profile</span>
-              </Link>
-              <div className="mt-auto">
-                <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
-                  <img src="/icons/logouticon.png" alt="Log out" className="w-5 h-5"/>
-                  <span className="tracking-wider uppercase text-xs">Log out</span>
-                </button>
-              </div>
-            </nav>
-          </div>
-        </div>
-      )}
+      <AdminSidebarWrapper
+        mobileNavOpen={mobileNavOpen}
+        setMobileNavOpen={setMobileNavOpen}
+        onLogout={logoutAdmin}
+      />
 
       <main className="flex-1 p-6 bg-gray-50">
         <DashboardFade delay={0}>
@@ -275,6 +199,7 @@ export default function AdminMapping() {
               <div className="flex items-center gap-1 bg-emerald-50 p-1 rounded-xl ring-1 ring-emerald-100">
                 <button onClick={() => setMapScope('all')} className={`px-3 py-1 rounded-lg text-xs ${mapScope==='all' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200' : 'text-emerald-700 hover:bg-emerald-100'}`}>All</button>
                 <button onClick={() => setMapScope('validated')} className={`px-3 py-1 rounded-lg text-xs ${mapScope==='validated' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200' : 'text-emerald-700 hover:bg-emerald-100'}`}>Validated</button>
+                <button onClick={() => setMapScope('approved')} className={`px-3 py-1 rounded-lg text-xs ${mapScope==='approved' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200' : 'text-emerald-700 hover:bg-emerald-100'}`}>Approved</button>
                 <button onClick={() => setMapScope('assigned')} className={`px-3 py-1 rounded-lg text-xs ${mapScope==='assigned' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-200' : 'text-emerald-700 hover:bg-emerald-100'}`}>Assigned</button>
               </div>
             </div>

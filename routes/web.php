@@ -14,6 +14,9 @@ use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ValidatorDashboardController;
 use App\Http\Controllers\ValidatorPasswordController;
+use App\Http\Controllers\HOAController;
+use App\Http\Controllers\MonitoringController;
+use App\Http\Controllers\RevocationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -106,6 +109,21 @@ Route::middleware('role:admin')->group(function () {
         return Inertia::render('SurveyDetails', ['survey_id' => $survey_id, 'api_base' => '/admin/api']);
     });
 
+    // HOA Management page
+    Route::get('/admin/hoa', function () {
+        return Inertia::render('AdminHOA');
+    });
+
+    // Monitoring page
+    Route::get('/admin/monitoring', function () {
+        return Inertia::render('AdminMonitoring');
+    });
+
+    // Revocations page
+    Route::get('/admin/revocations', function () {
+        return Inertia::render('AdminRevocations');
+    });
+
     Route::post('/admin/logout', [LoginController::class, 'logout']);
 });
 
@@ -124,11 +142,14 @@ Route::prefix('admin/api')->middleware('role:admin')->group(function () {
     Route::get('/crosstab/classification-barangay', [ValidatorDashboardController::class, 'adminCrosstabClassificationBarangay']);
     Route::get('/beneficiaries/validated', [ValidatorDashboardController::class, 'adminBeneficiariesValidated']);
     Route::get('/beneficiaries/approved', [ValidatorDashboardController::class, 'adminBeneficiariesApproved']);
+    Route::get('/beneficiaries/assigned', [ValidatorDashboardController::class, 'adminBeneficiariesAssigned']);
     Route::get('/beneficiaries/affiliated', [ValidatorDashboardController::class, 'adminBeneficiariesAffiliated']);
     Route::get('/beneficiaries/affiliated/export', [ValidatorDashboardController::class, 'adminExportAffiliatedCsv']);
     Route::get('/beneficiaries/mayor-endorsed', [ValidatorDashboardController::class, 'adminBeneficiariesMayorEndorsed']);
     Route::get('/beneficiaries/validated/export', [ValidatorDashboardController::class, 'adminExportValidatedCsv']);
     Route::get('/beneficiaries/mayor-endorsed/export', [ValidatorDashboardController::class, 'adminExportMayorCsv']);
+    Route::post('/beneficiaries/{surveyId}/revalidate', [ValidatorDashboardController::class, 'adminRevalidateSurvey']);
+    Route::post('/beneficiaries/{surveyId}/disapprove', [ValidatorDashboardController::class, 'adminDisapproveSurvey']);
 
     Route::get('/profile', [ValidatorDashboardController::class, 'adminProfile']);
     Route::post('/profile', [ValidatorDashboardController::class, 'adminProfileUpdate']);
@@ -146,6 +167,24 @@ Route::prefix('admin/api')->middleware('role:admin')->group(function () {
     Route::post('/surveys/restore-deleted-all', [ValidatorDashboardController::class, 'adminRestoreAllDeletedSurveys']);
     Route::post('/approve', [ValidatorDashboardController::class, 'adminApproveSurvey']);
     Route::get('/db-info', [ValidatorDashboardController::class, 'adminDbInfo']);
+    
+    // Recalculate beneficiary scores
+    Route::get('/recalculate-scores', function () {
+        try {
+            $service = new \App\Services\BeneficiaryScoreService();
+            $count = $service->recalculateAll();
+            return response()->json([
+                'success' => true,
+                'message' => "Successfully recalculated scores for {$count} beneficiaries.",
+                'count' => $count
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to recalculate scores: ' . $e->getMessage()
+            ], 500);
+        }
+    });
 
     Route::get('/notifications', [ValidatorDashboardController::class, 'adminNotifications']);
     Route::post('/notifications/read', [ValidatorDashboardController::class, 'adminNotificationRead']);
@@ -161,6 +200,66 @@ Route::prefix('admin/api')->middleware('role:admin')->group(function () {
     Route::get('/assignments', [ValidatorDashboardController::class, 'adminAssignmentsList']);
     Route::get('/assignments/pending', [ValidatorDashboardController::class, 'adminAssignmentsPending']);
     Route::post('/assignments', [ValidatorDashboardController::class, 'adminAssignmentsCreate']);
+
+    // ==================== HOA MANAGEMENT ROUTES ====================
+    // Requirements: 1.1-4.7
+    
+    // HOA CRUD routes
+    Route::get('/hoas', [HOAController::class, 'index']);
+    Route::post('/hoas', [HOAController::class, 'store']);
+    Route::get('/hoas/{id}', [HOAController::class, 'show']);
+    Route::post('/hoas/{id}', [HOAController::class, 'update']); // POST for file upload support
+    Route::delete('/hoas/{id}', [HOAController::class, 'destroy']);
+    
+    // HOA Dashboard stats
+    Route::get('/hoa-dashboard-stats', [HOAController::class, 'getDashboardStats']);
+    
+    // HOA Officers nested routes
+    Route::post('/hoas/{hoaId}/officers', [HOAController::class, 'storeOfficer']);
+    Route::put('/hoas/{hoaId}/officers/{officerId}', [HOAController::class, 'updateOfficer']);
+    Route::delete('/hoas/{hoaId}/officers/{officerId}', [HOAController::class, 'destroyOfficer']);
+    Route::get('/hoas/{hoaId}/officers/export', [HOAController::class, 'exportOfficers']);
+    
+    // HOA Members nested routes
+    Route::post('/hoas/{hoaId}/members', [HOAController::class, 'storeMembers']);
+    Route::delete('/hoas/{hoaId}/members/{memberId}', [HOAController::class, 'destroyMember']);
+    Route::get('/hoas/{hoaId}/members/export', [HOAController::class, 'exportMembers']);
+    
+    // HOA Documents nested routes
+    Route::post('/hoas/{hoaId}/documents', [HOAController::class, 'storeDocument']);
+    Route::get('/hoas/{hoaId}/documents/{documentId}/download', [HOAController::class, 'downloadDocument']);
+    Route::delete('/hoas/{hoaId}/documents/{documentId}', [HOAController::class, 'destroyDocument']);
+    Route::get('/hoa-document-types', [HOAController::class, 'getDocumentTypes']);
+
+    // ==================== MONITORING ROUTES ====================
+    // Requirements: 5.1-6.5
+    
+    // Beneficiary Monitoring routes
+    Route::get('/beneficiaries/{surveyId}/monitoring', [MonitoringController::class, 'getBeneficiaryMonitoring']);
+    Route::post('/beneficiaries/{surveyId}/monitoring', [MonitoringController::class, 'storeMonitoringRecord']);
+    Route::put('/monitoring-records/{recordId}', [MonitoringController::class, 'updateMonitoringRecord']);
+    Route::get('/monitoring/{recordId}/documents/download', [MonitoringController::class, 'downloadDocuments']);
+    
+    // Site Visit routes
+    Route::get('/site-visits', [MonitoringController::class, 'getSiteVisits']);
+    Route::post('/site-visits', [MonitoringController::class, 'scheduleSiteVisit']);
+    Route::put('/site-visits/{visitId}/complete', [MonitoringController::class, 'completeSiteVisit']);
+    Route::put('/site-visits/{visitId}/cancel', [MonitoringController::class, 'cancelSiteVisit']);
+    Route::get('/site-visits/due', [MonitoringController::class, 'getDueVisits']);
+    
+    // Monitoring Dashboard stats
+    Route::get('/monitoring-dashboard-stats', [MonitoringController::class, 'getDashboardStats']);
+
+    // ==================== REVOCATION ROUTES ====================
+    // Requirements: 7.1-7.6
+    
+    // Revocation CRUD routes
+    Route::get('/revocations', [RevocationController::class, 'index']);
+    Route::post('/revocations', [RevocationController::class, 'store']);
+    Route::get('/revocations/{id}', [RevocationController::class, 'show']);
+    Route::get('/revocations/{id}/documentation', [RevocationController::class, 'downloadDocumentation']);
+    Route::get('/revocation-reasons', [RevocationController::class, 'getViolationReasons']);
+    Route::get('/revocation-statistics', [RevocationController::class, 'getStatistics']);
 });
 
 Route::middleware('role:validator')->group(function () {
@@ -185,6 +284,7 @@ Route::middleware('role:validator')->group(function () {
 Route::prefix('validator/api')->middleware('role:validator')->group(function () {
     Route::get('/totals', [ValidatorDashboardController::class, 'totals']);
     Route::get('/surveys', [ValidatorDashboardController::class, 'surveys']);
+    Route::get('/surveys/ids', [ValidatorDashboardController::class, 'getAllSurveyIds']);
     Route::get('/submitted', [ValidatorDashboardController::class, 'submitted']);
     Route::get('/deleted', [ValidatorDashboardController::class, 'deleted']);
     Route::get('/survey/{survey_id}', [ValidatorDashboardController::class, 'surveyDetails']);

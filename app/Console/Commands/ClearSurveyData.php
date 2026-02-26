@@ -8,19 +8,9 @@ use Illuminate\Support\Facades\Schema;
 
 class ClearSurveyData extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
     protected $signature = 'surveys:clear-all';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Clear all survey-related data while preserving admin and validator accounts';
+    protected $description = 'Clear all survey-related data and validators while preserving admin accounts';
 
     /**
      * Execute the console command.
@@ -29,7 +19,7 @@ class ClearSurveyData extends Command
      */
     public function handle()
     {
-        $this->warn('This will clear ALL data from survey, demographic, household, economic, training, household_mem, classification, and assignments tables.');
+        $this->warn('This will clear ALL data from survey, demographic, household, economic, training, household_mem, classification, assignments, and validator tables.');
         
         if (!$this->confirm('Do you wish to continue?', true)) {
             $this->info('Operation cancelled.');
@@ -44,6 +34,7 @@ class ClearSurveyData extends Command
             'demographic',
             'classification',
             'assignments',
+            'validator',
             'survey',
         ];
 
@@ -62,8 +53,7 @@ class ClearSurveyData extends Command
 
             DB::statement('SET FOREIGN_KEY_CHECKS=1;');
             
-            $this->info('Successfully cleared all survey-related dummy data.');
-            $this->info('Admin and Validator accounts remain untouched.');
+            $this->info('Successfully cleared all survey-related data and validators.');
             
         } catch (\Exception $e) {
             DB::statement('SET FOREIGN_KEY_CHECKS=1;');

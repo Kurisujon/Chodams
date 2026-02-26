@@ -4,9 +4,12 @@ import { Link, usePage } from '@inertiajs/react'
 import axios from 'axios'
 import { Listbox, Transition } from '@headlessui/react'
 import Modal from '@/Components/Modal'
+import OtherSpecifyField from '@/Components/OtherSpecifyField'
+import FieldError from '@/Components/FieldError'
+import ValidationSummary from '@/Components/ValidationSummary'
 
 const barangays = [
-  'Aplaya','Balabag','Binaton','Cogon','Colorado','Dawis','Dulangan','Goma','Igpit','Kapatagan','Kiagot','Lungag','Mahayahay','Matti','Ruparan','San_Agustin','San_Jose','San_Miguel','San_Roque','Sinawilan','Soong','Tiguman','Tres_De_Mayo','Zone_1','Zone_2','Zone_3'
+  'Aplaya','Balabag','Binaton','Cogon','Colorado','Dawis','Dulangan','Goma','Igpit','Kapatagan','Kiagot','Lungag','Mahayahay','Matti','Ruparan','San_Agustin','San_Jose','San_Miguel','San_Roque','Sinawilan','Soong','Tiguman','Tres_De_Mayo','Zone_I','Zone_II','Zone_III'
 ]
 
 const purokMap = {
@@ -71,18 +74,18 @@ const purokMap = {
   Tres_De_Mayo: [
     'Sampaloc','Panag-hiusa','Mabuhay','San Francisco','Sto. Niño','Villa de Salvacion','Manggahan','Kamansiles','Padema','Linaw','Fortune','Sambag','Conte','Tugas','Santol','Dapsa','Centro','Pag-asa','Gemelina','Mahogany','Madasigon','Adelfa','Malantawon','Duranta','Citta di Oro','Yellow Bell','Maabi-abihon','Camansi','Don Lorenzo Subd.','Paradise Subd.','Emily Homes Phase I','Emily Homes Phase II','Perfect Homes','Central Plain Phase I','Central Plain Phase II','Estrada Subd.'
   ],
-  Zone_1: [
+  Zone_I: [
     'Rosas','Avocado','Lanzones','Chesnut','Palmera','Sampaguita','Chico','Acaciaman','Rosal','Kawayab','Narra','Panaghiusa','Matamis','Riverside','Atis','Malipayon','Masipag','Pagtoo','Malunggay','Centennial','Star Apple','Madasigon','Gemelina','Santol','Tugas','Mangga','Ravina','Mahogany','Kasaligan','Golden Duranta','Durian','Kalinaw','Silangan','Bayabas','Tambis','Talisay','Yellowbell','Sambag','Duranta','Labana','Cattleya','Manggahan','Mangga-Jumao-as','San Francisco','Laminosa','Waling-waling','Papaya','Alum','Ipil-ipil','Aratilis','Islam','Molave'
   ],
-  Zone_2: [
+  Zone_II: [
     "Assessor's","Bayanihan","San Vicente","Kahayag","Cometa","Kawayan","Panaghiusa","Pakigdait","Gemelina 2","Kalayaan","Palmera","Maya","Pag-asa","Nagkahiusa","Salam","Binangay","Kalusugan","Suerte","Laging Handa","Samahang Nayon","Kauswagan","Acacia","Duranta","Narra","Sadepa","Maharlika","Maligya","Padillo","Paraiso","Ubas","Gemelina 1","Santan","Kapamilya"
   ],
-  Zone_3: []
+  Zone_III: []
 }
 
 const humanize = (value) => String(value ?? '').replace(/_/g, ' ')
 
-const buildOptions = (values, emptyLabel = '- select here -', labelFn = humanize) => [
+const buildOptions = (values, emptyLabel = '', labelFn = humanize) => [
   { value: '', label: emptyLabel },
   ...values.map(v => ({ value: v, label: labelFn(v) })),
 ]
@@ -117,7 +120,7 @@ function SmoothSelect({ value, onChange, options, buttonClassName, disabled = fa
   return (
     <Listbox value={value} onChange={onChange} disabled={disabled}>
       {({ open }) => (
-        <div className="relative">
+        <div className={`relative ${open ? 'z-[1001]' : 'z-[1]'}`}>
           <Listbox.Button
             type="button"
             className={`${buttonClassName} ${disabled ? 'cursor-not-allowed opacity-60' : ''} flex items-center justify-between gap-2`}
@@ -150,7 +153,7 @@ function SmoothSelect({ value, onChange, options, buttonClassName, disabled = fa
             leaveFrom="opacity-100 translate-y-0"
             leaveTo="opacity-0 translate-y-1"
           >
-            <Listbox.Options className="absolute left-0 z-50 mt-2 max-h-64 w-full overflow-auto rounded-2xl bg-white p-1 shadow-lg ring-1 ring-black/5 focus:outline-none">
+            <Listbox.Options className="absolute left-0 z-[1000] mt-2 max-h-64 w-full overflow-auto rounded-2xl bg-white p-1 shadow-lg ring-1 ring-black/5 focus:outline-none">
               {options.map((opt, idx) => (
                 <Listbox.Option
                   key={`${opt.value ?? 'opt'}-${idx}`}
@@ -252,6 +255,8 @@ export default function SurveyForm() {
   const steps = ['Classification','Personal','Household','Utilities','Income','Final']
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [validationSummary, setValidationSummary] = useState('')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [housePhoto, setHousePhoto] = useState(null)
   const [personPhoto, setPersonPhoto] = useState(null)
@@ -268,15 +273,35 @@ export default function SurveyForm() {
   const [existingRespondentSignatureUrl, setExistingRespondentSignatureUrl] = useState('')
   const sortedBarangays = useMemo(() => [...barangays].sort((a,b)=>a.replace(/_/g,' ').localeCompare(b.replace(/_/g,' '))), [])
   
-  const inputClass = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100'
+  const inputClass = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100 capitalize'
   const selectClass = 'w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 text-left focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100'
-  const readOnlyInputClass = 'w-full rounded-xl border border-gray-200 bg-gray-100 px-3 py-2.5 text-sm text-gray-600 cursor-not-allowed'
-  const tableInputClass = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-2 py-2 text-xs text-gray-900 placeholder:text-gray-400 focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100'
+  const readOnlyInputClass = 'w-full rounded-xl border border-gray-200 bg-gray-100 px-3 py-2.5 text-sm text-gray-600 cursor-not-allowed capitalize'
+  const tableInputClass = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-2 py-2 text-xs text-gray-900 placeholder:text-gray-400 focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-100 capitalize'
   const tableSelectClass = 'w-full rounded-xl border border-gray-200 bg-white px-2 py-2 text-xs text-gray-900 text-left focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100'
-  const tableReadOnlyInputClass = 'w-full rounded-xl border border-gray-200 bg-gray-100 px-2 py-2 text-xs text-gray-600 cursor-not-allowed'
-  const fileInputClass = 'w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-emerald-700 hover:file:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-100'
+  const tableReadOnlyInputClass = 'w-full rounded-xl border border-gray-200 bg-gray-100 px-2 py-2 text-xs text-gray-600 cursor-not-allowed capitalize'
+  const fileInputClass = 'w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-emerald-700 hover:file:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-100 file:min-w-[44px] file:min-h-[44px] file:touch-manipulation'
   const buttonSecondaryClass = 'inline-flex items-center justify-center rounded-2xl bg-white px-3 py-2 text-sm text-emerald-700 ring-2 ring-emerald-300 hover:ring-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed'
   const buttonPrimaryClass = 'inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed'
+  
+  // Helper functions to get CSS classes with error styling
+  const getInputClass = (fieldName) => {
+    return fieldErrors[fieldName] 
+      ? 'w-full rounded-xl border border-red-500 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-red-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-red-100 capitalize'
+      : inputClass
+  }
+  
+  const getSelectClass = (fieldName) => {
+    return fieldErrors[fieldName]
+      ? 'w-full rounded-xl border border-red-500 bg-white px-3 py-2.5 text-sm text-gray-900 text-left focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-100'
+      : selectClass
+  }
+  
+  const getFileInputClass = (fieldName) => {
+    return fieldErrors[fieldName]
+      ? 'w-full rounded-xl border border-red-500 bg-white px-3 py-2 text-sm text-gray-700 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-emerald-700 hover:file:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-red-100 file:min-w-[44px] file:min-h-[44px] file:touch-manipulation'
+      : fileInputClass
+  }
+  
   const yesNoOptions = useMemo(() => buildOptions(['Yes', 'No']), [])
   const genderOptions = useMemo(() => buildOptions(['Male', 'Female']), [])
   const civilStatusOptions = useMemo(() => buildOptions(['Single', 'Married', 'Live-in', 'Widow/Widower', 'Annulled', 'Separated', 'Unknown']), [])
@@ -288,7 +313,7 @@ export default function SurveyForm() {
   )
   const sourceOfWaterOptions = useMemo(
     () => [
-      { value: '', label: '- select here -' },
+      { value: '', label: '' },
       { value: 'NAWASA', label: 'Community Water System(NAWASA)' },
       { value: 'Spring', label: 'Spring' },
       { value: 'Deep_Well', label: 'Deep Well' },
@@ -300,7 +325,7 @@ export default function SurveyForm() {
   )
   const sourceOfElectricityOptions = useMemo(
     () => [
-      { value: '', label: '- select here -' },
+      { value: '', label: '' },
       { value: 'With_own_meter', label: 'With own meter' },
       { value: 'Solar_Panel', label: 'Solar Panel' },
       { value: 'Candle/Lamp', label: 'Candle/Lamp' },
@@ -311,7 +336,7 @@ export default function SurveyForm() {
   )
   const educationOptions = useMemo(
     () => [
-      { value: '', label: '- select here -' },
+      { value: '', label: '' },
       { value: 'none', label: 'No Formal Education' },
       ...[
         'Elementary_Level_(Incomplete)',
@@ -331,7 +356,15 @@ export default function SurveyForm() {
     () =>
       buildOptions(
         ['0 - 2,999 PHP', '3,000 - 5,999 PHP', '6,000 - 8,999 PHP', '9,000 - 12,999_PHP', '13,000 and above'],
-        '- select income -'
+        ''
+      ),
+    []
+  )
+  const combinedIncomeOptions = useMemo(
+    () =>
+      buildOptions(
+        ['₱0 – ₱13,000', '₱13,001 – ₱25,000', '₱25,001 – ₱35,000', '₱35,001 – ₱47,000', '₱47,001 and above'],
+        ''
       ),
     []
   )
@@ -341,11 +374,11 @@ export default function SurveyForm() {
   )
   const relationshipOptions = useMemo(
     () =>
-      buildOptions(relationshipChoiceList, '- select relationship -'),
+      buildOptions(relationshipChoiceList, ''),
     [relationshipChoiceList]
   )
   const barangayOptions = useMemo(
-    () => [{ value: '', label: '- select here -' }, ...sortedBarangays.map(b => ({ value: b, label: b.replace(/_/g, ' ') }))],
+    () => [{ value: '', label: '' }, ...sortedBarangays.map(b => ({ value: b, label: b.replace(/_/g, ' ') }))],
     [sortedBarangays]
   )
   const purokSelectOptions = useMemo(
@@ -369,8 +402,8 @@ export default function SurveyForm() {
   const [data, setData] = useState({
     previous_client:'', year_inhabited:'', classification:'', sub_class_displaced:'', sub_class_double_up:'', sub_class_homeless:'',
     interview_person:'', last_name:'', first_name:'', middle_name:'', suffix:'', barangay:'', purok:'', street:'',
-    gender:'', religion:'', birth_place:'', birth_date:'', person_age:'', marital_status:'', contact_number:'', language_spoken:'', tribe:'',
-    highest_education:'', last_school_attended:'', year_graduated:'', spouse_name:'', spouse_religion:'', spouse_tribe:'', spouse_age:'', spouse_gender:'',
+    gender:'', religion:'', other_religion:'', birth_place:'', birth_date:'', person_age:'', marital_status:'', contact_number:'', language_spoken:'', tribe:'', other_tribe:'',
+    highest_education:'', last_school_attended:'', year_graduated:'', spouse_name:'', spouse_religion:'', other_spouse_religion:'', spouse_tribe:'', other_spouse_tribe:'', spouse_age:'', spouse_gender:'',
     affiliation:'', affiliations:'', endorsed_by_mayor:'', lot_ownership:'', house_ownership:'', avail_socialized_housing:'', temporary_living_area:'',
     housing_structure:'', other_housing_structure:'', type_of_toilet:'', other_type_of_toilet:'', source_of_water:'', other_source_of_water:'',
     source_of_electricity:'', other_source_of_electricity:'', main_income_source:'', other_main_income_source:'', work_status:'', other_work_status:'',
@@ -379,6 +412,54 @@ export default function SurveyForm() {
   })
 
   const incomeChoices = ['0 - 2,999 PHP','3,000 - 5,999 PHP','6,000 - 8,999 PHP','9,000 - 12,999 PHP','13,000 and above']
+  const combinedIncomeChoices = ['₱0 – ₱13,000', '₱13,001 – ₱25,000', '₱25,001 – ₱35,000', '₱35,001 – ₱47,000', '₱47,001 and above']
+  
+  // Income calculation functions (matching mobile app logic)
+  const parseSalaryRange = (salaryRange) => {
+    if (!salaryRange || salaryRange === '') return 0.0
+    const cleaned = salaryRange.replace(/PHP/g, '').trim()
+    if (cleaned.includes('and above')) {
+      const parts = cleaned.split('and above')
+      if (parts.length > 0) {
+        const numStr = parts[0].replace(/,/g, '').trim()
+        return parseFloat(numStr) || 0.0
+      }
+      return 0.0
+    }
+    if (cleaned.includes('-') || cleaned.includes('–')) {
+      const parts = cleaned.split(/[-–]/)
+      if (parts.length === 2) {
+        const lowerStr = parts[0].replace(/,/g, '').replace(/₱/g, '').trim()
+        const upperStr = parts[1].replace(/,/g, '').replace(/₱/g, '').trim()
+        const lower = parseFloat(lowerStr)
+        const upper = parseFloat(upperStr)
+        if (!isNaN(lower) && !isNaN(upper)) {
+          return (lower + upper) / 2
+        }
+      }
+    }
+    const numStr = cleaned.replace(/,/g, '').replace(/₱/g, '').trim()
+    return parseFloat(numStr) || 0.0
+  }
+
+  const calculateTotalIncome = (headSalary, members) => {
+    let total = parseSalaryRange(headSalary)
+    if (members && Array.isArray(members)) {
+      members.forEach(member => {
+        const income = parseSalaryRange(member.monthly_income)
+        if (income > 0) total += income
+      })
+    }
+    return total
+  }
+
+  const determineIncomeRange = (totalIncome) => {
+    if (totalIncome <= 13000) return '₱0 – ₱13,000'
+    else if (totalIncome <= 25000) return '₱13,001 – ₱25,000'
+    else if (totalIncome <= 35000) return '₱25,001 – ₱35,000'
+    else if (totalIncome <= 47000) return '₱35,001 – ₱47,000'
+    else return '₱47,001 and above'
+  }
   const relationshipChoices = relationshipChoiceList
   const memberRelationshipChoices = [
     'Spouse',
@@ -472,8 +553,8 @@ export default function SurveyForm() {
         const sv = res.data?.survey
         const mem = res.data?.members || []
         if (sv) {
-          const housingStructureOptions = ['Full_Concrete','Made_of_wood_and_metal_roof','Made_of_Amakan_and_Nipa','Combination_of_concrete_and_wood','Made_of_Amakan_and_metal_roof']
-          const typeOfToiletOptions = ['Water-sealed','Pit','None']
+          const housingStructureOptions = ['Makeshift/Salvaged/Improvised_material','Made_of_Amakan_and_Nipa','Made_of_Amakan_and_metal_roof','Made_of_wood_and_metal_roof','Combination_of_concrete_and_wood','Full_Concrete']
+          const typeOfToiletOptions = ['No_Toilet','Open_Pit/Antipolo','Water_Sealed']
           const mainIncomeOptions = ['Public_Employee','Private_Employee','Self_Employed','Casual']
           const workStatusOptions = ['Regular','Contractual']
           const skillOptions = ['Handicrafts','Wood_Works_and_Furnitures','Food_Processing']
@@ -574,6 +655,8 @@ export default function SurveyForm() {
           const classificationValue = sv.classification === 'Upgrading of Land Tenure' ? 'Upgrading_of_Land_Tenure' : (sv.classification || '')
           const religionValue = sv.religion ? toKey(sv.religion) : ''
           const spouseReligionValue = sv.spouse_religion ? toKey(sv.spouse_religion) : ''
+          const otherReligionValue = sv.other_religion || ''
+          const otherSpouseReligionValue = sv.other_spouse_religion || ''
           const affiliationsStr = norm(sv.affiliations || '')
           const affList = affiliationsStr ? affiliationsStr.split(',').map(x => norm(x)).filter(Boolean) : []
 
@@ -595,6 +678,7 @@ export default function SurveyForm() {
             street: sv.street || d.street,
             gender: sv.gender || d.gender,
             religion: religionValue || d.religion,
+            other_religion: otherReligionValue || d.other_religion,
             birth_place: sv.birth_place || d.birth_place,
             birth_date: sv.birth_date || d.birth_date,
             person_age: sv.person_age || d.person_age,
@@ -602,12 +686,15 @@ export default function SurveyForm() {
             contact_number: sv.contact_number || d.contact_number,
             language_spoken: sv.language_spoken || d.language_spoken,
             tribe: sv.tribe || d.tribe,
+            other_tribe: sv.other_tribe || d.other_tribe,
             highest_education: sv.highest_education || d.highest_education,
             last_school_attended: sv.last_school_name || d.last_school_attended,
             year_graduated: sv.year_graduated || d.year_graduated,
             spouse_name: sv.spouse_name || d.spouse_name,
             spouse_religion: spouseReligionValue || d.spouse_religion,
+            other_spouse_religion: otherSpouseReligionValue || d.other_spouse_religion,
             spouse_tribe: sv.spouse_tribe || d.spouse_tribe,
+            other_spouse_tribe: sv.other_spouse_tribe || d.other_spouse_tribe,
             spouse_age: sv.spouse_age || d.spouse_age,
             spouse_gender: sv.spouse_gender || d.spouse_gender,
             affiliation: sv.affiliation ? toKey(sv.affiliation) : (d.affiliation || ''),
@@ -700,6 +787,28 @@ export default function SurveyForm() {
     if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age = age - 1
     if (!Number.isNaN(age) && age >= 0) setData(prev => ({ ...prev, person_age: String(age) }))
   }, [data.birth_date])
+
+  // Auto-calculate combined household income when monthly_salary or members change
+  // Use JSON.stringify to properly track deep changes in members array
+  const membersIncomeKey = JSON.stringify(members.map(m => m.monthly_income || ''))
+  
+  useEffect(() => {
+    // Skip calculation if monthly_salary is not set yet
+    if (!data.monthly_salary && members.every(m => !m.monthly_income)) {
+      return
+    }
+    
+    const totalIncome = calculateTotalIncome(data.monthly_salary, members)
+    const incomeRange = determineIncomeRange(totalIncome)
+    
+    // Always update to ensure calculated value is set (overrides any stale database value)
+    setData(prev => {
+      if (prev.combine_monthly_income !== incomeRange) {
+        return { ...prev, combine_monthly_income: incomeRange }
+      }
+      return prev
+    })
+  }, [data.monthly_salary, membersIncomeKey])
 
   useEffect(() => {
     if (data.barangay) {
@@ -841,11 +950,116 @@ export default function SurveyForm() {
     }
   }, [data.birth_date])
 
+  // Field validation helper
+  const validateField = (fieldName, value) => {
+    const requiredFields = [
+      'classification',
+      'previous_client',
+      'interview_person',
+      'last_name',
+      'first_name',
+      'barangay',
+      'gender',
+      'birth_date',
+      'marital_status',
+      'monthly_salary'
+    ]
+    
+    if (requiredFields.includes(fieldName)) {
+      if (!value || (typeof value === 'string' && value.trim() === '')) {
+        return `The ${fieldName.replace(/_/g, ' ')} field is required`
+      }
+    }
+    
+    // Format validations
+    if (fieldName === 'birth_date' && value) {
+      const date = new Date(value)
+      if (isNaN(date.getTime())) {
+        return 'The birth date must be a valid date'
+      }
+      if (date >= new Date()) {
+        return 'The birth date must be before today'
+      }
+    }
+    
+    if (fieldName === 'contact_number' && value) {
+      if (!/^[0-9+\-\s()]+$/.test(value)) {
+        return 'The contact number format is invalid'
+      }
+    }
+    
+    return null
+  }
+
+  // Validate all fields before submission
+  const validateForm = () => {
+    const errors = {}
+    const requiredFields = [
+      'classification',
+      'previous_client',
+      'interview_person',
+      'last_name',
+      'first_name',
+      'barangay',
+      'gender',
+      'birth_date',
+      'marital_status',
+      'monthly_salary'
+    ]
+    
+    requiredFields.forEach(field => {
+      const error = validateField(field, data[field])
+      if (error) {
+        errors[field] = [error]
+      }
+    })
+    
+    return errors
+  }
+
+  // Clear field error when user types
+  const handleFieldChange = (fieldName, value) => {
+    setData(d => ({ ...d, [fieldName]: value }))
+    
+    // Clear error for this field
+    if (fieldErrors[fieldName]) {
+      setFieldErrors(prev => {
+        const updated = { ...prev }
+        delete updated[fieldName]
+        return updated
+      })
+    }
+  }
+
   const submit = async () => {
     setSubmitting(true)
+    // Clear all error states at start of submission
     setError('')
+    setFieldErrors({})
+    setValidationSummary('')
+    
     try {
-      if (!data.monthly_salary) { setError('Monthly salary is required'); setSubmitting(false); return }
+      // Frontend validation - call validateForm() before creating FormData
+      const errors = validateForm()
+      
+      if (Object.keys(errors).length > 0) {
+        // If validation errors exist, set fieldErrors and validationSummary states
+        setFieldErrors(errors)
+        setValidationSummary('Please fill in all required fields')
+        setSubmitting(false)
+        
+        // Scroll to first field with error and focus it
+        const firstErrorField = Object.keys(errors)[0]
+        const element = document.querySelector(`[name="${firstErrorField}"]`)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          element.focus()
+        }
+        
+        // Prevent HTTP request if frontend validation fails
+        return
+      }
+      
       const sid = new URLSearchParams(window.location.search).get('survey_id')
       const fd = new FormData()
       const isBlank = (v) => {
@@ -854,24 +1068,24 @@ export default function SurveyForm() {
         return v.trim() === ''
       }
       const payload = { ...data }
-      ;[
-        'middle_name',
-        'suffix',
-        'purok',
-        'street',
-        'birth_place',
-        'contact_number',
-        'last_school_attended',
-        'year_graduated',
-        'spouse_name',
-        'spouse_age',
-        'wanttolearn',
-        'remarks',
-        'date_interviewed',
-      ].forEach(k => {
-        if (isBlank(payload[k])) payload[k] = 'N/A'
+      
+      // Debug: Log the data being submitted
+      console.log('Submitting survey data:', payload)
+      console.log('Required fields check:', {
+        classification: payload.classification,
+        previous_client: payload.previous_client,
+        interview_person: payload.interview_person,
+        last_name: payload.last_name,
+        first_name: payload.first_name,
+        barangay: payload.barangay,
+        gender: payload.gender,
+        birth_date: payload.birth_date,
+        marital_status: payload.marital_status,
+        monthly_salary: payload.monthly_salary
       })
-
+      
+      // Remove N/A conversion for optional fields - allow them to remain empty/null
+      // Only convert "Others" specify fields to N/A if they're required but empty
       if (payload.housing_structure === 'Others' && isBlank(payload.other_housing_structure)) payload.other_housing_structure = 'N/A'
       if (payload.type_of_toilet === 'Others' && isBlank(payload.other_type_of_toilet)) payload.other_type_of_toilet = 'N/A'
       if (payload.source_of_water === 'Others' && isBlank(payload.other_source_of_water)) payload.other_source_of_water = 'N/A'
@@ -880,10 +1094,15 @@ export default function SurveyForm() {
       if (payload.work_status === 'others' && isBlank(payload.other_work_status)) payload.other_work_status = 'N/A'
       if (payload.specific_skill === 'others' && isBlank(payload.other_skill)) payload.other_skill = 'N/A'
       if (payload.specific_organization === 'others' && isBlank(payload.other_organization)) payload.other_organization = 'N/A'
+      if (payload.religion === 'Other' && isBlank(payload.other_religion)) payload.other_religion = 'N/A'
+      if (payload.spouse_religion === 'Other' && isBlank(payload.other_spouse_religion)) payload.other_spouse_religion = 'N/A'
+      if (payload.tribe === 'Others' && isBlank(payload.other_tribe)) payload.other_tribe = 'N/A'
+      if (payload.spouse_tribe === 'Others' && isBlank(payload.other_spouse_tribe)) payload.other_spouse_tribe = 'N/A'
 
       Object.entries(payload).forEach(([k,v]) => fd.append(k, v ?? ''))
       if (housePhoto) fd.append('house_photo', housePhoto)
       if (personPhoto) fd.append('person_photo', personPhoto)
+      
       fd.append('latitude', lat)
       fd.append('longitude', lon)
       
@@ -911,7 +1130,49 @@ export default function SurveyForm() {
       }
       window.location.href = '/validator/dashboard'
     } catch (e) {
-      setError(e.response?.data?.message || 'Submission failed')
+      console.error('Survey submission error:', e)
+      console.error('Error response:', e.response)
+      console.error('Error response data:', e.response?.data)
+      console.error('Error response status:', e.response?.status)
+      
+      if (e.response) {
+        // Server responded with error
+        const data = e.response.data
+        
+        if (e.response.status === 422) {
+          // Validation errors from backend - parse field errors
+          const errors = data?.errors
+          
+          console.log('422 Validation errors:', errors)
+          
+          if (errors && typeof errors === 'object') {
+            setFieldErrors(errors)
+            setValidationSummary(data?.message || 'Validation failed. Please check the highlighted fields.')
+            
+            // Scroll to first error field after backend validation failure
+            const firstErrorField = Object.keys(errors)[0]
+            const element = document.querySelector(`[name="${firstErrorField}"]`)
+            if (element) {
+              element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              element.focus()
+            }
+          } else {
+            setError(data?.message || 'Validation error. Please check your input.')
+          }
+        } else if (e.response.status === 500) {
+          // Database or server error - display specific error message
+          console.error('Server error details:', data)
+          setError(data?.message || 'Server error occurred. Please try again or contact support.')
+        } else {
+          setError(data?.message || data?.error || (typeof data === 'string' ? data : `Server error (${e.response.status})`))
+        }
+      } else if (e.request) {
+        // Request was made but no response received
+        setError('No response from server. Please check your internet connection.')
+      } else {
+        // Error setting up request
+        setError(e.message || 'Submission failed. Please check your connection and try again.')
+      }
     } finally {
       setSubmitting(false)
     }
@@ -1021,6 +1282,7 @@ export default function SurveyForm() {
 
           <DashboardFade delay={200}>
             {error && <div className="mb-4 p-2 rounded bg-red-50 border border-red-200 text-red-700">{error}</div>}
+            <ValidationSummary validationSummary={validationSummary} fieldErrors={fieldErrors} />
           </DashboardFade>
 
           <DashboardFade delay={300}>
@@ -1031,34 +1293,40 @@ export default function SurveyForm() {
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <div className="text-sm text-gray-500">Previous Client</div>
+                    <div className="text-sm text-gray-500">Previous Client <span className="text-red-500">*</span></div>
                   <SmoothSelect
                     value={data.previous_client}
-                    onChange={v => setData({ ...data, previous_client: v })}
+                    onChange={v => handleFieldChange('previous_client', v)}
                     options={yesNoOptions}
-                    buttonClassName={selectClass}
+                    buttonClassName={getSelectClass('previous_client')}
                   />
+                  <FieldError fieldName="previous_client" fieldErrors={fieldErrors} />
                   </div>
                   <div>
                     <div className="text-sm text-gray-500">Year Inhabited</div>
-                  <input className={inputClass} value={data.year_inhabited} onChange={e=>setData({...data, year_inhabited:e.target.value})}/>
+                  <input className={getInputClass('year_inhabited')} value={data.year_inhabited} onChange={e=>handleFieldChange('year_inhabited', e.target.value)}/>
+                  <FieldError fieldName="year_inhabited" fieldErrors={fieldErrors} />
                   </div>
                   <div>
-                    <div className="text-sm text-gray-500">Classification</div>
+                    <div className="text-sm text-gray-500">Classification <span className="text-red-500">*</span></div>
                   <SmoothSelect
                     value={data.classification}
                     onChange={v =>
-                      setData({
-                        ...data,
-                        classification: v,
-                        sub_class_displaced: '',
-                        sub_class_double_up: '',
-                        sub_class_homeless: '',
-                      })
+                      {
+                        handleFieldChange('classification', v)
+                        setData({
+                          ...data,
+                          classification: v,
+                          sub_class_displaced: '',
+                          sub_class_double_up: '',
+                          sub_class_homeless: '',
+                        })
+                      }
                     }
                     options={buildOptions(['Displaced', 'Double-up', 'Homeless', 'Upgrading_of_Land_Tenure'])}
-                    buttonClassName={selectClass}
+                    buttonClassName={getSelectClass('classification')}
                   />
+                  <FieldError fieldName="classification" fieldErrors={fieldErrors} />
                   </div>
                 </div>
                 {subclassVisible.displaced && (
@@ -1066,7 +1334,7 @@ export default function SurveyForm() {
                     <div className="text-sm text-gray-500">Sub-class of Displaced</div>
                   <SmoothSelect
                     value={data.sub_class_displaced}
-                    onChange={v => setData({ ...data, sub_class_displaced: v })}
+                    onChange={v => handleFieldChange('sub_class_displaced', v)}
                     options={buildOptions([
                       'Coastal Areas',
                       'Drought',
@@ -1080,8 +1348,9 @@ export default function SurveyForm() {
                       'Landslide Affected',
                       'Near Waterways',
                     ])}
-                    buttonClassName={selectClass}
+                    buttonClassName={getSelectClass('sub_class_displaced')}
                   />
+                  <FieldError fieldName="sub_class_displaced" fieldErrors={fieldErrors} />
                   </div>
                 )}
                 {subclassVisible.doubleup && (
@@ -1089,10 +1358,11 @@ export default function SurveyForm() {
                     <div className="text-sm text-gray-500">Sub-class of Double-up</div>
                   <SmoothSelect
                     value={data.sub_class_double_up}
-                    onChange={v => setData({ ...data, sub_class_double_up: v })}
+                    onChange={v => handleFieldChange('sub_class_double_up', v)}
                     options={buildOptions(['Renter/Tenant', 'Rent-free/Sharer', 'Caretaker'])}
-                    buttonClassName={selectClass}
+                    buttonClassName={getSelectClass('sub_class_double_up')}
                   />
+                  <FieldError fieldName="sub_class_double_up" fieldErrors={fieldErrors} />
                   </div>
                 )}
                 {subclassVisible.homeless && (
@@ -1100,10 +1370,11 @@ export default function SurveyForm() {
                     <div className="text-sm text-gray-500">Sub-class of Homeless</div>
                   <SmoothSelect
                     value={data.sub_class_homeless}
-                    onChange={v => setData({ ...data, sub_class_homeless: v })}
+                    onChange={v => handleFieldChange('sub_class_homeless', v)}
                     options={buildOptions(['Public - living in tent', 'Private - living in tent'])}
-                    buttonClassName={selectClass}
+                    buttonClassName={getSelectClass('sub_class_homeless')}
                   />
+                  <FieldError fieldName="sub_class_homeless" fieldErrors={fieldErrors} />
                   </div>
                 )}
               </div>
@@ -1116,56 +1387,65 @@ export default function SurveyForm() {
               <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <div className="text-sm text-gray-500">Person Interviewed</div>
+                  <div className="text-sm text-gray-500">Person Interviewed <span className="text-red-500">*</span></div>
                   <SmoothSelect
                     value={data.interview_person}
-                    onChange={v => setData({ ...data, interview_person: v })}
+                    onChange={v => handleFieldChange('interview_person', v)}
                     options={buildOptions(['Household_Head', 'Spouse_Head', 'Never-Married', 'Other_Relative', 'Non_Relative'])}
-                    buttonClassName={selectClass}
+                    buttonClassName={getSelectClass('interview_person')}
                   />
+                  <FieldError fieldName="interview_person" fieldErrors={fieldErrors} />
                 </div>
                 <div>
-                  <div className="text-sm text-gray-500">Last Name</div>
-                  <input className={inputClass} value={data.last_name} onChange={e=>setData({...data, last_name:e.target.value})}/>
+                  <div className="text-sm text-gray-500">Last Name <span className="text-red-500">*</span></div>
+                  <input className={getInputClass('last_name')} value={data.last_name} onChange={e=>handleFieldChange('last_name', e.target.value)}/>
+                  <FieldError fieldName="last_name" fieldErrors={fieldErrors} />
                 </div>
                 <div>
-                  <div className="text-sm text-gray-500">First Name</div>
-                  <input className={inputClass} value={data.first_name} onChange={e=>setData({...data, first_name:e.target.value})}/>
+                  <div className="text-sm text-gray-500">First Name <span className="text-red-500">*</span></div>
+                  <input className={getInputClass('first_name')} value={data.first_name} onChange={e=>handleFieldChange('first_name', e.target.value)}/>
+                  <FieldError fieldName="first_name" fieldErrors={fieldErrors} />
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Middle Name</div>
-                  <input className={inputClass} value={data.middle_name} onChange={e=>setData({...data, middle_name:e.target.value})}/>
+                  <input className={getInputClass('middle_name')} value={data.middle_name} onChange={e=>handleFieldChange('middle_name', e.target.value)}/>
+                  <FieldError fieldName="middle_name" fieldErrors={fieldErrors} />
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Suffix</div>
-                  <input className={inputClass} value={data.suffix} onChange={e=>setData({...data, suffix:e.target.value})}/>
+                  <input className={getInputClass('suffix')} value={data.suffix} onChange={e=>handleFieldChange('suffix', e.target.value)}/>
+                  <FieldError fieldName="suffix" fieldErrors={fieldErrors} />
                 </div>
                 <div>
-                  <div className="text-sm text-gray-500">Gender</div>
-                  <SmoothSelect value={data.gender} onChange={v => setData({ ...data, gender: v })} options={genderOptions} buttonClassName={selectClass} />
+                  <div className="text-sm text-gray-500">Gender <span className="text-red-500">*</span></div>
+                  <SmoothSelect value={data.gender} onChange={v => handleFieldChange('gender', v)} options={genderOptions} buttonClassName={getSelectClass('gender')} />
+                  <FieldError fieldName="gender" fieldErrors={fieldErrors} />
                 </div>
                 <div>
-                  <div className="text-sm text-gray-500">Barangay</div>
+                  <div className="text-sm text-gray-500">Barangay <span className="text-red-500">*</span></div>
                   <SmoothSelect
                     value={data.barangay}
-                    onChange={v => setData({ ...data, barangay: v })}
+                    onChange={v => handleFieldChange('barangay', v)}
                     options={barangayOptions}
-                    buttonClassName={selectClass}
+                    buttonClassName={getSelectClass('barangay')}
                   />
+                  <FieldError fieldName="barangay" fieldErrors={fieldErrors} />
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Purok</div>
                   <SmoothSelect
                     value={data.purok}
-                    onChange={v => setData({ ...data, purok: v })}
+                    onChange={v => handleFieldChange('purok', v)}
                     options={purokSelectOptions}
-                    buttonClassName={selectClass}
+                    buttonClassName={getSelectClass('purok')}
                     disabled={!data.barangay || purokOptions.length === 0}
                   />
+                  <FieldError fieldName="purok" fieldErrors={fieldErrors} />
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Street</div>
-                  <input className={inputClass} value={data.street} onChange={e=>setData({...data, street:e.target.value})}/>
+                  <input className={getInputClass('street')} value={data.street} onChange={e=>handleFieldChange('street', e.target.value)}/>
+                  <FieldError fieldName="street" fieldErrors={fieldErrors} />
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Tag Number</div>
@@ -1175,7 +1455,10 @@ export default function SurveyForm() {
                   <div className="text-sm text-gray-500">Religion</div>
                   <SmoothSelect
                     value={data.religion}
-                    onChange={v => setData({ ...data, religion: v })}
+                    onChange={v => {
+                      handleFieldChange('religion', v)
+                      setData({ ...data, religion: v, other_religion: v !== 'Other' ? '' : data.other_religion })
+                    }}
                     options={buildOptions([
                       'Roman_Catholic',
                       'Islam',
@@ -1185,40 +1468,63 @@ export default function SurveyForm() {
                       'United_Church_of_Christ_in_the_Philippines',
                       "Jehovah's_Witnesses",
                       'Church_of_Christ',
+                      'Other',
                     ])}
-                    buttonClassName={selectClass}
+                    buttonClassName={getSelectClass('religion')}
                   />
+                  <FieldError fieldName="religion" fieldErrors={fieldErrors} />
+                  <OtherSpecifyField
+                    parentValue={data.religion}
+                    value={data.other_religion}
+                    onChange={(val) => handleFieldChange('other_religion', val)}
+                    placeholder="Specify your religion"
+                    inputClassName={getInputClass('other_religion')}
+                  />
+                  <FieldError fieldName="other_religion" fieldErrors={fieldErrors} />
                 </div>
-                <div><div className="text-sm text-gray-500">Birth Place</div><input className={inputClass} value={data.birth_place} onChange={e=>setData({...data, birth_place:e.target.value})}/></div>
-                <div><div className="text-sm text-gray-500">Birth Date</div><input type="date" className={inputClass} value={data.birth_date} onChange={e=>setData({...data, birth_date:e.target.value})}/></div>
-                <div><div className="text-sm text-gray-500">Age</div><input type="number" className={readOnlyInputClass} value={data.person_age} readOnly /></div>
                 <div>
-                  <div className="text-sm text-gray-500">Marital Status</div>
+                  <div className="text-sm text-gray-500">Birth Place</div>
+                  <input className={getInputClass('birth_place')} value={data.birth_place} onChange={e=>handleFieldChange('birth_place', e.target.value)}/>
+                  <FieldError fieldName="birth_place" fieldErrors={fieldErrors} />
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500">Birth Date <span className="text-red-500">*</span></div>
+                  <input type="date" className={getInputClass('birth_date')} value={data.birth_date} onChange={e=>handleFieldChange('birth_date', e.target.value)}/>
+                  <FieldError fieldName="birth_date" fieldErrors={fieldErrors} />
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500">Age</div>
+                  <input type="number" className={readOnlyInputClass} value={data.person_age} readOnly />
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500">Marital Status <span className="text-red-500">*</span></div>
                   <SmoothSelect
                     value={data.marital_status}
-                    onChange={v => setData({ ...data, marital_status: v })}
+                    onChange={v => handleFieldChange('marital_status', v)}
                     options={civilStatusOptions}
-                    buttonClassName={selectClass}
+                    buttonClassName={getSelectClass('marital_status')}
                   />
+                  <FieldError fieldName="marital_status" fieldErrors={fieldErrors} />
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Contact Number</div>
                   <input
-                    className={inputClass}
+                    className={getInputClass('contact_number')}
                     value={data.contact_number}
                     maxLength={11}
                     onChange={e => {
                       const raw = e.target.value || ''
                       const digits = raw.replace(/\D/g, '').slice(0, 11)
-                      setData({ ...data, contact_number: digits })
+                      handleFieldChange('contact_number', digits)
                     }}
                   />
+                  <FieldError fieldName="contact_number" fieldErrors={fieldErrors} />
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Language</div>
                   <SmoothSelect
                     value={data.language_spoken}
-                    onChange={v => setData({ ...data, language_spoken: v })}
+                    onChange={v => handleFieldChange('language_spoken', v)}
                     options={buildOptions([
                       'Cebuano (Bisaya)',
                       'Tagalog (Filipino)',
@@ -1233,14 +1539,18 @@ export default function SurveyForm() {
                       'Kalagan/Kagan',
                       'Others',
                     ])}
-                    buttonClassName={selectClass}
+                    buttonClassName={getSelectClass('language_spoken')}
                   />
+                  <FieldError fieldName="language_spoken" fieldErrors={fieldErrors} />
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Tribe/Ethnicity</div>
                   <SmoothSelect
                     value={data.tribe}
-                    onChange={v => setData({ ...data, tribe: v })}
+                    onChange={v => {
+                      handleFieldChange('tribe', v)
+                      setData({ ...data, tribe: v, other_tribe: v !== 'Others' ? '' : data.other_tribe })
+                    }}
                     options={buildOptions([
                       'Cebuano/Bisaya',
                       'Bagobo',
@@ -1256,20 +1566,39 @@ export default function SurveyForm() {
                       'Leyteño',
                       'Others',
                     ])}
-                    buttonClassName={selectClass}
+                    buttonClassName={getSelectClass('tribe')}
                   />
+                  <FieldError fieldName="tribe" fieldErrors={fieldErrors} />
+                  <OtherSpecifyField
+                    parentValue={data.tribe}
+                    triggerValue="Others"
+                    value={data.other_tribe || ''}
+                    onChange={(val) => handleFieldChange('other_tribe', val)}
+                    placeholder="Specify your tribe/ethnicity"
+                    inputClassName={getInputClass('other_tribe')}
+                  />
+                  <FieldError fieldName="other_tribe" fieldErrors={fieldErrors} />
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Highest Education</div>
                   <SmoothSelect
                     value={data.highest_education}
-                    onChange={v => setData({ ...data, highest_education: v })}
+                    onChange={v => handleFieldChange('highest_education', v)}
                     options={educationOptions}
-                    buttonClassName={selectClass}
+                    buttonClassName={getSelectClass('highest_education')}
                   />
+                  <FieldError fieldName="highest_education" fieldErrors={fieldErrors} />
                 </div>
-                <div><div className="text-sm text-gray-500">School Last Attended</div><input className={inputClass} value={data.last_school_attended} onChange={e=>setData({...data, last_school_attended:e.target.value})}/></div>
-                <div><div className="text-sm text-gray-500">Year Graduated</div><input className={inputClass} value={data.year_graduated} onChange={e=>setData({...data, year_graduated:e.target.value})}/></div>
+                <div>
+                  <div className="text-sm text-gray-500">School Last Attended</div>
+                  <input className={getInputClass('last_school_attended')} value={data.last_school_attended} onChange={e=>handleFieldChange('last_school_attended', e.target.value)}/>
+                  <FieldError fieldName="last_school_attended" fieldErrors={fieldErrors} />
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500">Year Graduated</div>
+                  <input className={getInputClass('year_graduated')} value={data.year_graduated} onChange={e=>handleFieldChange('year_graduated', e.target.value)}/>
+                  <FieldError fieldName="year_graduated" fieldErrors={fieldErrors} />
+                </div>
               </div>
 
               {spouseEnabled && (
@@ -1279,16 +1608,20 @@ export default function SurveyForm() {
                     <div>
                       <div className="text-sm text-gray-500">Spouse Name</div>
                       <input
-                        className={inputClass}
+                        className={getInputClass('spouse_name')}
                         value={data.spouse_name}
-                        onChange={e => setData({ ...data, spouse_name: e.target.value })}
+                        onChange={e => handleFieldChange('spouse_name', e.target.value)}
                       />
+                      <FieldError fieldName="spouse_name" fieldErrors={fieldErrors} />
                     </div>
                     <div>
                       <div className="text-sm text-gray-500">Spouse Religion</div>
                       <SmoothSelect
                         value={data.spouse_religion}
-                        onChange={v => setData({ ...data, spouse_religion: v })}
+                        onChange={v => {
+                          handleFieldChange('spouse_religion', v)
+                          setData({ ...data, spouse_religion: v, other_spouse_religion: v !== 'Other' ? '' : data.other_spouse_religion })
+                        }}
                         options={buildOptions([
                           'Roman_Catholic',
                           'Islam',
@@ -1298,15 +1631,28 @@ export default function SurveyForm() {
                           'United_Church_of_Christ_in_the_Philippines',
                           "Jehovah's_Witnesses",
                           'Church_of_Christ',
+                          'Other',
                         ])}
-                        buttonClassName={selectClass}
+                        buttonClassName={getSelectClass('spouse_religion')}
                       />
+                      <FieldError fieldName="spouse_religion" fieldErrors={fieldErrors} />
+                      <OtherSpecifyField
+                        parentValue={data.spouse_religion}
+                        value={data.other_spouse_religion}
+                        onChange={(val) => handleFieldChange('other_spouse_religion', val)}
+                        placeholder="Specify spouse religion"
+                        inputClassName={getInputClass('other_spouse_religion')}
+                      />
+                      <FieldError fieldName="other_spouse_religion" fieldErrors={fieldErrors} />
                     </div>
                     <div>
                       <div className="text-sm text-gray-500">Spouse Tribe/Ethnicity</div>
                       <SmoothSelect
                         value={data.spouse_tribe}
-                        onChange={v => setData({ ...data, spouse_tribe: v })}
+                        onChange={v => {
+                          handleFieldChange('spouse_tribe', v)
+                          setData({ ...data, spouse_tribe: v, other_spouse_tribe: v !== 'Others' ? '' : data.other_spouse_tribe })
+                        }}
                         options={buildOptions([
                           'Cebuano/Bisaya',
                           'Bagobo',
@@ -1322,26 +1668,38 @@ export default function SurveyForm() {
                           'Leyteño',
                           'Others',
                         ])}
-                        buttonClassName={selectClass}
+                        buttonClassName={getSelectClass('spouse_tribe')}
                       />
+                      <FieldError fieldName="spouse_tribe" fieldErrors={fieldErrors} />
+                      <OtherSpecifyField
+                        parentValue={data.spouse_tribe}
+                        triggerValue="Others"
+                        value={data.other_spouse_tribe || ''}
+                        onChange={(val) => handleFieldChange('other_spouse_tribe', val)}
+                        placeholder="Specify spouse tribe/ethnicity"
+                        inputClassName={getInputClass('other_spouse_tribe')}
+                      />
+                      <FieldError fieldName="other_spouse_tribe" fieldErrors={fieldErrors} />
                     </div>
                     <div>
                       <div className="text-sm text-gray-500">Spouse Age</div>
                       <input
                         type="number"
-                        className={inputClass}
+                        className={getInputClass('spouse_age')}
                         value={data.spouse_age}
-                        onChange={e => setData({ ...data, spouse_age: e.target.value })}
+                        onChange={e => handleFieldChange('spouse_age', e.target.value)}
                       />
+                      <FieldError fieldName="spouse_age" fieldErrors={fieldErrors} />
                     </div>
                     <div>
                       <div className="text-sm text-gray-500">Spouse Gender</div>
                       <SmoothSelect
                         value={data.spouse_gender}
-                        onChange={v => setData({ ...data, spouse_gender: v })}
+                        onChange={v => handleFieldChange('spouse_gender', v)}
                         options={genderOptions}
-                        buttonClassName={selectClass}
+                        buttonClassName={getSelectClass('spouse_gender')}
                       />
+                      <FieldError fieldName="spouse_gender" fieldErrors={fieldErrors} />
                     </div>
                   </div>
                 </div>
@@ -1584,26 +1942,41 @@ export default function SurveyForm() {
                     value={data.housing_structure}
                     onChange={v => setData({ ...data, housing_structure: v, other_housing_structure: '' })}
                     options={buildOptions([
-                      'Full_Concrete',
-                      'Made_of_wood_and_metal_roof',
+                      'Makeshift/Salvaged/Improvised_material',
                       'Made_of_Amakan_and_Nipa',
-                      'Combination_of_concrete_and_wood',
                       'Made_of_Amakan_and_metal_roof',
+                      'Made_of_wood_and_metal_roof',
+                      'Combination_of_concrete_and_wood',
+                      'Full_Concrete',
                       'Others',
                     ])}
                     buttonClassName={selectClass}
                   />
-                  {data.housing_structure === 'Others' && <input className={'mt-2 '+inputClass} placeholder="Please specify" value={data.other_housing_structure} onChange={e=>setData({...data, other_housing_structure:e.target.value})}/>}
+                  <OtherSpecifyField
+                    parentValue={data.housing_structure}
+                    triggerValue="Others"
+                    value={data.other_housing_structure}
+                    onChange={(val) => setData({ ...data, other_housing_structure: val })}
+                    placeholder="Please specify"
+                    inputClassName={inputClass}
+                  />
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Type of Toilet</div>
                   <SmoothSelect
                     value={data.type_of_toilet}
                     onChange={v => setData({ ...data, type_of_toilet: v, other_type_of_toilet: '' })}
-                    options={buildOptions(['Water-sealed', 'Pit', 'None', 'Others'])}
+                    options={buildOptions(['No_Toilet', 'Open_Pit/Antipolo', 'Water_Sealed', 'Others'])}
                     buttonClassName={selectClass}
                   />
-                  {data.type_of_toilet === 'Others' && <input className={'mt-2 '+inputClass} placeholder="Please specify" value={data.other_type_of_toilet} onChange={e=>setData({...data, other_type_of_toilet:e.target.value})}/>}
+                  <OtherSpecifyField
+                    parentValue={data.type_of_toilet}
+                    triggerValue="Others"
+                    value={data.other_type_of_toilet}
+                    onChange={(val) => setData({ ...data, other_type_of_toilet: val })}
+                    placeholder="Please specify"
+                    inputClassName={inputClass}
+                  />
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Source of Water</div>
@@ -1613,7 +1986,14 @@ export default function SurveyForm() {
                     options={sourceOfWaterOptions}
                     buttonClassName={selectClass}
                   />
-                  {data.source_of_water === 'Others' && <input className={'mt-2 '+inputClass} placeholder="Please specify" value={data.other_source_of_water} onChange={e=>setData({...data, other_source_of_water:e.target.value})}/>}
+                  <OtherSpecifyField
+                    parentValue={data.source_of_water}
+                    triggerValue="Others"
+                    value={data.other_source_of_water}
+                    onChange={(val) => setData({ ...data, other_source_of_water: val })}
+                    placeholder="Please specify"
+                    inputClassName={inputClass}
+                  />
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Source of Electricity</div>
@@ -1623,7 +2003,14 @@ export default function SurveyForm() {
                     options={sourceOfElectricityOptions}
                     buttonClassName={selectClass}
                   />
-                  {data.source_of_electricity === 'Others' && <input className={'mt-2 '+inputClass} placeholder="Please specify" value={data.other_source_of_electricity} onChange={e=>setData({...data, other_source_of_electricity:e.target.value})}/>}
+                  <OtherSpecifyField
+                    parentValue={data.source_of_electricity}
+                    triggerValue="Others"
+                    value={data.other_source_of_electricity}
+                    onChange={(val) => setData({ ...data, other_source_of_electricity: val })}
+                    placeholder="Please specify"
+                    inputClassName={inputClass}
+                  />
                 </div>
               </div>
               </div>
@@ -1639,7 +2026,10 @@ export default function SurveyForm() {
                   <div className="text-sm text-gray-500">Main Income Source</div>
                   <SmoothSelect
                     value={data.main_income_source}
-                    onChange={v => setData({ ...data, main_income_source: v, other_main_income_source: '' })}
+                    onChange={v => {
+                      handleFieldChange('main_income_source', v)
+                      setData({ ...data, main_income_source: v, other_main_income_source: '' })
+                    }}
                     options={[
                       { value: '', label: '- select here -' },
                       { value: 'Public_Employee', label: 'Employee (Public)' },
@@ -1648,55 +2038,78 @@ export default function SurveyForm() {
                       { value: 'Casual', label: 'Casual' },
                       { value: 'others', label: 'Others' },
                     ]}
-                    buttonClassName={selectClass}
+                    buttonClassName={getSelectClass('main_income_source')}
                   />
-                  {data.main_income_source === 'others' && <input className={'mt-2 '+inputClass} placeholder="Please specify" value={data.other_main_income_source} onChange={e=>setData({...data, other_main_income_source:e.target.value})}/>}
+                  <FieldError fieldName="main_income_source" fieldErrors={fieldErrors} />
+                  <OtherSpecifyField
+                    parentValue={data.main_income_source}
+                    triggerValue="others"
+                    value={data.other_main_income_source}
+                    onChange={(val) => handleFieldChange('other_main_income_source', val)}
+                    placeholder="Please specify"
+                    inputClassName={getInputClass('other_main_income_source')}
+                  />
+                  <FieldError fieldName="other_main_income_source" fieldErrors={fieldErrors} />
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Work Status</div>
                   <SmoothSelect
                     value={data.work_status}
-                    onChange={v => setData({ ...data, work_status: v, other_work_status: '' })}
+                    onChange={v => {
+                      handleFieldChange('work_status', v)
+                      setData({ ...data, work_status: v, other_work_status: '' })
+                    }}
                     options={[
                       { value: '', label: '- select here -' },
                       { value: 'Regular', label: 'Regular' },
                       { value: 'Contractual', label: 'Contractual' },
                       { value: 'others', label: 'Others' },
                     ]}
-                    buttonClassName={selectClass}
+                    buttonClassName={getSelectClass('work_status')}
                   />
-                  {data.work_status === 'others' && <input className={'mt-2 '+inputClass} placeholder="Please specify" value={data.other_work_status} onChange={e=>setData({...data, other_work_status:e.target.value})}/>}
+                  <FieldError fieldName="work_status" fieldErrors={fieldErrors} />
+                  <OtherSpecifyField
+                    parentValue={data.work_status}
+                    triggerValue="others"
+                    value={data.other_work_status}
+                    onChange={(val) => handleFieldChange('other_work_status', val)}
+                    placeholder="Please specify"
+                    inputClassName={getInputClass('other_work_status')}
+                  />
+                  <FieldError fieldName="other_work_status" fieldErrors={fieldErrors} />
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Work Location</div>
                   <SmoothSelect
                     value={data.work_location_head}
-                    onChange={v => setData({ ...data, work_location_head: v })}
+                    onChange={v => handleFieldChange('work_location_head', v)}
                     options={buildOptions([
                       'Within the Barangay',
                       'Within the City/Municipality',
                       'Within the Province',
                       'Within the Country',
                     ])}
-                    buttonClassName={selectClass}
+                    buttonClassName={getSelectClass('work_location_head')}
                   />
+                  <FieldError fieldName="work_location_head" fieldErrors={fieldErrors} />
                 </div>
                 <div>
-                  <div className="text-sm text-gray-500">Monthly Salary</div>
+                  <div className="text-sm text-gray-500">Monthly Salary <span className="text-red-500">*</span></div>
                   <SmoothSelect
                     value={data.monthly_salary}
-                    onChange={v => setData({ ...data, monthly_salary: v })}
+                    onChange={v => handleFieldChange('monthly_salary', v)}
                     options={incomeOptions}
-                    buttonClassName={selectClass}
+                    buttonClassName={getSelectClass('monthly_salary')}
                   />
+                  <FieldError fieldName="monthly_salary" fieldErrors={fieldErrors} />
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Combined Household Income</div>
-                  <SmoothSelect
-                    value={data.combine_monthly_income}
-                    onChange={v => setData({ ...data, combine_monthly_income: v })}
-                    options={incomeOptions}
-                    buttonClassName={selectClass}
+                  <input 
+                    className={readOnlyInputClass} 
+                    value={data.combine_monthly_income} 
+                    readOnly 
+                    placeholder="Auto-calculated from household head and members"
                   />
                 </div>
               </div>
@@ -1713,17 +2126,24 @@ export default function SurveyForm() {
                   <div className="text-sm text-gray-500">Skills for Living</div>
                   <SmoothSelect
                     value={data.skills_for_living}
-                    onChange={v => setData({ ...data, skills_for_living: v, specific_skill: '', other_skill: '' })}
+                    onChange={v => {
+                      handleFieldChange('skills_for_living', v)
+                      setData({ ...data, skills_for_living: v, specific_skill: '', other_skill: '' })
+                    }}
                     options={yesNoOptions}
-                    buttonClassName={selectClass}
+                    buttonClassName={getSelectClass('skills_for_living')}
                   />
+                  <FieldError fieldName="skills_for_living" fieldErrors={fieldErrors} />
                 </div>
                 {data.skills_for_living === 'Yes' && (
                   <div>
                     <div className="text-sm text-gray-500">Specific Skill</div>
                     <SmoothSelect
                       value={data.specific_skill}
-                      onChange={v => setData({ ...data, specific_skill: v, other_skill: '' })}
+                      onChange={v => {
+                        handleFieldChange('specific_skill', v)
+                        setData({ ...data, specific_skill: v, other_skill: '' })
+                      }}
                       options={[
                         { value: '', label: '- select skill -' },
                         { value: 'Handicrafts', label: 'Handicrafts' },
@@ -1731,57 +2151,69 @@ export default function SurveyForm() {
                         { value: 'Food_Processing', label: 'Food Processing' },
                         { value: 'others', label: 'Others' },
                       ]}
-                      buttonClassName={selectClass}
+                      buttonClassName={getSelectClass('specific_skill')}
                     />
-                    {data.specific_skill === 'others' && (
-                      <input
-                        className={'mt-2 ' + inputClass}
-                        placeholder="Please specify"
-                        value={data.other_skill}
-                        onChange={e => setData({ ...data, other_skill: e.target.value })}
-                      />
-                    )}
+                    <FieldError fieldName="specific_skill" fieldErrors={fieldErrors} />
+                    <OtherSpecifyField
+                      parentValue={data.specific_skill}
+                      triggerValue="others"
+                      value={data.other_skill}
+                      onChange={(val) => handleFieldChange('other_skill', val)}
+                      placeholder="Please specify"
+                      inputClassName={getInputClass('other_skill')}
+                    />
+                    <FieldError fieldName="other_skill" fieldErrors={fieldErrors} />
                   </div>
                 )}
                 <div>
                   <div className="text-sm text-gray-500">Organization Member</div>
                   <SmoothSelect
                     value={data.organization_member}
-                    onChange={v => setData({ ...data, organization_member: v, specific_organization: '', other_organization: '' })}
+                    onChange={v => {
+                      handleFieldChange('organization_member', v)
+                      setData({ ...data, organization_member: v, specific_organization: '', other_organization: '' })
+                    }}
                     options={yesNoOptions}
-                    buttonClassName={selectClass}
+                    buttonClassName={getSelectClass('organization_member')}
                   />
+                  <FieldError fieldName="organization_member" fieldErrors={fieldErrors} />
                 </div>
                 {data.organization_member === 'Yes' && (
                   <div>
                     <div className="text-sm text-gray-500">Organization</div>
                     <SmoothSelect
                       value={data.specific_organization}
-                      onChange={v => setData({ ...data, specific_organization: v, other_organization: '' })}
+                      onChange={v => {
+                        handleFieldChange('specific_organization', v)
+                        setData({ ...data, specific_organization: v, other_organization: '' })
+                      }}
                       options={[
-                        { value: '', label: '- select -' },
+                        { value: '', label: '' },
                         { value: 'HOA', label: 'HOA' },
                         { value: 'Youth_Organization', label: 'Youth Organization' },
                         { value: 'Dayong', label: 'Dayong' },
                         { value: 'Womens_Organization', label: "Women's Organization" },
                         { value: 'others', label: 'Others' },
                       ]}
-                      buttonClassName={selectClass}
+                      buttonClassName={getSelectClass('specific_organization')}
                     />
-                    {data.specific_organization === 'others' && (
-                      <input
-                        className={'mt-2 ' + inputClass}
-                        placeholder="Please specify"
-                        value={data.other_organization}
-                        onChange={e => setData({ ...data, other_organization: e.target.value })}
-                      />
-                    )}
+                    <FieldError fieldName="specific_organization" fieldErrors={fieldErrors} />
+                    <OtherSpecifyField
+                      parentValue={data.specific_organization}
+                      triggerValue="others"
+                      value={data.other_organization}
+                      onChange={(val) => handleFieldChange('other_organization', val)}
+                      placeholder="Please specify"
+                      inputClassName={getInputClass('other_organization')}
+                    />
+                    <FieldError fieldName="other_organization" fieldErrors={fieldErrors} />
                   </div>
                 )}
               </div>
               <div>
                 <div className="text-sm text-gray-500">Skills you want to learn</div>
-                <input className={inputClass} value={data.wanttolearn} onChange={e=>setData({...data, wanttolearn:e.target.value})}/>
+                <input className={getInputClass('wanttolearn')} value={data.wanttolearn} onChange={e=>handleFieldChange('wanttolearn', e.target.value)}/>
+                <FieldError fieldName="wanttolearn" fieldErrors={fieldErrors} />
               </div>
               </div>
             </div>
@@ -1794,14 +2226,16 @@ export default function SurveyForm() {
               <div>
                 <div className="text-sm text-gray-500">House Photo</div>
                 {existingHousePhotoUrl && !housePhoto && <img src={existingHousePhotoUrl} alt="House photo" className="mt-2 w-40 h-40 object-cover rounded border" />}
-                <input type="file" accept="image/*" className={fileInputClass} onChange={e=>setHousePhoto(e.target.files?.[0] || null)} />
+                <input type="file" accept="image/*" className={getFileInputClass('house_photo')} onChange={e=>setHousePhoto(e.target.files?.[0] || null)} />
                 {housePhoto?.name && <div className="mt-1 text-xs text-gray-500 truncate">Selected: {housePhoto.name}</div>}
+                <FieldError fieldName="house_photo" fieldErrors={fieldErrors} />
               </div>
               <div>
                 <div className="text-sm text-gray-500">Respondent Photo</div>
                 {existingPersonPhotoUrl && !personPhoto && <img src={existingPersonPhotoUrl} alt="Respondent photo" className="mt-2 w-40 h-40 object-cover rounded border" />}
-                <input type="file" accept="image/*" className={fileInputClass} onChange={e=>setPersonPhoto(e.target.files?.[0] || null)} />
+                <input type="file" accept="image/*" className={getFileInputClass('person_photo')} onChange={e=>setPersonPhoto(e.target.files?.[0] || null)} />
                 {personPhoto?.name && <div className="mt-1 text-xs text-gray-500 truncate">Selected: {personPhoto.name}</div>}
+                <FieldError fieldName="person_photo" fieldErrors={fieldErrors} />
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -1821,12 +2255,14 @@ export default function SurveyForm() {
                 </div>
                 <div>
                   <div className="text-sm text-gray-500">Date Interviewed</div>
-                  <input type="date" className={inputClass} value={data.date_interviewed} onChange={e=>setData({...data, date_interviewed:e.target.value})}/>
+                  <input type="date" className={getInputClass('date_interviewed')} value={data.date_interviewed} onChange={e=>handleFieldChange('date_interviewed', e.target.value)}/>
+                  <FieldError fieldName="date_interviewed" fieldErrors={fieldErrors} />
                 </div>
               </div>
               <div>
                 <div className="text-sm text-gray-500">Remarks</div>
-                <textarea className={inputClass} rows={4} value={data.remarks} onChange={e=>setData({...data, remarks:e.target.value})}/>
+                <textarea className={getInputClass('remarks')} rows={4} value={data.remarks} onChange={e=>handleFieldChange('remarks', e.target.value)}/>
+                <FieldError fieldName="remarks" fieldErrors={fieldErrors} />
               </div>
               <div className="grid grid-cols-1 gap-6">
                 <div>

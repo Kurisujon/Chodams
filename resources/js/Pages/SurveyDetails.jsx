@@ -103,6 +103,30 @@ export default function SurveyDetails() {
     }
   }
 
+  async function handleRevalidate() {
+    if (!window.confirm('Are you sure you want to send this survey back for revalidation? It will be returned to the validator.')) return
+    try {
+      const res = await axios.post(`/admin/api/beneficiaries/${surveyId}/revalidate`)
+      if (res.data.success) {
+        window.location.href = '/admin/beneficiaries'
+      }
+    } catch (e) {
+      setError(e?.response?.data?.message || 'Failed to send for revalidation')
+    }
+  }
+
+  async function handleDisapprove() {
+    if (!window.confirm('Are you sure you want to disapprove this survey? This action will mark it as disapproved.')) return
+    try {
+      const res = await axios.post(`/admin/api/beneficiaries/${surveyId}/disapprove`)
+      if (res.data.success) {
+        window.location.href = '/admin/beneficiaries'
+      }
+    } catch (e) {
+      setError(e?.response?.data?.message || 'Failed to disapprove survey')
+    }
+  }
+
   useEffect(() => {
     let mounted = true
     axios.get(`${apiBase}/survey/${surveyId}`)
@@ -157,60 +181,129 @@ export default function SurveyDetails() {
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="max-w-6xl mx-auto p-6 print:max-w-none print:p-0 print:m-0">
-          <div className="flex justify-between items-center mb-6 print:hidden">
-            <h1 className="text-2xl font-semibold text-emerald-800">Survey Form Details</h1>
-            <div className="flex flex-wrap gap-2">
-              <Link
-                href={isAdmin ? '/admin/beneficiaries' : '/validator/dashboard'}
-                className={buttonGhostClass}
-              >
-                Back
-              </Link>
-              <button
-                onClick={() => window.print()}
-                className={buttonPrimaryClass}
-              >
-                Print
-              </button>
-              <a
-                href={`${apiBase}/survey/${surveyId}/export`}
-                className="inline-flex items-center justify-center rounded-2xl bg-white px-3 py-2 text-sm font-medium text-emerald-700 ring-2 ring-emerald-300 hover:ring-emerald-400 hover:bg-emerald-50"
-                title="Download Excel"
-              >
-                <img src="/icons/downloadicon.png" alt="Download" className="w-5 h-5" />
-              </a>
-              {isAdmin && survey?.is_submitted !== 2 && (
-                <button
-                  onClick={handleApprove}
-                  className={buttonPrimaryClass}
+          {/* Header Section */}
+          <div className="mb-6 print:hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              {/* Left: Back button and title */}
+              <div className="flex items-center gap-3">
+                <Link
+                  href={isAdmin ? '/admin/beneficiaries' : '/validator/dashboard'}
+                  className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-emerald-700 transition-colors"
+                  title="Go Back"
                 >
-                  Approve
-                </button>
-              )}
-              {!isAdmin && (survey?.is_submitted === 0) && (
-                <>
-                  <Link
-                    href={`/validator/survey-form?survey_id=${surveyId}`}
-                    className={buttonGhostClass}
-                  >
-                    Edit
-                  </Link>
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                  </svg>
+                </Link>
+                <div>
+                  <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Survey Details</h1>
+                  <p className="text-sm text-gray-500">ID: {surveyId}</p>
+                </div>
+              </div>
+              
+              {/* Right: Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Utility Actions - Print & Export */}
+                <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-xl">
                   <button
-                    onClick={async () => {
-                      if (!confirm('Delete this survey? You can restore it later.')) return
-                      try {
-                        await axios.delete(`/validator/api/survey/${surveyId}`)
-                        window.location.href = '/validator/dashboard'
-                      } catch (e) {
-                        alert(e?.response?.data?.message || 'Delete failed')
-                      }
-                    }}
-                    className={buttonDangerClass}
+                    onClick={() => window.print()}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-white hover:shadow-sm transition-all"
+                    title="Print Survey"
                   >
-                    Delete
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6 9 6 2 18 2 18 9"/>
+                      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+                      <rect x="6" y="14" width="12" height="8"/>
+                    </svg>
+                    <span className="hidden sm:inline">Print</span>
                   </button>
-                </>
-              )}
+                  <a
+                    href={`${apiBase}/survey/${surveyId}/export`}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-white hover:shadow-sm transition-all"
+                    title="Export to Excel"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="7 10 12 15 17 10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    <span className="hidden sm:inline">Export</span>
+                  </a>
+                </div>
+
+                {/* Admin Decision Actions */}
+                {isAdmin && survey?.is_submitted === 1 && (
+                  <div className="flex items-center gap-2 pl-2 border-l border-gray-300">
+                    <button
+                      onClick={handleDisapprove}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 hover:border-red-300 transition-all"
+                      title="Disapprove Survey"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="m15 9-6 6"/>
+                        <path d="m9 9 6 6"/>
+                      </svg>
+                      <span className="hidden sm:inline">Disapprove</span>
+                    </button>
+                    <button
+                      onClick={handleRevalidate}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 transition-all"
+                      title="Send Back for Revalidation"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                        <path d="M3 3v5h5"/>
+                      </svg>
+                      <span className="hidden sm:inline">Revalidate</span>
+                    </button>
+                    <button
+                      onClick={handleApprove}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm hover:shadow transition-all"
+                      title="Approve Survey"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                      <span>Approve</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Validator Actions */}
+                {!isAdmin && (survey?.is_submitted === 0) && (
+                  <div className="flex items-center gap-2 pl-2 border-l border-gray-300">
+                    <Link
+                      href={`/validator/survey-form?survey_id=${surveyId}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 transition-all"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                      </svg>
+                      <span>Edit</span>
+                    </Link>
+                    <button
+                      onClick={async () => {
+                        if (!confirm('Delete this survey? You can restore it later.')) return
+                        try {
+                          await axios.delete(`/validator/api/survey/${surveyId}`)
+                          window.location.href = '/validator/dashboard'
+                        } catch (e) {
+                          alert(e?.response?.data?.message || 'Delete failed')
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 hover:border-red-300 transition-all"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                      </svg>
+                      <span>Delete</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         <style>{`

@@ -50,7 +50,7 @@ export default function AdminTable({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto overflow-y-hidden border border-gray-100 rounded-2xl">
+      <div className="overflow-visible border border-gray-100 rounded-2xl">
         <table className="min-w-full text-sm">
           <thead className="bg-white">
             <tr className="border-b border-gray-100">

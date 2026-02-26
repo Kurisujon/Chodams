@@ -3,7 +3,7 @@ import laravel from 'laravel-vite-plugin';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
-    base: '/Chodams/', // add this line
+    base: '/', // Changed from '/Chodams/' since app is at domain root
     plugins: [
         laravel({
             input: 'resources/js/app.jsx',

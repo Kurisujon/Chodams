@@ -98,7 +98,7 @@ export default function ValidatorDashboard() {
   const [selectedSurveyIds, setSelectedSurveyIds] = useState([])
   const [batchConfirm, setBatchConfirm] = useState({ open: false, ids: [] })
   const barangays = [
-    'Aplaya','Balabag','Binaton','Cogon','Colorado','Dawis','Dulangan','Goma','Igpit','Kapatagan','Kiagot','Lungag','Mahayahay','Matti','Ruparan','San_Agustin','San_Jose','San_Miguel','San_Roque','Sinawilan','Soong','Tiguman','Tres_De_Mayo','Zone_1','Zone_2','Zone_3'
+    'Aplaya','Balabag','Binaton','Cogon','Colorado','Dawis','Dulangan','Goma','Igpit','Kapatagan','Kiagot','Lungag','Mahayahay','Matti','Ruparan','San_Agustin','San_Jose','San_Miguel','San_Roque','Sinawilan','Soong','Tiguman','Tres_De_Mayo','Zone_I','Zone_II','Zone_III'
   ]
 
   const csrf = () => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
@@ -113,22 +113,32 @@ export default function ValidatorDashboard() {
 
   useEffect(() => {
     fetchTotals()
-    fetchSurveys(1)
-    fetchSubmitted(1)
-    fetchDeleted(1)
+    fetchSurveys(1, '', barangayFilter, exportClass)
+    fetchSubmitted(1, '', barangayFilter, exportClass)
+    fetchDeleted(1, '', barangayFilter, exportClass)
   }, [])
 
   useEffect(() => {
     const t = setTimeout(() => {
-      fetchSurveys(1, search)
+      fetchSurveys(1, search, barangayFilter, exportClass)
       setSurveys(prev => ({ ...prev, page: 1 }))
-      fetchSubmitted(1, search)
+      fetchSubmitted(1, search, barangayFilter, exportClass)
       setSubmitted(prev => ({ ...prev, page: 1 }))
-      fetchDeleted(1, search)
+      fetchDeleted(1, search, barangayFilter, exportClass)
       setDeleted(prev => ({ ...prev, page: 1 }))
     }, 300)
     return () => clearTimeout(t)
   }, [search])
+
+  // Reset to page 1 when filters change and refetch data
+  useEffect(() => {
+    fetchSurveys(1, search, barangayFilter, exportClass)
+    setSurveys(prev => ({ ...prev, page: 1 }))
+    fetchSubmitted(1, search, barangayFilter, exportClass)
+    setSubmitted(prev => ({ ...prev, page: 1 }))
+    fetchDeleted(1, search, barangayFilter, exportClass)
+    setDeleted(prev => ({ ...prev, page: 1 }))
+  }, [barangayFilter, exportClass])
 
   async function fetchTotals() {
     try {
@@ -137,22 +147,46 @@ export default function ValidatorDashboard() {
     } catch (e) { console.error(e) }
   }
 
-  async function fetchSurveys(page = 1, s = '') {
+  async function fetchSurveys(page = 1, s = '', barangay = '', classification = '') {
     try {
-      const res = await axios.get('/validator/api/surveys', { params: { page, per_page: perPage, search: s } })
+      const res = await axios.get('/validator/api/surveys', { 
+        params: { 
+          page, 
+          per_page: perPage, 
+          search: s,
+          barangay: barangay,
+          classification: classification
+        } 
+      })
       setSurveys(res.data)
     } catch (e) { console.error(e) }
   }
 
-  async function fetchSubmitted(page = 1, s = '') {
+  async function fetchSubmitted(page = 1, s = '', barangay = '', classification = '') {
     try {
-      const res = await axios.get('/validator/api/submitted', { params: { page, per_page: perPage, search: s } })
+      const res = await axios.get('/validator/api/submitted', { 
+        params: { 
+          page, 
+          per_page: perPage, 
+          search: s,
+          barangay: barangay,
+          classification: classification
+        } 
+      })
       setSubmitted(res.data)
     } catch (e) { console.error(e) }
   }
-  async function fetchDeleted(page = 1, s = '') {
+  async function fetchDeleted(page = 1, s = '', barangay = '', classification = '') {
     try {
-      const res = await axios.get('/validator/api/deleted', { params: { page, per_page: perPage, search: s } })
+      const res = await axios.get('/validator/api/deleted', { 
+        params: { 
+          page, 
+          per_page: perPage, 
+          search: s,
+          barangay: barangay,
+          classification: classification
+        } 
+      })
       setDeleted(res.data)
     } catch (e) { console.error(e) }
   }
@@ -169,8 +203,8 @@ export default function ValidatorDashboard() {
     try {
       await axios.post('/validator/api/submit', { survey_id: submitConfirm.surveyId })
       // refresh lists
-      fetchSurveys(surveys.page)
-      fetchSubmitted(submitted.page)
+      fetchSurveys(surveys.page, search, barangayFilter, exportClass)
+      fetchSubmitted(submitted.page, search, barangayFilter, exportClass)
       fetchTotals()
     } catch (e) { console.error(e) }
     setSubmitConfirm({ open: false, surveyId: null })
@@ -180,24 +214,28 @@ export default function ValidatorDashboard() {
     setSelectedSurveyIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
 
-  function toggleSelectAllCurrent(surveysOnPage) {
-    if (!surveysOnPage.length) return
-    const idsOnPage = surveysOnPage.map(r => r.survey_id)
-    const allSelected = idsOnPage.every(id => selectedSurveyIds.includes(id))
-    if (allSelected) {
-      setSelectedSurveyIds(prev => prev.filter(id => !idsOnPage.includes(id)))
+  async function toggleSelectAllGlobal() {
+    const currentData = surveys.data || []
+    const allOnPage = currentData.length > 0 && currentData.every(r => selectedSurveyIds.includes(r.survey_id))
+
+    if (allOnPage) {
+      setSelectedSurveyIds([])
     } else {
-      const merged = [...selectedSurveyIds]
-      idsOnPage.forEach(id => {
-        if (!merged.includes(id)) merged.push(id)
-      })
-      setSelectedSurveyIds(merged)
+      try {
+        const res = await axios.get('/validator/api/surveys/ids', { 
+          params: { 
+            search,
+            barangay: barangayFilter,
+            classification: exportClass
+          } 
+        })
+        setSelectedSurveyIds(res.data.ids)
+      } catch (e) { console.error(e) }
     }
   }
 
-  function handleBatchSubmitOpen(surveysOnPage) {
-    const idsOnPage = surveysOnPage.map(r => r.survey_id)
-    const ids = idsOnPage.filter(id => selectedSurveyIds.includes(id))
+  function handleBatchSubmitOpen() {
+    const ids = selectedSurveyIds
     if (!ids.length) return
     setBatchConfirm({ open: true, ids })
   }
@@ -211,8 +249,8 @@ export default function ValidatorDashboard() {
     try {
       await axios.post('/validator/api/submit-batch', { survey_ids: ids })
       setSelectedSurveyIds(prev => prev.filter(id => !ids.includes(id)))
-      fetchSurveys(surveys.page)
-      fetchSubmitted(submitted.page)
+      fetchSurveys(surveys.page, search, barangayFilter, exportClass)
+      fetchSubmitted(submitted.page, search, barangayFilter, exportClass)
       fetchTotals()
     } catch (e) { console.error(e) }
     setBatchConfirm({ open: false, ids: [] })
@@ -266,19 +304,12 @@ export default function ValidatorDashboard() {
   };
 
   const pending = Math.max(0, (totals.total_surveyed || 0) - (totals.total_submitted || 0))
-  const q = search.trim().toLowerCase()
-  const surveysFiltered = q ? (surveys.data || []).filter(r => [r.date_interviewed, r.barangay, r.purok, r.last_name, r.classification, r.subclass_displaced, r.subclass_doubleup, r.subclass_homeless].some(v => String(v || '').toLowerCase().includes(q))) : (surveys.data || [])
-  const submittedFiltered = q ? (submitted.data || []).filter(r => [r.date_interviewed, r.barangay, r.purok, r.last_name, r.classification, r.subclass_displaced, r.subclass_doubleup, r.subclass_homeless].some(v => String(v || '').toLowerCase().includes(q))) : (submitted.data || [])
-  const deletedFiltered = q ? (deleted.data || []).filter(r => [r.deleted_at, r.barangay, r.purok, r.last_name, r.classification, r.subclass_displaced, r.subclass_doubleup, r.subclass_homeless].some(v => String(v || '').toLowerCase().includes(q))) : (deleted.data || [])
-  const applyRowFilters = (rows) => {
-    let out = rows
-    if (barangayFilter) out = out.filter(r => r.barangay === barangayFilter)
-    if (exportClass) out = out.filter(r => r.classification === exportClass)
-    return out
-  }
-  const surveysFinal = applyRowFilters(surveysFiltered)
-  const submittedFinal = applyRowFilters(submittedFiltered)
-  const deletedFinal = applyRowFilters(deletedFiltered)
+  
+  // Server-side filtering is now active, so we use the data directly
+  const surveysFinal = surveys.data || []
+  const submittedFinal = submitted.data || []
+  const deletedFinal = deleted.data || []
+  
   const selectedOnPageCount = surveysFinal.filter(r => selectedSurveyIds.includes(r.survey_id)).length
   const allSelectedOnPage = surveysFinal.length > 0 && surveysFinal.every(r => selectedSurveyIds.includes(r.survey_id))
   return (
@@ -488,15 +519,15 @@ export default function ValidatorDashboard() {
             </button>
             <button
               type="button"
-              onClick={() => handleBatchSubmitOpen(surveysFinal)}
-              disabled={selectedOnPageCount === 0}
+              onClick={() => handleBatchSubmitOpen()}
+              disabled={selectedSurveyIds.length === 0}
               className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium shadow-sm ${
-                selectedOnPageCount === 0
+                selectedSurveyIds.length === 0
                   ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                   : 'bg-emerald-600 text-white hover:bg-emerald-700'
               }`}
             >
-              <span>Submit Selected{selectedOnPageCount ? ` (${selectedOnPageCount})` : ''}</span>
+              <span>Submit Selected{selectedSurveyIds.length ? ` (${selectedSurveyIds.length})` : ''}</span>
             </button>
           </div>
           <div className="overflow-x-auto overflow-y-hidden">
@@ -508,7 +539,7 @@ export default function ValidatorDashboard() {
                       type="checkbox"
                       className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
                       checked={allSelectedOnPage}
-                      onChange={() => toggleSelectAllCurrent(surveysFinal)}
+                      onChange={toggleSelectAllGlobal}
                     />
                   </th>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Date</th>
@@ -588,7 +619,7 @@ export default function ValidatorDashboard() {
                   <button
                     onClick={() => {
                       const prev = currentPage - 1;
-                      fetchSurveys(prev, search);
+                      fetchSurveys(prev, search, barangayFilter, exportClass);
                       setSurveys(p => ({ ...p, page: prev }));
                     }}
                     disabled={currentPage === 1}
@@ -600,7 +631,7 @@ export default function ValidatorDashboard() {
                     <button
                       key={i}
                       onClick={() => {
-                        fetchSurveys(i, search);
+                        fetchSurveys(i, search, barangayFilter, exportClass);
                         setSurveys(prev => ({ ...prev, page: i }));
                       }}
                       className={`px-3 py-1 rounded border ${
@@ -613,7 +644,7 @@ export default function ValidatorDashboard() {
                   <button
                     onClick={() => {
                       const next = currentPage + 1;
-                      fetchSurveys(next, search);
+                      fetchSurveys(next, search, barangayFilter, exportClass);
                       setSurveys(p => ({ ...p, page: next }));
                     }}
                     disabled={currentPage === totalPages}
@@ -748,7 +779,7 @@ export default function ValidatorDashboard() {
                   <button
                     onClick={() => {
                       const prev = currentPage - 1;
-                      fetchSubmitted(prev, search);
+                      fetchSubmitted(prev, search, barangayFilter, exportClass);
                       setSubmitted(p => ({ ...p, page: prev }));
                     }}
                     disabled={currentPage === 1}
@@ -760,7 +791,7 @@ export default function ValidatorDashboard() {
                     <button
                       key={i}
                       onClick={() => {
-                        fetchSubmitted(i, search);
+                        fetchSubmitted(i, search, barangayFilter, exportClass);
                         setSubmitted(prev => ({ ...prev, page: i }));
                       }}
                       className={`px-3 py-1 rounded border ${
@@ -773,7 +804,7 @@ export default function ValidatorDashboard() {
                   <button
                     onClick={() => {
                       const next = currentPage + 1;
-                      fetchSubmitted(next, search);
+                      fetchSubmitted(next, search, barangayFilter, exportClass);
                       setSubmitted(p => ({ ...p, page: next }));
                     }}
                     disabled={currentPage === totalPages}
@@ -848,8 +879,8 @@ export default function ValidatorDashboard() {
                             onClick={async () => {
                               try {
                                 await axios.post(`/validator/api/survey/${row.survey_id}/restore`)
-                                fetchDeleted(deleted.page)
-                                fetchSurveys(surveys.page)
+                                fetchDeleted(deleted.page, search, barangayFilter, exportClass)
+                                fetchSurveys(surveys.page, search, barangayFilter, exportClass)
                                 fetchTotals()
                               } catch (e) {
                                 console.error(e)
@@ -880,7 +911,7 @@ export default function ValidatorDashboard() {
                       <button
                         onClick={() => {
                           const prev = currentPage - 1;
-                          fetchDeleted(prev, search);
+                          fetchDeleted(prev, search, barangayFilter, exportClass);
                           setDeleted(p => ({ ...p, page: prev }));
                         }}
                         disabled={currentPage === 1}
@@ -892,7 +923,7 @@ export default function ValidatorDashboard() {
                         <button
                           key={i}
                           onClick={() => {
-                            fetchDeleted(i, search);
+                            fetchDeleted(i, search, barangayFilter, exportClass);
                             setDeleted(prev => ({ ...prev, page: i }));
                           }}
                           className={`px-3 py-1 rounded border ${
@@ -905,7 +936,7 @@ export default function ValidatorDashboard() {
                       <button
                         onClick={() => {
                           const next = currentPage + 1;
-                          fetchDeleted(next, search);
+                          fetchDeleted(next, search, barangayFilter, exportClass);
                           setDeleted(p => ({ ...p, page: next }));
                         }}
                         disabled={currentPage === totalPages}

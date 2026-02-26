@@ -2,6 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\FileStorageService;
+use App\Services\FileValidator;
+use App\Services\FileStorage;
+use App\Services\BeneficiaryScoreService;
+use App\Exceptions\ScoreCalculationException;
+use App\Models\Survey;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +19,276 @@ use Illuminate\Support\Str;
 
 class ValidatorDashboardController extends Controller
 {
+    /**
+     * Get validation rules for survey creation
+     * 
+     * @return array<string, string|array>
+     */
+    protected function getSurveyValidationRules(): array
+    {
+        return [
+            // Classification fields
+            'classification' => 'required|string|in:Displaced,Double-up,Homeless,Upgrading of Land Tenure',
+            'previous_client' => 'required|string|in:Yes,No',
+            'year_inhabited' => 'nullable|integer|min:1900|max:' . date('Y'),
+            'sub_class_displaced' => 'nullable|string',
+            'sub_class_double_up' => 'nullable|string',
+            'sub_class_homeless' => 'nullable|string',
+            
+            // Personal information (required fields)
+            'interview_person' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'first_name' => 'required|string|max:255',
+            'barangay' => 'required|string|max:255',
+            'gender' => 'required|string|in:Male,Female',
+            'birth_date' => 'required|date|before:today',
+            'marital_status' => 'required|string|in:Single,Married,Live-in,Widow/Widower,Annulled,Separated,Unknown',
+            
+            // Personal information (optional fields)
+            'middle_name' => 'nullable|string|max:255',
+            'suffix' => 'nullable|string|max:50',
+            'purok' => 'nullable|string|max:255',
+            'street' => 'nullable|string|max:255',
+            'religion' => 'nullable|string|max:255',
+            'other_religion' => 'nullable|string|max:255',
+            'birth_place' => 'nullable|string|max:255',
+            'person_age' => 'nullable|integer|min:0|max:150',
+            'contact_number' => 'nullable|string|max:20',
+            'language_spoken' => 'nullable|string|max:255',
+            'tribe' => 'nullable|string|max:255',
+            'other_tribe' => 'nullable|string|max:255',
+            
+            // Education fields
+            'highest_education' => 'nullable|string|max:255',
+            'last_school_attended' => 'nullable|string|max:255',
+            'year_graduated' => 'nullable|integer|min:1900|max:' . date('Y'),
+            
+            // Spouse information (conditional on marital status)
+            'spouse_name' => 'nullable|string|max:255',
+            'spouse_religion' => 'nullable|string|max:255',
+            'other_spouse_religion' => 'nullable|string|max:255',
+            'spouse_tribe' => 'nullable|string|max:255',
+            'other_spouse_tribe' => 'nullable|string|max:255',
+            'spouse_age' => 'nullable|integer|min:0|max:150',
+            'spouse_gender' => 'nullable|string|in:Male,Female',
+            
+            // Affiliations
+            'affiliations' => 'nullable|string|max:500',
+            'endorsed_by_mayor' => 'nullable|string|in:Yes,No',
+            
+            // Household fields
+            'lot_ownership' => 'nullable|string|max:255',
+            'house_ownership' => 'nullable|string|max:255',
+            'avail_socialized_housing' => 'nullable|string|in:Yes,No',
+            'temporary_living_area' => 'nullable|string|max:255',
+            'housing_structure' => 'nullable|string|max:255',
+            'other_housing_structure' => 'nullable|string|max:255',
+            'type_of_toilet' => 'nullable|string|max:255',
+            'other_type_of_toilet' => 'nullable|string|max:255',
+            'source_of_water' => 'nullable|string|max:255',
+            'other_source_of_water' => 'nullable|string|max:255',
+            'source_of_electricity' => 'nullable|string|max:255',
+            'other_source_of_electricity' => 'nullable|string|max:255',
+            
+            // Economic fields
+            'main_income_source' => 'nullable|string|max:255',
+            'other_main_income_source' => 'nullable|string|max:255',
+            'work_status' => 'nullable|string|max:255',
+            'other_work_status' => 'nullable|string|max:255',
+            'work_location_head' => 'nullable|string|max:255',
+            'monthly_salary' => 'required|string|max:255',
+            'combine_monthly_income' => 'nullable|string|max:255',
+            
+            // Training fields
+            'skills_for_living' => 'nullable|string|in:Yes,No',
+            'specific_skill' => 'nullable|string|max:255',
+            'other_skill' => 'nullable|string|max:255',
+            'organization_member' => 'nullable|string|in:Yes,No',
+            'specific_organization' => 'nullable|string|max:255',
+            'other_organization' => 'nullable|string|max:255',
+            'wanttolearn' => 'nullable|string|max:500',
+            'remarks' => 'nullable|string|max:1000',
+            
+            // Location and signatures
+            'latitude' => 'nullable|string|max:50',
+            'longitude' => 'nullable|string|max:50',
+            'respondent_signature' => 'nullable|string',
+            'validator_signature' => 'nullable|string',
+            
+            // Files
+            'house_photo' => 'nullable|file|image|max:5120',
+            'person_photo' => 'nullable|file|image|max:5120',
+            
+            // Interview metadata
+            'date_interviewed' => 'nullable|date',
+            
+            // Household members (arrays)
+            'name' => 'nullable|array',
+            'name.*' => 'nullable|string|max:255',
+            'age' => 'nullable|array',
+            'age.*' => 'nullable|integer|min:0|max:150',
+            'sex' => 'nullable|array',
+            'sex.*' => 'nullable|string|in:Male,Female',
+            'relationship' => 'nullable|array',
+            'relationship.*' => 'nullable|string|max:255',
+            'civil_status' => 'nullable|array',
+            'civil_status.*' => 'nullable|string|max:255',
+            'educational_attainment' => 'nullable|array',
+            'educational_attainment.*' => 'nullable|string|max:255',
+            'occupation' => 'nullable|array',
+            'occupation.*' => 'nullable|string|max:255',
+            'monthly_income' => 'nullable|array',
+            'monthly_income.*' => 'nullable|string|max:255',
+            'code' => 'nullable|array',
+            'code.*' => 'nullable|string|max:50',
+        ];
+    }
+
+    /**
+     * Get custom validation messages for survey creation
+     * 
+     * @return array<string, string>
+     */
+    protected function getSurveyValidationMessages(): array
+    {
+        return [
+            // Classification field messages
+            'classification.required' => 'The classification field is required.',
+            'classification.in' => 'The classification field is invalid.',
+            'previous_client.required' => 'The previous client field is required.',
+            'previous_client.in' => 'The previous client field is invalid.',
+            'year_inhabited.integer' => 'The year inhabited field must be an integer.',
+            'year_inhabited.min' => 'The year inhabited field must be at least 1900.',
+            'year_inhabited.max' => 'The year inhabited field must not exceed ' . date('Y') . '.',
+            
+            // Personal information (required fields) messages
+            'interview_person.required' => 'The interview person field is required.',
+            'interview_person.max' => 'The interview person field must not exceed 255 characters.',
+            'last_name.required' => 'The last name field is required.',
+            'last_name.max' => 'The last name field must not exceed 255 characters.',
+            'first_name.required' => 'The first name field is required.',
+            'first_name.max' => 'The first name field must not exceed 255 characters.',
+            'barangay.required' => 'The barangay field is required.',
+            'barangay.max' => 'The barangay field must not exceed 255 characters.',
+            'gender.required' => 'The gender field is required.',
+            'gender.in' => 'The gender field is invalid.',
+            'birth_date.required' => 'The birth date field is required.',
+            'birth_date.date' => 'The birth date field must be a valid date.',
+            'birth_date.before' => 'The birth date field must be before today.',
+            'marital_status.required' => 'The marital status field is required.',
+            'marital_status.in' => 'The marital status field is invalid.',
+            
+            // Personal information (optional fields) messages
+            'middle_name.max' => 'The middle name field must not exceed 255 characters.',
+            'suffix.max' => 'The suffix field must not exceed 50 characters.',
+            'purok.max' => 'The purok field must not exceed 255 characters.',
+            'street.max' => 'The street field must not exceed 255 characters.',
+            'religion.max' => 'The religion field must not exceed 255 characters.',
+            'other_religion.max' => 'The other religion field must not exceed 255 characters.',
+            'birth_place.max' => 'The birth place field must not exceed 255 characters.',
+            'person_age.integer' => 'The person age field must be an integer.',
+            'person_age.min' => 'The person age field must be at least 0.',
+            'person_age.max' => 'The person age field must not exceed 150.',
+            'contact_number.max' => 'The contact number field must not exceed 20 characters.',
+            'language_spoken.max' => 'The language spoken field must not exceed 255 characters.',
+            'tribe.max' => 'The tribe field must not exceed 255 characters.',
+            'other_tribe.max' => 'The other tribe field must not exceed 255 characters.',
+            
+            // Education field messages
+            'highest_education.max' => 'The highest education field must not exceed 255 characters.',
+            'last_school_attended.max' => 'The last school attended field must not exceed 255 characters.',
+            'year_graduated.integer' => 'The year graduated field must be an integer.',
+            'year_graduated.min' => 'The year graduated field must be at least 1900.',
+            'year_graduated.max' => 'The year graduated field must not exceed ' . date('Y') . '.',
+            
+            // Spouse information messages
+            'spouse_name.max' => 'The spouse name field must not exceed 255 characters.',
+            'spouse_religion.max' => 'The spouse religion field must not exceed 255 characters.',
+            'other_spouse_religion.max' => 'The other spouse religion field must not exceed 255 characters.',
+            'spouse_tribe.max' => 'The spouse tribe field must not exceed 255 characters.',
+            'other_spouse_tribe.max' => 'The other spouse tribe field must not exceed 255 characters.',
+            'spouse_age.integer' => 'The spouse age field must be an integer.',
+            'spouse_age.min' => 'The spouse age field must be at least 0.',
+            'spouse_age.max' => 'The spouse age field must not exceed 150.',
+            'spouse_gender.in' => 'The spouse gender field is invalid.',
+            
+            // Affiliation messages
+            'affiliations.max' => 'The affiliations field must not exceed 500 characters.',
+            'endorsed_by_mayor.in' => 'The endorsed by mayor field is invalid.',
+            
+            // Household field messages
+            'lot_ownership.max' => 'The lot ownership field must not exceed 255 characters.',
+            'house_ownership.max' => 'The house ownership field must not exceed 255 characters.',
+            'avail_socialized_housing.in' => 'The avail socialized housing field is invalid.',
+            'temporary_living_area.max' => 'The temporary living area field must not exceed 255 characters.',
+            'housing_structure.max' => 'The housing structure field must not exceed 255 characters.',
+            'other_housing_structure.max' => 'The other housing structure field must not exceed 255 characters.',
+            'type_of_toilet.max' => 'The type of toilet field must not exceed 255 characters.',
+            'other_type_of_toilet.max' => 'The other type of toilet field must not exceed 255 characters.',
+            'source_of_water.max' => 'The source of water field must not exceed 255 characters.',
+            'other_source_of_water.max' => 'The other source of water field must not exceed 255 characters.',
+            'source_of_electricity.max' => 'The source of electricity field must not exceed 255 characters.',
+            'other_source_of_electricity.max' => 'The other source of electricity field must not exceed 255 characters.',
+            
+            // Economic field messages
+            'main_income_source.max' => 'The main income source field must not exceed 255 characters.',
+            'other_main_income_source.max' => 'The other main income source field must not exceed 255 characters.',
+            'work_status.max' => 'The work status field must not exceed 255 characters.',
+            'other_work_status.max' => 'The other work status field must not exceed 255 characters.',
+            'work_location_head.max' => 'The work location head field must not exceed 255 characters.',
+            'monthly_salary.required' => 'The monthly salary field is required.',
+            'monthly_salary.max' => 'The monthly salary field must not exceed 255 characters.',
+            'combine_monthly_income.max' => 'The combine monthly income field must not exceed 255 characters.',
+            
+            // Training field messages
+            'skills_for_living.in' => 'The skills for living field is invalid.',
+            'specific_skill.max' => 'The specific skill field must not exceed 255 characters.',
+            'other_skill.max' => 'The other skill field must not exceed 255 characters.',
+            'organization_member.in' => 'The organization member field is invalid.',
+            'specific_organization.max' => 'The specific organization field must not exceed 255 characters.',
+            'other_organization.max' => 'The other organization field must not exceed 255 characters.',
+            'wanttolearn.max' => 'The wanttolearn field must not exceed 500 characters.',
+            'remarks.max' => 'The remarks field must not exceed 1000 characters.',
+            
+            // Location and signature messages
+            'latitude.max' => 'The latitude field must not exceed 50 characters.',
+            'longitude.max' => 'The longitude field must not exceed 50 characters.',
+            
+            // File upload messages
+            'house_photo.file' => 'The house photo field must be a file.',
+            'house_photo.image' => 'The house photo field must be an image file.',
+            'house_photo.max' => 'The house photo field must not exceed 5MB.',
+            'person_photo.file' => 'The person photo field must be a file.',
+            'person_photo.image' => 'The person photo field must be an image file.',
+            'person_photo.max' => 'The person photo field must not exceed 5MB.',
+            
+            // Interview metadata messages
+            'date_interviewed.date' => 'The date interviewed field must be a valid date.',
+            
+            // Household member array messages
+            'name.array' => 'The name field must be an array.',
+            'name.*.max' => 'Each name field must not exceed 255 characters.',
+            'age.array' => 'The age field must be an array.',
+            'age.*.integer' => 'Each age field must be an integer.',
+            'age.*.min' => 'Each age field must be at least 0.',
+            'age.*.max' => 'Each age field must not exceed 150.',
+            'sex.array' => 'The sex field must be an array.',
+            'sex.*.in' => 'Each sex field is invalid.',
+            'relationship.array' => 'The relationship field must be an array.',
+            'relationship.*.max' => 'Each relationship field must not exceed 255 characters.',
+            'civil_status.array' => 'The civil status field must be an array.',
+            'civil_status.*.max' => 'Each civil status field must not exceed 255 characters.',
+            'educational_attainment.array' => 'The educational attainment field must be an array.',
+            'educational_attainment.*.max' => 'Each educational attainment field must not exceed 255 characters.',
+            'occupation.array' => 'The occupation field must be an array.',
+            'occupation.*.max' => 'Each occupation field must not exceed 255 characters.',
+            'monthly_income.array' => 'The monthly income field must be an array.',
+            'monthly_income.*.max' => 'Each monthly income field must not exceed 255 characters.',
+            'code.array' => 'The code field must be an array.',
+            'code.*.max' => 'Each code field must not exceed 50 characters.',
+        ];
+    }
+
     protected function normalizeBarangay(string $barangay): string
     {
         $b = str_replace('_', ' ', $barangay);
@@ -72,7 +348,7 @@ class ValidatorDashboardController extends Controller
                 ->join('demographic as d', 'd.survey_id', '=', 's.survey_id')
                 ->join('classification as c', 'c.survey_id', '=', 's.survey_id')
                 ->where('s.validator_id', $validator_id)
-                ->whereIn('s.is_submitted', [1, 2]);
+                ->whereIn('s.is_submitted', [1, 2, 3]);
             if ($hasDeletedAt) {
                 $submittedQuery->whereNull('s.deleted_at');
             }
@@ -105,15 +381,50 @@ class ValidatorDashboardController extends Controller
         $perPage = (int) $request->get('per_page', 10);
         $page = (int) $request->get('page', 1);
         $offset = ($page - 1) * $perPage;
+        $search = $request->get('search', '');
+        $barangayFilter = $request->get('barangay', '');
+        $classFilter = $request->get('classification', '');
 
         $hasDeletedAt = Schema::hasTable('survey') && Schema::hasColumn('survey', 'deleted_at');
 
         $totalQuery = DB::table('survey AS s')
+            ->join('demographic AS d', 'd.survey_id', '=', 's.survey_id')
+            ->join('classification AS c', 'c.survey_id', '=', 's.survey_id')
             ->where('s.validator_id', $validator_id)
             ->where('s.is_submitted', 0);
+        
         if ($hasDeletedAt) {
             $totalQuery->whereNull('s.deleted_at');
         }
+        
+        // Apply barangay filter
+        if ($barangayFilter) {
+            $totalQuery->where('d.barangay', $barangayFilter);
+        }
+        
+        // Apply classification filter
+        if ($classFilter) {
+            $classMap = [
+                'Displaced' => 1,
+                'Double-up' => 2,
+                'Homeless' => 3,
+                'Upgrading of Land Tenure' => 4,
+            ];
+            if (isset($classMap[$classFilter])) {
+                $totalQuery->where('c.classification', $classMap[$classFilter]);
+            }
+        }
+        
+        // Apply search filter
+        if ($search) {
+            $totalQuery->where(function($q) use ($search) {
+                $q->where('d.last_name', 'like', "%{$search}%")
+                  ->orWhere('d.first_name', 'like', "%{$search}%")
+                  ->orWhere('d.barangay', 'like', "%{$search}%")
+                  ->orWhere('d.purok', 'like', "%{$search}%");
+            });
+        }
+        
         $total = $totalQuery->count();
 
         $rowsQuery = DB::table('survey AS s')
@@ -121,16 +432,46 @@ class ValidatorDashboardController extends Controller
             ->join('classification AS c', 'c.survey_id', '=', 's.survey_id')
             ->select('s.survey_id', 's.date_interviewed', 'd.barangay', 'd.purok', 'd.last_name', 'c.classification', 'c.subclass_displaced', 'c.subclass_doubleup', 'c.subclass_homeless')
             ->where('s.validator_id', $validator_id)
-            ->where('s.is_submitted', 0)
+            ->where('s.is_submitted', 0);
+        
+        if ($hasDeletedAt) {
+            $rowsQuery->whereNull('s.deleted_at');
+        }
+        
+        // Apply barangay filter
+        if ($barangayFilter) {
+            $rowsQuery->where('d.barangay', $barangayFilter);
+        }
+        
+        // Apply classification filter
+        if ($classFilter) {
+            $classMap = [
+                'Displaced' => 1,
+                'Double-up' => 2,
+                'Homeless' => 3,
+                'Upgrading of Land Tenure' => 4,
+            ];
+            if (isset($classMap[$classFilter])) {
+                $rowsQuery->where('c.classification', $classMap[$classFilter]);
+            }
+        }
+        
+        // Apply search filter
+        if ($search) {
+            $rowsQuery->where(function($q) use ($search) {
+                $q->where('d.last_name', 'like', "%{$search}%")
+                  ->orWhere('d.first_name', 'like', "%{$search}%")
+                  ->orWhere('d.barangay', 'like', "%{$search}%")
+                  ->orWhere('d.purok', 'like', "%{$search}%");
+            });
+        }
+        
+        $rows = $rowsQuery
             ->orderBy('d.barangay', 'asc')
             ->orderBy('c.classification', 'asc')
             ->orderBy('s.survey_id', 'desc')
             ->offset($offset)
-            ->limit($perPage);
-        if ($hasDeletedAt) {
-            $rowsQuery->whereNull('s.deleted_at');
-        }
-        $rows = $rowsQuery
+            ->limit($perPage)
             ->get()
             ->map(function ($row) {
                 $classLabel = [1 => 'Displaced', 2 => 'Double-up', 3 => 'Homeless', 4 => 'Upgrading of Land Tenure'];
@@ -167,15 +508,50 @@ class ValidatorDashboardController extends Controller
         $perPage = (int) $request->get('per_page', 10);
         $page = (int) $request->get('page', 1);
         $offset = ($page - 1) * $perPage;
+        $search = $request->get('search', '');
+        $barangayFilter = $request->get('barangay', '');
+        $classFilter = $request->get('classification', '');
 
         $hasDeletedAt = Schema::hasTable('survey') && Schema::hasColumn('survey', 'deleted_at');
 
         $totalQuery = DB::table('survey AS s')
+            ->join('demographic AS d', 'd.survey_id', '=', 's.survey_id')
+            ->join('classification AS c', 'c.survey_id', '=', 's.survey_id')
             ->where('s.validator_id', $validator_id)
-            ->whereIn('s.is_submitted', [1, 2]);
+            ->whereIn('s.is_submitted', [1, 2, 3]);
+        
         if ($hasDeletedAt) {
             $totalQuery->whereNull('s.deleted_at');
         }
+        
+        // Apply barangay filter
+        if ($barangayFilter) {
+            $totalQuery->where('d.barangay', $barangayFilter);
+        }
+        
+        // Apply classification filter
+        if ($classFilter) {
+            $classMap = [
+                'Displaced' => 1,
+                'Double-up' => 2,
+                'Homeless' => 3,
+                'Upgrading of Land Tenure' => 4,
+            ];
+            if (isset($classMap[$classFilter])) {
+                $totalQuery->where('c.classification', $classMap[$classFilter]);
+            }
+        }
+        
+        // Apply search filter
+        if ($search) {
+            $totalQuery->where(function($q) use ($search) {
+                $q->where('d.last_name', 'like', "%{$search}%")
+                  ->orWhere('d.first_name', 'like', "%{$search}%")
+                  ->orWhere('d.barangay', 'like', "%{$search}%")
+                  ->orWhere('d.purok', 'like', "%{$search}%");
+            });
+        }
+        
         $total = $totalQuery->count();
 
         $rowsQuery = DB::table('survey AS s')
@@ -183,16 +559,46 @@ class ValidatorDashboardController extends Controller
             ->join('classification AS c', 'c.survey_id', '=', 's.survey_id')
             ->select('s.survey_id', 's.date_interviewed', 'd.barangay', 'd.purok', 'd.last_name', 'c.classification', 'c.subclass_displaced', 'c.subclass_doubleup', 'c.subclass_homeless')
             ->where('s.validator_id', $validator_id)
-            ->whereIn('s.is_submitted', [1, 2])
+            ->whereIn('s.is_submitted', [1, 2, 3]);
+        
+        if ($hasDeletedAt) {
+            $rowsQuery->whereNull('s.deleted_at');
+        }
+        
+        // Apply barangay filter
+        if ($barangayFilter) {
+            $rowsQuery->where('d.barangay', $barangayFilter);
+        }
+        
+        // Apply classification filter
+        if ($classFilter) {
+            $classMap = [
+                'Displaced' => 1,
+                'Double-up' => 2,
+                'Homeless' => 3,
+                'Upgrading of Land Tenure' => 4,
+            ];
+            if (isset($classMap[$classFilter])) {
+                $rowsQuery->where('c.classification', $classMap[$classFilter]);
+            }
+        }
+        
+        // Apply search filter
+        if ($search) {
+            $rowsQuery->where(function($q) use ($search) {
+                $q->where('d.last_name', 'like', "%{$search}%")
+                  ->orWhere('d.first_name', 'like', "%{$search}%")
+                  ->orWhere('d.barangay', 'like', "%{$search}%")
+                  ->orWhere('d.purok', 'like', "%{$search}%");
+            });
+        }
+        
+        $rows = $rowsQuery
             ->orderBy('d.barangay', 'asc')
             ->orderBy('c.classification', 'asc')
             ->orderBy('s.survey_id', 'desc')
             ->offset($offset)
-            ->limit($perPage);
-        if ($hasDeletedAt) {
-            $rowsQuery->whereNull('s.deleted_at');
-        }
-        $rows = $rowsQuery
+            ->limit($perPage)
             ->get()
             ->map(function ($row) {
                 $classLabel = [1 => 'Displaced', 2 => 'Double-up', 3 => 'Homeless', 4 => 'Upgrading of Land Tenure'];
@@ -276,6 +682,64 @@ class ValidatorDashboardController extends Controller
         return response()->json(['updated' => (int) $updated]);
     }
 
+    // Get all survey IDs based on current filters  
+    public function getAllSurveyIds(Request $request)
+    {
+        $validator_id = session('validator_id');
+        if (! $validator_id) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $search = $request->get('search', '');
+        $barangayFilter = $request->get('barangay', '');
+        $classFilter = $request->get('classification', '');
+        
+        $hasDeletedAt = Schema::hasTable('survey') && Schema::hasColumn('survey', 'deleted_at');
+        
+        $query = DB::table('survey AS s')
+            ->join('demographic AS d', 'd.survey_id', '=', 's.survey_id')
+            ->join('classification AS c', 'c.survey_id', '=', 's.survey_id')
+            ->select('s.survey_id')
+            ->where('s.validator_id', $validator_id)
+            ->where('s.is_submitted', 0);
+            
+        if ($hasDeletedAt) {
+            $query->whereNull('s.deleted_at');
+        }
+        
+        // Apply barangay filter
+        if ($barangayFilter) {
+            $query->where('d.barangay', $barangayFilter);
+        }
+        
+        // Apply classification filter
+        if ($classFilter) {
+            $classMap = [
+                'Displaced' => 1,
+                'Double-up' => 2,
+                'Homeless' => 3,
+                'Upgrading of Land Tenure' => 4,
+            ];
+            if (isset($classMap[$classFilter])) {
+                $query->where('c.classification', $classMap[$classFilter]);
+            }
+        }
+        
+        // Apply search filter
+        if ($search) {
+            $query->where(function($q) use ($search) {
+                $q->where('d.last_name', 'like', "%{$search}%")
+                  ->orWhere('d.first_name', 'like', "%{$search}%")
+                  ->orWhere('d.barangay', 'like', "%{$search}%")
+                  ->orWhere('d.purok', 'like', "%{$search}%");
+            });
+        }
+        
+        $ids = $query->pluck('s.survey_id')->map(fn($id) => (int)$id)->values()->all();
+        
+        return response()->json(['ids' => $ids]);
+    }
+
     public function deleted(Request $request)
     {
         $validator_id = session('validator_id');
@@ -291,19 +755,86 @@ class ValidatorDashboardController extends Controller
                 'page' => (int) $request->get('page', 1),
             ]);
         }
+        
         $perPage = (int) $request->get('per_page', 10);
         $page = (int) $request->get('page', 1);
         $offset = ($page - 1) * $perPage;
-        $total = DB::table('survey AS s')
+        $search = $request->get('search', '');
+        $barangayFilter = $request->get('barangay', '');
+        $classFilter = $request->get('classification', '');
+        
+        $totalQuery = DB::table('survey AS s')
+            ->join('demographic AS d', 'd.survey_id', '=', 's.survey_id')
+            ->join('classification AS c', 'c.survey_id', '=', 's.survey_id')
             ->where('s.validator_id', $validator_id)
-            ->whereNotNull('s.deleted_at')
-            ->count();
-        $rows = DB::table('survey AS s')
+            ->whereNotNull('s.deleted_at');
+        
+        // Apply barangay filter
+        if ($barangayFilter) {
+            $totalQuery->where('d.barangay', $barangayFilter);
+        }
+        
+        // Apply classification filter
+        if ($classFilter) {
+            $classMap = [
+                'Displaced' => 1,
+                'Double-up' => 2,
+                'Homeless' => 3,
+                'Upgrading of Land Tenure' => 4,
+            ];
+            if (isset($classMap[$classFilter])) {
+                $totalQuery->where('c.classification', $classMap[$classFilter]);
+            }
+        }
+        
+        // Apply search filter
+        if ($search) {
+            $totalQuery->where(function($q) use ($search) {
+                $q->where('d.last_name', 'like', "%{$search}%")
+                  ->orWhere('d.first_name', 'like', "%{$search}%")
+                  ->orWhere('d.barangay', 'like', "%{$search}%")
+                  ->orWhere('d.purok', 'like', "%{$search}%");
+            });
+        }
+        
+        $total = $totalQuery->count();
+        
+        $rowsQuery = DB::table('survey AS s')
             ->join('demographic AS d', 'd.survey_id', '=', 's.survey_id')
             ->join('classification AS c', 'c.survey_id', '=', 's.survey_id')
             ->select('s.survey_id', 's.date_interviewed', 'd.barangay', 'd.purok', 'd.last_name', 'c.classification', 'c.subclass_displaced', 'c.subclass_doubleup', 's.deleted_at')
             ->where('s.validator_id', $validator_id)
-            ->whereNotNull('s.deleted_at')
+            ->whereNotNull('s.deleted_at');
+        
+        // Apply barangay filter
+        if ($barangayFilter) {
+            $rowsQuery->where('d.barangay', $barangayFilter);
+        }
+        
+        // Apply classification filter
+        if ($classFilter) {
+            $classMap = [
+                'Displaced' => 1,
+                'Double-up' => 2,
+                'Homeless' => 3,
+                'Upgrading of Land Tenure' => 4,
+            ];
+            if (isset($classMap[$classFilter])) {
+                $rowsQuery->where('c.classification', $classMap[$classFilter]);
+            }
+        }
+        
+        // Apply search filter
+        if ($search) {
+            $rowsQuery->where(function($q) use ($search) {
+                $q->where('d.last_name', 'like', "%{$search}%")
+                  ->orWhere('d.first_name', 'like', "%{$search}%")
+                  ->orWhere('d.barangay', 'like', "%{$search}%")
+                  ->orWhere('d.purok', 'like', "%{$search}%");
+            });
+        }
+        
+        $rows = $rowsQuery
             ->orderBy('s.deleted_at', 'desc')
             ->offset($offset)
             ->limit($perPage)
@@ -567,6 +1098,46 @@ class ValidatorDashboardController extends Controller
             return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
+        // Validate request using defined rules
+        try {
+            $validated = $request->validate(
+                $this->getSurveyValidationRules(),
+                $this->getSurveyValidationMessages()
+            );
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // Prepare data for logging, excluding sensitive fields
+            $failedFields = array_keys($e->errors());
+            $submittedData = $request->except([
+                'respondent_signature',
+                'validator_signature',
+                'password',
+                'password_confirmation',
+            ]);
+            
+            // Only include failed field values in log
+            $failedFieldValues = [];
+            foreach ($failedFields as $field) {
+                if (isset($submittedData[$field])) {
+                    $failedFieldValues[$field] = $submittedData[$field];
+                }
+            }
+            
+            // Log validation failure
+            Log::info('Survey validation failed', [
+                'validator_id' => $validator_id,
+                'timestamp' => now()->toDateTimeString(),
+                'failed_fields' => $failedFields,
+                'failed_field_values' => $failedFieldValues,
+                'errors' => $e->errors(),
+            ]);
+            
+            // Return validation errors in standard Laravel format
+            return response()->json([
+                'message' => 'Validation failed. Please check the highlighted fields.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
         $normalize = function ($v) {
             if ($v === null) {
                 return null;
@@ -574,6 +1145,15 @@ class ValidatorDashboardController extends Controller
             $v = is_string($v) ? trim($v) : $v;
 
             return is_string($v) ? str_replace('_', ' ', $v) : $v;
+        };
+
+        // Helper function to convert empty strings to NULL for optional fields
+        $toNullIfEmpty = function ($v) {
+            if ($v === null) {
+                return null;
+            }
+            $trimmed = is_string($v) ? trim($v) : $v;
+            return ($trimmed === '' || $trimmed === null) ? null : $trimmed;
         };
 
         $classification = $normalize($request->input('classification'));
@@ -649,6 +1229,28 @@ class ValidatorDashboardController extends Controller
             $work_status = $normalize($request->input('other_work_status'));
         }
 
+        // Handle religion "other" option
+        $religion = $normalize($request->input('religion'));
+        if ($religion === 'Other' || $religion === 'Others' || $religion === 'other') {
+            $religion = $normalize($request->input('other_religion'));
+        }
+        
+        $spouse_religion = $normalize($request->input('spouse_religion'));
+        if ($spouse_religion === 'Other' || $spouse_religion === 'Others' || $spouse_religion === 'other') {
+            $spouse_religion = $normalize($request->input('other_spouse_religion'));
+        }
+        
+        // Handle tribe and spouse_tribe "others" option
+        $tribe = $normalize($request->input('tribe'));
+        if ($tribe === 'others' || $tribe === 'Others') {
+            $tribe = $normalize($request->input('other_tribe'));
+        }
+        
+        $spouse_tribe = $normalize($request->input('spouse_tribe'));
+        if ($spouse_tribe === 'others' || $spouse_tribe === 'Others') {
+            $spouse_tribe = $normalize($request->input('other_spouse_tribe'));
+        }
+
         $file = $request->file('house_photo');
         $house_photo_path = '';
         if ($file && $file->isValid()) {
@@ -660,10 +1262,11 @@ class ValidatorDashboardController extends Controller
             if (! in_array($mime, $allowed)) {
                 return response()->json(['message' => 'Invalid file type'], 422);
             }
-            $ext = $file->getClientOriginalExtension() ?: 'jpg';
-            $filename = uniqid('house_').'.'.$ext;
-            \Illuminate\Support\Facades\Storage::disk('public')->putFileAs('house_photos', $file, $filename);
-            $house_photo_path = 'storage/house_photos/'.$filename;
+            // Use FileStorageService for dual storage
+            $result = FileStorageService::store($file, 'house_photos', 'house_');
+            if ($result['success']) {
+                $house_photo_path = $result['path']; // e.g., 'house_photos/house_xxx.jpg'
+            }
         }
 
         $person_photo_path = null;
@@ -677,10 +1280,11 @@ class ValidatorDashboardController extends Controller
             if (! in_array($mime, $allowed)) {
                 return response()->json(['message' => 'Invalid file type'], 422);
             }
-            $ext = $personFile->getClientOriginalExtension() ?: 'jpg';
-            $filename = uniqid('person_').'.'.$ext;
-            \Illuminate\Support\Facades\Storage::disk('public')->putFileAs('person_photos', $personFile, $filename);
-            $person_photo_path = 'storage/person_photos/'.$filename;
+            // Use FileStorageService for dual storage
+            $result = FileStorageService::store($personFile, 'person_photos', 'person_');
+            if ($result['success']) {
+                $person_photo_path = $result['path']; // e.g., 'person_photos/person_xxx.jpg'
+            }
         }
 
         $saveSignature = function ($input) {
@@ -696,11 +1300,35 @@ class ValidatorDashboardController extends Controller
                 if (count($parts) !== 2) {
                     return null;
                 }
-                $data = base64_decode($parts[1]);
-                $path = 'signatures/'.uniqid().'.png';
-                Storage::disk('public')->put($path, $data);
+                try {
+                    $data = base64_decode($parts[1], true);
+                    if ($data === false) {
+                        Log::warning('Failed to decode signature base64 data');
+                        return null;
+                    }
+                    $filename = uniqid('sig_').'.png';
+                    
+                    // Store in Laravel storage
+                    Storage::disk('public')->put('signatures/'.$filename, $data);
+                    
+                    // Also copy to public directory using FileStorageService
+                    try {
+                        FileStorageService::copyToPublicDirectory('signatures', $filename);
+                    } catch (\Exception $copyEx) {
+                        // Log but don't fail - storage is already saved
+                        Log::warning('Failed to copy signature to public directory', [
+                            'filename' => $filename,
+                            'error' => $copyEx->getMessage(),
+                        ]);
+                    }
 
-                return $path;
+                    return 'signatures/'.$filename; // Return path without 'storage/' prefix
+                } catch (\Exception $sigEx) {
+                    Log::error('Error processing signature', [
+                        'error' => $sigEx->getMessage(),
+                    ]);
+                    return null;
+                }
             }
 
             return $s;
@@ -713,16 +1341,77 @@ class ValidatorDashboardController extends Controller
         $allowSpouse = in_array($marital_status, ['Married', 'Live-in', 'Widow/Widower', 'Separated', 'Annulled']);
 
         $spouse_name = $allowSpouse ? $normalize($request->input('spouse_name')) : null;
-        $spouse_religion = $allowSpouse ? $normalize($request->input('spouse_religion')) : null;
-        $spouse_tribe = $allowSpouse ? $normalize($request->input('spouse_tribe')) : null;
+        // Note: $spouse_religion and $spouse_tribe are already processed above with "other" handling
         $spouse_age = $allowSpouse ? $normalize($request->input('spouse_age')) : null;
         $spouse_gender = $allowSpouse ? $normalize($request->input('spouse_gender')) : null;
+        
+        // Apply allowSpouse logic to already-processed spouse fields
+        if (!$allowSpouse) {
+            $spouse_religion = null;
+            $spouse_tribe = null;
+        }
 
         $msInput = trim((string) $request->input('monthly_salary'));
         if ($msInput === '') {
             return response()->json(['message' => 'Monthly salary is required'], 422);
         }
-        $survey_id = DB::transaction(function () use ($validator_id, $interviewed_by, $request, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $house_photo_path, $person_photo_path, $validator_signature, $respondent_signature, $marital_status, $spouse_name, $spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender, $normalize, $msInput) {
+        
+        // Validate and prepare supporting documents
+        $supportingDocuments = [];
+        $uploadedFilePaths = [];
+        
+        if ($request->hasFile('supporting_documents')) {
+            $fileValidator = new FileValidator();
+            $fileStorage = new FileStorage();
+            
+            foreach ($request->file('supporting_documents', []) as $file) {
+                // Validate file
+                $validationResult = $fileValidator->validate($file);
+                
+                if (!$validationResult->isValid()) {
+                    // Log validation failure
+                    Log::warning('File validation failed during survey submission', [
+                        'validator_id' => $validator_id,
+                        'filename' => $file->getClientOriginalName(),
+                        'errors' => $validationResult->getErrors(),
+                        'timestamp' => now()->toDateTimeString(),
+                    ]);
+                    
+                    return response()->json([
+                        'message' => 'File validation failed: ' . $file->getClientOriginalName(),
+                        'errors' => $validationResult->getErrors(),
+                    ], 422);
+                }
+                
+                // Store file
+                $storageResult = $fileStorage->store($file, 'survey_documents');
+                
+                if (!$storageResult->isSuccess()) {
+                    // Clean up any previously uploaded files
+                    foreach ($uploadedFilePaths as $path) {
+                        $fileStorage->delete($path);
+                    }
+                    
+                    return response()->json([
+                        'message' => 'Failed to store file: ' . $file->getClientOriginalName(),
+                        'error' => $storageResult->getError(),
+                    ], 500);
+                }
+                
+                $supportingDocuments[] = [
+                    'original_filename' => $file->getClientOriginalName(),
+                    'stored_filename' => $storageResult->getFilename(),
+                    'file_path' => $storageResult->getPath(),
+                    'file_size' => $file->getSize(),
+                    'mime_type' => $file->getMimeType(),
+                ];
+                
+                $uploadedFilePaths[] = $storageResult->getPath();
+            }
+        }
+        
+        try {
+            $survey_id = DB::transaction(function () use ($validator_id, $interviewed_by, $request, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $house_photo_path, $person_photo_path, $validator_signature, $respondent_signature, $marital_status, $spouse_name, $spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender, $normalize, $msInput, $supportingDocuments, $toNullIfEmpty, $tribe, $religion) {
             $toInt = function ($v) {
                 return is_numeric($v) ? (int) $v : null;
             };
@@ -810,22 +1499,22 @@ class ValidatorDashboardController extends Controller
                         'interview_person' => trim((string) $request->input('interview_person')),
                         'last_name' => trim((string) $request->input('last_name')),
                         'first_name' => trim((string) $request->input('first_name')),
-                        'middle_name' => trim((string) $request->input('middle_name')),
-                        'suffix' => trim((string) $request->input('suffix')),
+                        'middle_name' => $toNullIfEmpty($request->input('middle_name')),
+                        'suffix' => $toNullIfEmpty($request->input('suffix')),
                         'barangay' => $barangayVal,
-                        'purok' => trim((string) $request->input('purok')),
-                        'street' => trim((string) $request->input('street')),
+                        'purok' => $toNullIfEmpty($request->input('purok')),
+                        'street' => $toNullIfEmpty($request->input('street')),
                         'gender' => trim((string) $request->input('gender')),
-                        'religion' => trim((string) $request->input('religion')),
-                        'birth_place' => trim((string) $request->input('birth_place')),
+                        'religion' => $religion,
+                        'birth_place' => $toNullIfEmpty($request->input('birth_place')),
                         'birth_date' => trim((string) $request->input('birth_date')),
                         'person_age' => $toInt($request->input('person_age')),
                         'marital_status' => $marital_status,
-                        'contact_number' => trim((string) $request->input('contact_number')),
-                        'language_spoken' => trim((string) $request->input('language_spoken')),
-                        'tribe' => trim((string) $request->input('tribe')),
-                        'highest_education' => trim((string) $request->input('highest_education')),
-                        'last_school_name' => trim((string) $request->input('last_school_attended')),
+                        'contact_number' => $toNullIfEmpty($request->input('contact_number')),
+                        'language_spoken' => $toNullIfEmpty($request->input('language_spoken')),
+                        'tribe' => $tribe,
+                        'highest_education' => $toNullIfEmpty($request->input('highest_education')),
+                        'last_school_name' => $toNullIfEmpty($request->input('last_school_attended')),
                         'year_graduated' => $toInt($request->input('year_graduated')),
                         'spouse_name' => $spouse_name,
                         'spouse_religion' => $spouse_religion,
@@ -849,10 +1538,10 @@ class ValidatorDashboardController extends Controller
 
             DB::table('household')->insert([
                 'survey_id' => $sid,
-                'lot_ownership' => trim((string) $request->input('lot_ownership')),
-                'house_ownership' => trim((string) $request->input('house_ownership')),
-                'avail_socialized_housing' => trim((string) $request->input('avail_socialized_housing')),
-                'temporary_living_area' => trim((string) $request->input('temporary_living_area')),
+                'lot_ownership' => $toNullIfEmpty($request->input('lot_ownership')),
+                'house_ownership' => $toNullIfEmpty($request->input('house_ownership')),
+                'avail_socialized_housing' => $toNullIfEmpty($request->input('avail_socialized_housing')),
+                'temporary_living_area' => $toNullIfEmpty($request->input('temporary_living_area')),
                 'housing_structure' => $housing_structure,
                 'type_of_toilet' => $type_of_toilet,
                 'source_of_water' => $source_of_water,
@@ -863,9 +1552,9 @@ class ValidatorDashboardController extends Controller
                 'survey_id' => $sid,
                 'main_income_source' => $main_income_source,
                 'work_status' => $work_status,
-                'work_location_head' => trim((string) $request->input('work_location_head')),
+                'work_location_head' => $toNullIfEmpty($request->input('work_location_head')),
                 'monthly_salary' => $msInput,
-                'combine_monthly_income' => trim((string) $request->input('combine_monthly_income')),
+                'combine_monthly_income' => $toNullIfEmpty($request->input('combine_monthly_income')),
             ]);
 
             DB::table('training')->insert([
@@ -876,15 +1565,140 @@ class ValidatorDashboardController extends Controller
                 'specific_organization' => $specific_organization,
                 'house_photo' => $house_photo_path,
                 'person_photo' => $person_photo_path,
-                'wanttolearn' => trim((string) $request->input('wanttolearn')),
-                'remarks' => trim((string) $request->input('remarks')),
-                'latitude' => trim((string) $request->input('latitude')),
-                'longitude' => trim((string) $request->input('longitude')),
+                'wanttolearn' => $toNullIfEmpty($request->input('wanttolearn')),
+                'remarks' => $toNullIfEmpty($request->input('remarks')),
+                'latitude' => $toNullIfEmpty($request->input('latitude')),
+                'longitude' => $toNullIfEmpty($request->input('longitude')),
                 'respondent_signature' => $respondent_signature,
             ]);
 
             return $sid;
         });
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Database-specific errors (constraints, syntax, etc.)
+            if (!empty($uploadedFilePaths)) {
+                $fileStorage = new FileStorage();
+                foreach ($uploadedFilePaths as $path) {
+                    try {
+                        $fileStorage->delete($path);
+                    } catch (\Exception $deleteEx) {
+                        // Ignore cleanup errors
+                    }
+                }
+            }
+            
+            $errorCode = $e->getCode();
+            $errorInfo = $e->errorInfo ?? [];
+            $sqlState = $errorInfo[0] ?? null;
+            $errorNumber = isset($errorInfo[1]) ? (int)$errorInfo[1] : null;
+            
+            // Log detailed error with SQL state
+            Log::error('Survey creation failed - Database error', [
+                'validator_id' => $validator_id,
+                'error' => $e->getMessage(),
+                'error_code' => $errorCode,
+                'error_info' => $errorInfo,
+                'sql_state' => $sqlState,
+                'error_number' => $errorNumber,
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
+            // Determine specific error message based on error code
+            $message = 'Failed to save survey data. ';
+            
+            if ($errorNumber === 1062) {
+                // Duplicate entry error
+                $errorMessage = $e->getMessage();
+                if (preg_match("/Duplicate entry '(.+?)' for key '(.+?)'/", $errorMessage, $matches)) {
+                    $duplicateValue = $matches[1] ?? 'unknown';
+                    $keyName = $matches[2] ?? 'unknown';
+                    
+                    // Identify the specific field from the key name
+                    if (strpos($keyName, 'tag_number') !== false) {
+                        $message .= 'A survey with this tag number already exists. Please try again.';
+                    } elseif (strpos($keyName, 'survey_id') !== false) {
+                        $message .= 'A survey with this ID already exists. Please try again.';
+                    } elseif (strpos($keyName, 'PRIMARY') !== false) {
+                        $message .= 'A record with this primary key already exists.';
+                    } else {
+                        $message .= "Duplicate entry detected for {$keyName}. Please check your input.";
+                    }
+                } else {
+                    $message .= 'A duplicate entry was detected. Please check your input.';
+                }
+            } elseif ($errorNumber === 1452) {
+                // Foreign key constraint violation
+                $errorMessage = $e->getMessage();
+                if (preg_match("/FOREIGN KEY \(`(.+?)`\) REFERENCES `(.+?)` \(`(.+?)`\)/", $errorMessage, $matches)) {
+                    $foreignKeyColumn = $matches[1] ?? 'unknown';
+                    $referencedTable = $matches[2] ?? 'unknown';
+                    $referencedColumn = $matches[3] ?? 'unknown';
+                    
+                    $message .= "Invalid relationship detected: The {$foreignKeyColumn} references {$referencedTable}.{$referencedColumn} which does not exist. Please ensure all related data is valid.";
+                } else {
+                    $message .= 'Invalid relationship detected. Please ensure all related data is valid.';
+                }
+            } elseif ($errorNumber === 1451) {
+                // Cannot delete or update parent row
+                $message .= 'Cannot modify data due to existing relationships.';
+            } elseif ($errorNumber === 1048) {
+                // Column cannot be null
+                $errorMessage = $e->getMessage();
+                if (preg_match("/Column '(.+?)' cannot be null/", $errorMessage, $matches)) {
+                    $columnName = $matches[1] ?? 'unknown';
+                    $fieldName = str_replace('_', ' ', $columnName);
+                    $message .= "The {$fieldName} field is required and cannot be empty.";
+                } else {
+                    $message .= 'A required field is missing. Please check all required fields.';
+                }
+            } elseif ($sqlState === '08S01' || $sqlState === 'HY000') {
+                // Connection error
+                $message .= 'A temporary system issue occurred. Please try again later.';
+            } else {
+                // Generic database error
+                $message .= 'A database error occurred. Please try again or contact support.';
+            }
+            
+            return response()->json([
+                'message' => $message,
+                'error' => config('app.debug') ? $e->getMessage() : 'Database error occurred',
+            ], 500);
+            
+        } catch (\Exception $e) {
+            // Transaction failed, clean up uploaded files
+            if (!empty($uploadedFilePaths)) {
+                $fileStorage = new FileStorage();
+                foreach ($uploadedFilePaths as $path) {
+                    try {
+                        $fileStorage->delete($path);
+                    } catch (\Exception $deleteEx) {
+                        // Ignore cleanup errors
+                    }
+                }
+            }
+            
+            Log::error('Survey creation failed', [
+                'validator_id' => $validator_id,
+                'error' => $e->getMessage(),
+                'error_type' => get_class($e),
+                'trace' => $e->getTraceAsString(),
+                'request_keys' => array_keys($request->all()),
+            ]);
+            
+            $errorMessage = 'Failed to create survey. ';
+            if (strpos($e->getMessage(), 'file') !== false || strpos($e->getMessage(), 'upload') !== false) {
+                $errorMessage .= 'File upload error. Please check file sizes and formats.';
+            } elseif (strpos($e->getMessage(), 'signature') !== false) {
+                $errorMessage .= 'Signature processing error. Please try signing again.';
+            } else {
+                $errorMessage .= 'Please check your input and try again.';
+            }
+            
+            return response()->json([
+                'message' => $errorMessage,
+                'error' => config('app.debug') ? $e->getMessage() : 'Server error occurred',
+            ], 500);
+        }
 
         $names = $request->input('name');
         $hmCols = Schema::getColumnListing('household_mem');
@@ -961,6 +1775,22 @@ class ValidatorDashboardController extends Controller
             }
         }
 
+        // Calculate and save priority score
+        try {
+            $survey = Survey::find($survey_id);
+            if ($survey) {
+                $scoreService = new BeneficiaryScoreService();
+                $scoreService->calculateAndSave($survey);
+            }
+        } catch (ScoreCalculationException $e) {
+            // Log the error but don't fail the survey creation
+            Log::error('Failed to calculate priority score for new survey', [
+                'survey_id' => $survey_id,
+                'error' => $e->getMessage(),
+                'context' => $e->getContext()
+            ]);
+        }
+
         return response()->json(['survey_id' => $survey_id, 'tag_number' => DB::table('demographic')->where('survey_id', $survey_id)->value('tag_number')]);
     }
 
@@ -991,6 +1821,15 @@ class ValidatorDashboardController extends Controller
             $v = is_string($v) ? trim($v) : $v;
 
             return is_string($v) ? str_replace('_', ' ', $v) : $v;
+        };
+
+        // Helper function to convert empty strings to NULL for optional fields
+        $toNullIfEmpty = function ($v) {
+            if ($v === null) {
+                return null;
+            }
+            $trimmed = is_string($v) ? trim($v) : $v;
+            return ($trimmed === '' || $trimmed === null) ? null : $trimmed;
         };
 
         $classification = $normalize($request->input('classification'));
@@ -1088,10 +1927,11 @@ class ValidatorDashboardController extends Controller
             if (! in_array($mime, $allowed)) {
                 return response()->json(['message' => 'Invalid file type'], 422);
             }
-            $ext = $file->getClientOriginalExtension() ?: 'jpg';
-            $filename = uniqid('house_').'.'.$ext;
-            \Illuminate\Support\Facades\Storage::disk('public')->putFileAs('house_photos', $file, $filename);
-            $house_photo_path = 'storage/house_photos/'.$filename;
+            // Use FileStorageService for dual storage
+            $result = FileStorageService::store($file, 'house_photos', 'house_');
+            if ($result['success']) {
+                $house_photo_path = $result['path']; // e.g., 'house_photos/house_xxx.jpg'
+            }
         }
         $person_photo_path = null;
         $personFile = $request->file('person_photo');
@@ -1104,10 +1944,11 @@ class ValidatorDashboardController extends Controller
             if (! in_array($mime, $allowed)) {
                 return response()->json(['message' => 'Invalid file type'], 422);
             }
-            $ext = $personFile->getClientOriginalExtension() ?: 'jpg';
-            $filename = uniqid('person_').'.'.$ext;
-            \Illuminate\Support\Facades\Storage::disk('public')->putFileAs('person_photos', $personFile, $filename);
-            $person_photo_path = 'storage/person_photos/'.$filename;
+            // Use FileStorageService for dual storage
+            $result = FileStorageService::store($personFile, 'person_photos', 'person_');
+            if ($result['success']) {
+                $person_photo_path = $result['path']; // e.g., 'person_photos/person_xxx.jpg'
+            }
         }
         $saveSignature = function ($input) {
             if (! $input) {
@@ -1126,10 +1967,15 @@ class ValidatorDashboardController extends Controller
                 if ($data === false) {
                     return null;
                 }
-                $path = 'signatures/'.uniqid().'.png';
-                \Illuminate\Support\Facades\Storage::disk('public')->put($path, $data);
+                $filename = uniqid('sig_').'.png';
+                
+                // Store in Laravel storage
+                \Illuminate\Support\Facades\Storage::disk('public')->put('signatures/'.$filename, $data);
+                
+                // Also copy to public directory using FileStorageService
+                FileStorageService::copyToPublicDirectory('signatures', $filename);
 
-                return $path;
+                return 'signatures/'.$filename; // Return path without 'storage/' prefix
             }
 
             return $s;
@@ -1142,11 +1988,12 @@ class ValidatorDashboardController extends Controller
         $allowSpouse = in_array($marital_status, ['Married', 'Live-in', 'Widow/Widower', 'Separated', 'Annulled']);
         $spouse_name = $allowSpouse ? $normalize($request->input('spouse_name')) : null;
         $spouse_religion = $allowSpouse ? $normalize($request->input('spouse_religion')) : null;
+        $other_spouse_religion = $allowSpouse ? $normalize($request->input('other_spouse_religion')) : null;
         $spouse_tribe = $allowSpouse ? $normalize($request->input('spouse_tribe')) : null;
         $spouse_age = $allowSpouse ? $normalize($request->input('spouse_age')) : null;
         $spouse_gender = $allowSpouse ? $normalize($request->input('spouse_gender')) : null;
 
-        DB::transaction(function () use ($survey_id, $request, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $respondent_signature, $house_photo_path, $person_photo_path, $lat, $lon, $spouse_name, $spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender, $normalize, $yn, $ynMayor) {
+        DB::transaction(function () use ($survey_id, $request, $classification, $subclass_displaced, $subclass_doubleup, $subclass_homeless, $housing_structure, $type_of_toilet, $source_of_water, $source_of_electricity, $main_income_source, $work_status, $skills_for_living, $specific_skill, $organization_member, $specific_organization, $respondent_signature, $house_photo_path, $person_photo_path, $lat, $lon, $spouse_name, $spouse_religion, $other_spouse_religion, $spouse_tribe, $spouse_age, $spouse_gender, $normalize, $yn, $ynMayor, $toNullIfEmpty) {
             $toInt = function ($v) {
                 return is_numeric($v) ? (int) $v : null;
             };
@@ -1171,35 +2018,37 @@ class ValidatorDashboardController extends Controller
                 'interview_person' => trim((string) $request->input('interview_person')),
                 'last_name' => trim((string) $request->input('last_name')),
                 'first_name' => trim((string) $request->input('first_name')),
-                'middle_name' => trim((string) $request->input('middle_name')),
-                'suffix' => trim((string) $request->input('suffix')),
+                'middle_name' => $toNullIfEmpty($request->input('middle_name')),
+                'suffix' => $toNullIfEmpty($request->input('suffix')),
                 'barangay' => trim((string) $request->input('barangay')),
-                'purok' => trim((string) $request->input('purok')),
-                'street' => trim((string) $request->input('street')),
+                'purok' => $toNullIfEmpty($request->input('purok')),
+                'street' => $toNullIfEmpty($request->input('street')),
                 'gender' => trim((string) $request->input('gender')),
-                'religion' => trim((string) $request->input('religion')),
-                'birth_place' => trim((string) $request->input('birth_place')),
+                'religion' => $toNullIfEmpty($request->input('religion')),
+                'other_religion' => $toNullIfEmpty($request->input('other_religion')),
+                'birth_place' => $toNullIfEmpty($request->input('birth_place')),
                 'birth_date' => trim((string) $request->input('birth_date')),
                 'person_age' => $toInt($request->input('person_age')),
                 'marital_status' => trim((string) $request->input('marital_status')),
-                'contact_number' => trim((string) $request->input('contact_number')),
-                'language_spoken' => trim((string) $request->input('language_spoken')),
-                'tribe' => trim((string) $request->input('tribe')),
-                'highest_education' => trim((string) $request->input('highest_education')),
-                'last_school_name' => trim((string) $request->input('last_school_attended')),
+                'contact_number' => $toNullIfEmpty($request->input('contact_number')),
+                'language_spoken' => $toNullIfEmpty($request->input('language_spoken')),
+                'tribe' => $toNullIfEmpty($request->input('tribe')),
+                'highest_education' => $toNullIfEmpty($request->input('highest_education')),
+                'last_school_name' => $toNullIfEmpty($request->input('last_school_attended')),
                 'year_graduated' => $toInt($request->input('year_graduated')),
                 'spouse_name' => $spouse_name,
                 'spouse_religion' => $spouse_religion,
+                'other_spouse_religion' => $other_spouse_religion,
                 'spouse_tribe' => $spouse_tribe,
                 'spouse_age' => $toInt($spouse_age),
                 'spouse_gender' => $spouseGenderStr,
                 'endorsed_by_mayor' => $ynMayor($request->input('endorsed_by_mayor')),
             ]);
             DB::table('household')->where('survey_id', $survey_id)->update([
-                'lot_ownership' => trim((string) $request->input('lot_ownership')),
-                'house_ownership' => trim((string) $request->input('house_ownership')),
-                'avail_socialized_housing' => trim((string) $request->input('avail_socialized_housing')),
-                'temporary_living_area' => trim((string) $request->input('temporary_living_area')),
+                'lot_ownership' => $toNullIfEmpty($request->input('lot_ownership')),
+                'house_ownership' => $toNullIfEmpty($request->input('house_ownership')),
+                'avail_socialized_housing' => $toNullIfEmpty($request->input('avail_socialized_housing')),
+                'temporary_living_area' => $toNullIfEmpty($request->input('temporary_living_area')),
                 'housing_structure' => $housing_structure,
                 'type_of_toilet' => $type_of_toilet,
                 'source_of_water' => $source_of_water,
@@ -1212,17 +2061,17 @@ class ValidatorDashboardController extends Controller
             DB::table('economic')->where('survey_id', $survey_id)->update([
                 'main_income_source' => $main_income_source,
                 'work_status' => $work_status,
-                'work_location_head' => trim((string) $request->input('work_location_head')),
+                'work_location_head' => $toNullIfEmpty($request->input('work_location_head')),
                 'monthly_salary' => $msInput,
-                'combine_monthly_income' => trim((string) $request->input('combine_monthly_income')),
+                'combine_monthly_income' => $toNullIfEmpty($request->input('combine_monthly_income')),
             ]);
             $trainingUpdate = [
                 'skills_for_living' => $skills_for_living,
                 'specific_skill' => $specific_skill,
                 'organization_member' => $organization_member,
                 'specific_organization' => $specific_organization,
-                'wanttolearn' => trim((string) $request->input('wanttolearn')),
-                'remarks' => trim((string) $request->input('remarks')),
+                'wanttolearn' => $toNullIfEmpty($request->input('wanttolearn')),
+                'remarks' => $toNullIfEmpty($request->input('remarks')),
                 'latitude' => $lat,
                 'longitude' => $lon,
             ];
@@ -1278,6 +2127,22 @@ class ValidatorDashboardController extends Controller
                 DB::table('household_mem')->insert($payload);
             }
         });
+
+        // Calculate and save priority score after update
+        try {
+            $survey = Survey::find($survey_id);
+            if ($survey) {
+                $scoreService = new BeneficiaryScoreService();
+                $scoreService->calculateAndSave($survey);
+            }
+        } catch (ScoreCalculationException $e) {
+            // Log the error but don't fail the survey update
+            Log::error('Failed to calculate priority score for updated survey', [
+                'survey_id' => $survey_id,
+                'error' => $e->getMessage(),
+                'context' => $e->getContext()
+            ]);
+        }
 
         return response()->json(['ok' => true]);
     }
@@ -1526,11 +2391,13 @@ class ValidatorDashboardController extends Controller
         $data = Cache::remember('admin_totals', 30, function () {
             $total_validated = DB::table('survey')->where('is_submitted', 1)->count();
             $total_approved = DB::table('survey')->where('is_submitted', 2)->count();
-            $total_overall = DB::table('survey')->whereIn('is_submitted', [1, 2])->count();
+            $total_assigned = DB::table('survey')->where('is_submitted', 3)->count();
+            $total_overall = DB::table('survey')->whereIn('is_submitted', [1, 2, 3])->count();
 
             return [
                 'total_validated' => $total_validated,
                 'total_approved' => $total_approved,
+                'total_assigned' => $total_assigned,
                 'total_overall' => $total_overall,
             ];
         });
@@ -1548,7 +2415,7 @@ class ValidatorDashboardController extends Controller
             return DB::table('survey as s')
                 ->join('demographic as d', 'd.survey_id', '=', 's.survey_id')
                 ->select('d.barangay', DB::raw('COUNT(*) AS count'))
-                ->whereIn('s.is_submitted', [1, 2])
+                ->whereIn('s.is_submitted', [1, 2, 3])
                 ->when($startYear && $endYear, function ($q) use ($startYear, $endYear) {
                     $start = Carbon::createMidnightDate((int) $startYear, 1, 1)->toDateString();
                     $end = Carbon::createMidnightDate((int) $endYear, 12, 31)->toDateString();
@@ -1576,7 +2443,7 @@ class ValidatorDashboardController extends Controller
                 ->join('classification as c', 'c.survey_id', '=', 's.survey_id')
                 ->join('demographic as d', 'd.survey_id', '=', 's.survey_id')
                 ->select('c.classification', 'd.barangay', DB::raw('COUNT(*) AS count'))
-                ->whereIn('s.is_submitted', [1, 2])
+                ->whereIn('s.is_submitted', [1, 2, 3])
                 ->when($startYear && $endYear, function ($q) use ($startYear, $endYear) {
                     $start = Carbon::createMidnightDate((int) $startYear, 1, 1)->toDateString();
                     $end = Carbon::createMidnightDate((int) $endYear, 12, 31)->toDateString();
@@ -1612,7 +2479,7 @@ class ValidatorDashboardController extends Controller
                 ->join('classification as c', 'c.survey_id', '=', 's.survey_id')
                 ->join('demographic as d', 'd.survey_id', '=', 's.survey_id')
                 ->select('d.barangay', 'c.subclass_displaced', DB::raw('COUNT(*) AS count'))
-                ->whereIn('s.is_submitted', [1, 2])
+                ->whereIn('s.is_submitted', [1, 2, 3])
                 ->whereNotNull('c.subclass_displaced')
                 ->groupBy('d.barangay', 'c.subclass_displaced')
                 ->get()
@@ -1637,7 +2504,7 @@ class ValidatorDashboardController extends Controller
                 ->join('classification as c', 'c.survey_id', '=', 's.survey_id')
                 ->join('demographic as d', 'd.survey_id', '=', 's.survey_id')
                 ->select('d.barangay', 'c.subclass_doubleup', DB::raw('COUNT(*) AS count'))
-                ->whereIn('s.is_submitted', [1, 2])
+                ->whereIn('s.is_submitted', [1, 2, 3])
                 ->whereNotNull('c.subclass_doubleup')
                 ->groupBy('d.barangay', 'c.subclass_doubleup')
                 ->get()
@@ -1659,7 +2526,7 @@ class ValidatorDashboardController extends Controller
                 ->join('classification as c', 'c.survey_id', '=', 's.survey_id')
                 ->join('demographic as d', 'd.survey_id', '=', 's.survey_id')
                 ->select('d.barangay', 'c.subclass_homeless', DB::raw('COUNT(*) AS count'))
-                ->whereIn('s.is_submitted', [1, 2])
+                ->whereIn('s.is_submitted', [1, 2, 3])
                 ->whereNotNull('c.subclass_homeless')
                 ->groupBy('d.barangay', 'c.subclass_homeless')
                 ->get()
@@ -1798,8 +2665,12 @@ class ValidatorDashboardController extends Controller
             $base->where('s.is_submitted', 1);
         } elseif ($status === 'approved') {
             $base->where('s.is_submitted', 2);
+        } elseif ($status === 'assigned') {
+            $base->where('s.is_submitted', 3);
+        } elseif ($status === 'disapproved') {
+            $base->where('s.is_submitted', 5);
         } elseif ($status === 'submitted') {
-            $base->whereIn('s.is_submitted', [1, 2]);
+            $base->whereIn('s.is_submitted', [1, 2, 3, 5]);
         }
         if ($aff === '') {
             $base->where(function ($q) {
@@ -1842,6 +2713,9 @@ class ValidatorDashboardController extends Controller
         $scored = $base->select(
             's.survey_id',
             's.date_interviewed',
+            's.is_submitted',
+            's.priority_score',
+            's.score_calculated_at',
             'd.barangay',
             'd.last_name',
             'c.classification',
@@ -1856,33 +2730,24 @@ class ValidatorDashboardController extends Controller
             'h.type_of_toilet',
             'h.source_of_water',
             'h.source_of_electricity'
-        )->selectRaw("$pointsExpr as points");
+        )->selectRaw("COALESCE(s.priority_score, 0) as points");
 
         if (is_numeric($pointsMin)) {
             $min = (float) $pointsMin;
-            $scored->whereRaw("$pointsExpr >= ?", [$min]);
+            $scored->where('s.priority_score', '>=', $min);
         }
         if (is_numeric($pointsMax)) {
             $max = (float) $pointsMax;
-            $scored->whereRaw("$pointsExpr <= ?", [$max]);
+            $scored->where('s.priority_score', '<=', $max);
         }
 
         $total = (clone $scored)->count();
 
-        $rowsQuery = $scored;
-        if (is_numeric($pointsMin) || is_numeric($pointsMax)) {
-            $rowsQuery = $rowsQuery
-                ->orderByDesc('points')
-                ->orderBy('d.barangay')
-                ->orderBy('c.classification');
-        } else {
-            $rowsQuery = $rowsQuery
-                ->orderBy('d.barangay')
-                ->orderBy('c.classification')
-                ->orderByDesc('points');
-        }
-
-        $rows = $rowsQuery
+        // Always order by points descending first for global sorting across all pages
+        $rows = $scored
+            ->orderByDesc('points')
+            ->orderBy('d.barangay')
+            ->orderBy('c.classification')
             ->offset($offset)
             ->limit($perPage)
             ->get()
@@ -2024,7 +2889,7 @@ class ValidatorDashboardController extends Controller
             ->join('classification as c', 'c.survey_id', '=', 's.survey_id')
             ->leftJoin('household as h', 'h.survey_id', '=', 's.survey_id')
             ->leftJoin('economic as e', 'e.survey_id', '=', 's.survey_id')
-            ->whereIn('s.is_submitted', [1, 2]);
+            ->whereIn('s.is_submitted', [1, 2, 3]);
         if ($aff !== '') {
             $affStr = str_replace('_', ' ', $aff);
             $base->where('d.affiliations', 'like', "%$affStr%");
@@ -2049,6 +2914,8 @@ class ValidatorDashboardController extends Controller
         $scored = $base->select(
             's.survey_id',
             's.date_interviewed',
+            's.priority_score',
+            's.score_calculated_at',
             'd.barangay',
             'd.last_name',
             'c.classification',
@@ -2063,15 +2930,15 @@ class ValidatorDashboardController extends Controller
             'h.type_of_toilet',
             'h.source_of_water',
             'h.source_of_electricity'
-        )->selectRaw("$pointsExpr as points");
+        )->selectRaw("COALESCE(s.priority_score, 0) as points");
 
         if (is_numeric($pointsMin)) {
             $min = (float) $pointsMin;
-            $scored->whereRaw("$pointsExpr >= ?", [$min]);
+            $scored->where('s.priority_score', '>=', $min);
         }
         if (is_numeric($pointsMax)) {
             $max = (float) $pointsMax;
-            $scored->whereRaw("$pointsExpr <= ?", [$max]);
+            $scored->where('s.priority_score', '<=', $max);
         }
 
         $total = (clone $scored)->count();
@@ -2114,6 +2981,109 @@ class ValidatorDashboardController extends Controller
             'data' => $rows,
             'total' => $total,
             'page' => $page,
+            'per_page' => $perPage,
+        ]);
+    }
+
+    /**
+     * Get assigned beneficiaries (is_submitted = 3) for Monitoring and Revocations.
+     * These are beneficiaries who have been assigned a project site, block, and lot.
+     */
+    public function adminBeneficiariesAssigned(Request $request)
+    {
+        $perPage = (int) $request->get('per_page', 10);
+        $page = (int) $request->get('page', 1);
+        $search = trim((string) $request->get('search', ''));
+        $projectId = $request->get('project_id', '');
+        $offset = ($page - 1) * $perPage;
+
+        $base = DB::table('survey as s')
+            ->join('demographic as d', 'd.survey_id', '=', 's.survey_id')
+            ->join('classification as c', 'c.survey_id', '=', 's.survey_id')
+            ->leftJoin('assignments as a', 'a.survey_id', '=', 's.survey_id')
+            ->leftJoin('siteproj as p', 'p.project_id', '=', 'a.project_id')
+            ->where('s.is_submitted', 3); // Only assigned beneficiaries
+
+        // Filter by project_id if provided
+        if ($projectId !== '' && $projectId !== null) {
+            $base->where('a.project_id', $projectId);
+        }
+
+        if ($search !== '') {
+            $base->where(function ($q) use ($search) {
+                $q->where('d.last_name', 'like', "%$search%")
+                    ->orWhere('d.first_name', 'like', "%$search%")
+                    ->orWhere('d.barangay', 'like', "%$search%")
+                    ->orWhere('p.project_name', 'like', "%$search%")
+                    ->orWhereRaw('CONCAT("Block ", a.block_no, " Lot ", a.lot_no) LIKE ?', ["%$search%"])
+                    ->orWhere('a.block_no', 'like', "%$search%")
+                    ->orWhere('a.lot_no', 'like', "%$search%");
+            });
+        }
+
+        $total = (clone $base)->count();
+
+        $rows = $base->select(
+            's.survey_id',
+            's.date_interviewed',
+            's.priority_score',
+            's.score_calculated_at',
+            'd.barangay',
+            'd.first_name',
+            'd.last_name',
+            'c.classification',
+            'c.subclass_displaced',
+            'c.subclass_doubleup',
+            'c.subclass_homeless',
+            'a.block_no',
+            'a.lot_no',
+            'a.date_assigned',
+            'p.project_id',
+            'p.project_name'
+        )
+            ->orderBy('a.date_assigned', 'desc')
+            ->offset($offset)
+            ->limit($perPage)
+            ->get()
+            ->map(function ($row) {
+                $classLabel = [1 => 'Displaced', 2 => 'Double-up', 3 => 'Homeless', 4 => 'Upgrading of Land Tenure'];
+                $displacedLabel = [
+                    1 => 'Coastal Areas', 2 => 'Drought', 3 => 'Earthquake Affected', 4 => 'Flood Affected', 5 => 'Sea Level Rise',
+                    6 => 'Threat of Eviction', 7 => 'Eviction/Demolition Order', 8 => 'Human Induced Disaster', 9 => 'Infra Projects', 10 => 'Landslide Affected', 11 => 'Near Waterways',
+                ];
+                $doubleupLabel = [1 => 'Renter/Tenant', 2 => 'Rent-free/Sharer', 3 => 'Caretaker'];
+                $homelessLabel = [1 => 'Public - living in tent', 2 => 'Private - living in tent'];
+                
+                $row->classification = $classLabel[$row->classification] ?? $row->classification;
+                $row->subclass_displaced = $displacedLabel[$row->subclass_displaced] ?? ($row->subclass_displaced ?? '');
+                $row->subclass_doubleup = $doubleupLabel[$row->subclass_doubleup] ?? ($row->subclass_doubleup ?? '');
+                $row->subclass_homeless = $homelessLabel[$row->subclass_homeless] ?? ($row->subclass_homeless ?? '');
+                
+                // Add demographic object for frontend compatibility
+                $row->demographic = (object) [
+                    'first_name' => $row->first_name,
+                    'last_name' => $row->last_name,
+                    'barangay' => $row->barangay,
+                ];
+                
+                // Add assignment info
+                $row->assignment = (object) [
+                    'block_no' => $row->block_no,
+                    'lot_no' => $row->lot_no,
+                    'date_assigned' => $row->date_assigned,
+                    'project_name' => $row->project_name,
+                    'project_id' => $row->project_id,
+                ];
+
+                return $row;
+            })
+            ->values();
+
+        return response()->json([
+            'data' => $rows,
+            'total' => $total,
+            'page' => $page,
+            'current_page' => $page,
             'per_page' => $perPage,
         ]);
     }
@@ -2246,8 +3216,12 @@ class ValidatorDashboardController extends Controller
             $base->where('s.is_submitted', 1);
         } elseif ($status === 'approved') {
             $base->where('s.is_submitted', 2);
+        } elseif ($status === 'assigned') {
+            $base->where('s.is_submitted', 3);
+        } elseif ($status === 'disapproved') {
+            $base->where('s.is_submitted', 5);
         } elseif ($status === 'submitted') {
-            $base->whereIn('s.is_submitted', [1, 2]);
+            $base->whereIn('s.is_submitted', [1, 2, 3, 5]);
         }
         if ($aff !== '') {
             $affStr = str_replace('_', ' ', $aff);
@@ -2284,6 +3258,9 @@ class ValidatorDashboardController extends Controller
         $scored = $base->select(
             's.survey_id',
             's.date_interviewed',
+            's.is_submitted',
+            's.priority_score',
+            's.score_calculated_at',
             'd.barangay',
             'd.last_name',
             'c.classification',
@@ -2299,33 +3276,24 @@ class ValidatorDashboardController extends Controller
             'h.type_of_toilet',
             'h.source_of_water',
             'h.source_of_electricity'
-        )->selectRaw("$pointsExpr as points");
+        )->selectRaw("COALESCE(s.priority_score, 0) as points");
 
         if (is_numeric($pointsMin)) {
             $min = (float) $pointsMin;
-            $scored->whereRaw("$pointsExpr >= ?", [$min]);
+            $scored->where('s.priority_score', '>=', $min);
         }
         if (is_numeric($pointsMax)) {
             $max = (float) $pointsMax;
-            $scored->whereRaw("$pointsExpr <= ?", [$max]);
+            $scored->where('s.priority_score', '<=', $max);
         }
 
         $total = (clone $scored)->count();
 
-        $rowsQuery = $scored;
-        if (is_numeric($pointsMin) || is_numeric($pointsMax)) {
-            $rowsQuery = $rowsQuery
-                ->orderByDesc('points')
-                ->orderBy('d.barangay')
-                ->orderBy('c.classification');
-        } else {
-            $rowsQuery = $rowsQuery
-                ->orderBy('d.barangay')
-                ->orderBy('c.classification')
-                ->orderByDesc('points');
-        }
-
-        $rows = $rowsQuery
+        // Always order by points descending first for global sorting across all pages
+        $rows = $scored
+            ->orderByDesc('points')
+            ->orderBy('d.barangay')
+            ->orderBy('c.classification')
             ->offset($offset)
             ->limit($perPage)
             ->get()
@@ -2469,8 +3437,10 @@ class ValidatorDashboardController extends Controller
             $base->where('s.is_submitted', 1);
         } elseif ($status === 'approved') {
             $base->where('s.is_submitted', 2);
+        } elseif ($status === 'assigned') {
+            $base->where('s.is_submitted', 3);
         } elseif ($status === 'submitted') {
-            $base->whereIn('s.is_submitted', [1, 2]);
+            $base->whereIn('s.is_submitted', [1, 2, 3]);
         }
 
         $classMap = [
@@ -2510,6 +3480,8 @@ class ValidatorDashboardController extends Controller
         $scored = $base->select(
             's.survey_id',
             's.date_interviewed',
+            's.priority_score',
+            's.score_calculated_at',
             'd.barangay',
             'd.last_name',
             'c.classification',
@@ -2524,15 +3496,15 @@ class ValidatorDashboardController extends Controller
             'h.type_of_toilet',
             'h.source_of_water',
             'h.source_of_electricity'
-        )->selectRaw("$pointsExpr as points");
+        )->selectRaw("COALESCE(s.priority_score, 0) as points");
 
         if (is_numeric($pointsMin)) {
             $min = (float) $pointsMin;
-            $scored->havingRaw("$pointsExpr >= ?", [$min]);
+            $scored->where('s.priority_score', '>=', $min);
         }
         if (is_numeric($pointsMax)) {
             $max = (float) $pointsMax;
-            $scored->havingRaw("$pointsExpr <= ?", [$max]);
+            $scored->where('s.priority_score', '<=', $max);
         }
 
         $total = (clone $scored)->count();
@@ -3071,8 +4043,10 @@ class ValidatorDashboardController extends Controller
             $base->where('s.is_submitted', 1);
         } elseif ($status === 'approved') {
             $base->where('s.is_submitted', 2);
+        } elseif ($status === 'assigned') {
+            $base->where('s.is_submitted', 3);
         } elseif ($status === 'submitted') {
-            $base->whereIn('s.is_submitted', [1, 2]);
+            $base->whereIn('s.is_submitted', [1, 2, 3]);
         }
         if ($class !== '') {
             $code = $classMap[strtolower($class)] ?? null;
@@ -3269,8 +4243,10 @@ class ValidatorDashboardController extends Controller
             $base->where('s.is_submitted', 1);
         } elseif ($status === 'approved') {
             $base->where('s.is_submitted', 2);
+        } elseif ($status === 'assigned') {
+            $base->where('s.is_submitted', 3);
         } elseif ($status === 'submitted') {
-            $base->whereIn('s.is_submitted', [1, 2]);
+            $base->whereIn('s.is_submitted', [1, 2, 3]);
         }
         if ($aff !== '') {
             $affStr = str_replace('_', ' ', $aff);
@@ -3458,7 +4434,7 @@ class ValidatorDashboardController extends Controller
             ->leftJoin('siteproj as p', 'p.project_id', '=', 'a.project_id')
             ->leftJoin('assignments as a', 'a.survey_id', '=', 's.survey_id')
             ->leftJoin('siteproj as p', 'p.project_id', '=', 'a.project_id')
-            ->whereIn('s.is_submitted', [1, 2])
+            ->whereIn('s.is_submitted', [1, 2, 3])
             ->where(function ($q) {
                 $q->whereNull('d.affiliations')
                     ->orWhere('d.affiliations', '')
@@ -3611,7 +4587,7 @@ class ValidatorDashboardController extends Controller
             ->leftJoin('economic as e', 'e.survey_id', '=', 's.survey_id')
             ->leftJoin('training as t', 't.survey_id', '=', 's.survey_id')
             ->where('d.endorsed_by_mayor', 1)
-            ->whereIn('s.is_submitted', [1, 2]);
+            ->whereIn('s.is_submitted', [1, 2, 3]);
         if ($class !== '') {
             $lc = strtolower($class);
             $code = $classMap[$lc] ?? null;
@@ -3754,13 +4730,14 @@ class ValidatorDashboardController extends Controller
             ->leftJoin('household as h', 'h.survey_id', '=', 's.survey_id')
             ->leftJoin('economic as e', 'e.survey_id', '=', 's.survey_id')
             ->leftJoin('training as t', 't.survey_id', '=', 's.survey_id')
+            ->leftJoin('assignments as a', 'a.survey_id', '=', 's.survey_id')
             ->where('s.validator_id', $validator_id)
             ->where('d.barangay', $barangay);
         if ($hasDeletedAt) {
             $base->whereNull('s.deleted_at');
         }
         if ($scope === 'submitted') {
-            $base->whereIn('s.is_submitted', [1, 2]);
+            $base->whereIn('s.is_submitted', [1, 2, 3]);
         } elseif ($scope === 'survey') {
             $base->where(function ($q) {
                 $q->whereNull('s.is_submitted')->orWhere('s.is_submitted', 0);
@@ -3773,7 +4750,7 @@ class ValidatorDashboardController extends Controller
             }
         }
         $rows = $base->select(
-            's.interviewed_by', 's.date_interviewed', 'd.tag_number', 's.is_submitted',
+            's.interviewed_by', 's.date_interviewed', 'd.tag_number', 's.is_submitted', 'a.assignment_id',
             'c.previous_client', 'c.year_inhabited', 'c.classification', 'c.subclass_displaced', 'c.subclass_doubleup', 'c.subclass_homeless',
             'd.last_name', 'd.first_name', 'd.middle_name', 'd.suffix', 'd.barangay', 'd.purok', 'd.street', 'd.gender', 'd.religion', 'd.birth_place', 'd.birth_date', 'd.person_age', 'd.marital_status', 'd.contact_number', 'd.language_spoken', 'd.tribe', 'd.highest_education', 'd.last_school_name', 'd.year_graduated', 'd.spouse_name', 'd.spouse_religion', 'd.spouse_tribe', 'd.spouse_age', 'd.spouse_gender', 'd.affiliations',
             'h.lot_ownership', 'h.house_ownership', 'h.avail_socialized_housing', 'h.temporary_living_area', 'h.housing_structure', 'h.type_of_toilet', 'h.source_of_water', 'h.source_of_electricity',
@@ -3806,10 +4783,13 @@ class ValidatorDashboardController extends Controller
                         return 'validated';
                     }
                     if ($s === 2) {
+                        return 'approved';
+                    }
+                    if ($s === 3) {
                         return 'assigned';
                     }
 
-                    return 'surveyed';
+                    return 'pending';
                 })($r->is_submitted ?? null),
                 array_key_exists($r->previous_client, $ynLabel) ? $ynLabel[$r->previous_client] : ($r->previous_client ?? ''),
                 $r->year_inhabited ?? '',
@@ -3892,10 +4872,12 @@ class ValidatorDashboardController extends Controller
                     ->select('s.survey_id', 's.is_submitted', 'd.barangay', 'c.classification', 'd.first_name', 'd.last_name', 'd.middle_name', 'd.suffix', 'd.tag_number', 't.latitude', 't.longitude', 't.house_photo', 't.person_photo');
                 if ($scope === 'validated') {
                     $rows->where('s.is_submitted', 1);
-                } elseif ($scope === 'assigned' || $scope === 'approved') {
+                } elseif ($scope === 'approved') {
                     $rows->where('s.is_submitted', 2);
+                } elseif ($scope === 'assigned') {
+                    $rows->where('s.is_submitted', 3);
                 } else {
-                    $rows->whereIn('s.is_submitted', [1, 2]);
+                    $rows->whereIn('s.is_submitted', [1, 2, 3]);
                 }
                 if ($startYear && $endYear) {
                     $start = Carbon::createMidnightDate((int) $startYear, 1, 1)->toDateString();
@@ -3971,12 +4953,15 @@ class ValidatorDashboardController extends Controller
             if ($scope === 'validated') {
                 $countsQuery->where('s.is_submitted', 1);
                 $coordsQuery->where('s.is_submitted', 1);
-            } elseif ($scope === 'assigned' || $scope === 'approved') {
+            } elseif ($scope === 'approved') {
                 $countsQuery->where('s.is_submitted', 2);
                 $coordsQuery->where('s.is_submitted', 2);
+            } elseif ($scope === 'assigned') {
+                $countsQuery->where('s.is_submitted', 3);
+                $coordsQuery->where('s.is_submitted', 3);
             } else {
-                $countsQuery->whereIn('s.is_submitted', [1, 2]);
-                $coordsQuery->whereIn('s.is_submitted', [1, 2]);
+                $countsQuery->whereIn('s.is_submitted', [1, 2, 3]);
+                $coordsQuery->whereIn('s.is_submitted', [1, 2, 3]);
             }
             if ($startYear && $endYear) {
                 $start = Carbon::createMidnightDate((int) $startYear, 1, 1)->toDateString();
@@ -4093,16 +5078,17 @@ class ValidatorDashboardController extends Controller
                 $points += 0;
         }
 
-        switch ($row['combine_monthly_income'] ?? '') {
-            case '0 - 2,999 PHP': $points += 30;
+        $incomeBandKey = $this->incomeBandKeyFromValue($row['combine_monthly_income'] ?? null);
+        switch ($incomeBandKey) {
+            case '0_2999': $points += 30;
                 break;
-            case '3,000 - 5,999 PHP': $points += 25;
+            case '3000_5999': $points += 25;
                 break;
-            case '6,000 - 8,999 PHP': $points += 20;
+            case '6000_8999': $points += 20;
                 break;
-            case '9,000 - 12,999_PHP': $points += 15;
+            case '9000_12999': $points += 15;
                 break;
-            case '13,000 and above': $points += 10;
+            case '13000_plus': $points += 10;
                 break;
             default: $points += 0;
         }
@@ -4238,13 +5224,8 @@ class ValidatorDashboardController extends Controller
             $img = is_string($r->proj_image ?? null) ? $r->proj_image : '';
             $url = null;
             if ($img !== '') {
-                $rel = ltrim($img, '/');
-                if (Str::startsWith($rel, 'storage/')) {
-                    $rel2 = substr($rel, 8);
-                    $url = Storage::disk('public')->exists($rel2) ? Storage::url($rel2) : "/storage/$rel2";
-                } else {
-                    $url = Storage::disk('public')->exists($rel) ? Storage::url($rel) : (Str::startsWith($img, '/') ? $img : "/storage/$rel");
-                }
+                // Use FileStorageService to get the URL
+                $url = FileStorageService::getUrl($img);
             }
             $blocksJson = property_exists($r, 'blocks_json') ? ($r->blocks_json ?? null) : null;
             $availableLotsTotal = 0;
@@ -4300,17 +5281,16 @@ class ValidatorDashboardController extends Controller
 
         $path = null;
         if ($request->hasFile('proj_image')) {
-            $file = $request->file('proj_image');
-            $filename = uniqid('proj_').'.'.$file->getClientOriginalExtension();
-            $stored = $file->storeAs('projects', $filename, 'public');
-            $srcAbs = Storage::disk('public')->path('projects/'.$filename);
-            $pubDir = public_path('storage/projects');
-            if (! is_dir($pubDir)) {
-                @mkdir($pubDir, 0775, true);
+            // Use FileStorageService for dual storage
+            $result = FileStorageService::store(
+                $request->file('proj_image'),
+                'projects',
+                'proj_'
+            );
+            
+            if ($result['success']) {
+                $path = $result['path']; // e.g., 'projects/proj_xxx.jpg'
             }
-            $dstAbs = $pubDir.'/'.$filename;
-            @copy($srcAbs, $dstAbs);
-            $path = 'storage/projects/'.$filename;
         }
         $columns = Schema::getColumnListing('siteproj');
         if (! in_array('blocks_json', $columns)) {
@@ -4378,17 +5358,22 @@ class ValidatorDashboardController extends Controller
         ]);
         $path = null;
         if ($request->hasFile('proj_image')) {
-            $file = $request->file('proj_image');
-            $filename = uniqid('proj_').'.'.$file->getClientOriginalExtension();
-            $stored = $file->storeAs('projects', $filename, 'public');
-            $srcAbs = Storage::disk('public')->path('projects/'.$filename);
-            $pubDir = public_path('storage/projects');
-            if (! is_dir($pubDir)) {
-                @mkdir($pubDir, 0775, true);
+            // Delete old image if exists
+            $oldImg = is_string($project->proj_image ?? null) ? $project->proj_image : '';
+            if ($oldImg !== '') {
+                FileStorageService::delete($oldImg);
             }
-            $dstAbs = $pubDir.'/'.$filename;
-            @copy($srcAbs, $dstAbs);
-            $path = 'storage/projects/'.$filename;
+            
+            // Use FileStorageService for dual storage
+            $result = FileStorageService::store(
+                $request->file('proj_image'),
+                'projects',
+                'proj_'
+            );
+            
+            if ($result['success']) {
+                $path = $result['path']; // e.g., 'projects/proj_xxx.jpg'
+            }
         }
         $columns = Schema::getColumnListing('siteproj');
         $payload = [];
@@ -4427,15 +5412,8 @@ class ValidatorDashboardController extends Controller
         try {
             $img = is_string($project->proj_image ?? null) ? $project->proj_image : '';
             if ($img !== '') {
-                $rel = ltrim($img, '/');
-                if (str_starts_with($rel, 'storage/')) {
-                    $rel2 = substr($rel, 8);
-                    @unlink(public_path('storage/'.$rel2));
-                    Storage::disk('public')->delete($rel2);
-                } else {
-                    @unlink(public_path($rel));
-                    Storage::disk('public')->delete($rel);
-                }
+                // Use FileStorageService to delete from both locations
+                FileStorageService::delete($img);
             }
         } catch (\Throwable $e) {
         }
@@ -4548,7 +5526,8 @@ class ValidatorDashboardController extends Controller
             ->join('survey as s', 's.survey_id', '=', 'a.survey_id')
             ->join('demographic as d', 'd.survey_id', '=', 's.survey_id')
             ->join('classification as c', 'c.survey_id', '=', 's.survey_id')
-            ->join('siteproj as p', 'p.project_id', '=', 'a.project_id');
+            ->join('siteproj as p', 'p.project_id', '=', 'a.project_id')
+            ->where('s.is_submitted', 3); // Only show fully assigned beneficiaries
         if ($search !== '') {
             $base->where(function ($q) use ($search) {
                 $q->where('d.last_name', 'like', "%$search%")
@@ -4621,6 +5600,9 @@ class ValidatorDashboardController extends Controller
             'lot_no' => (string) $lotNo,
             'date_assigned' => now(),
         ]);
+
+        // Update survey status to Assigned (is_submitted = 3)
+        DB::table('survey')->where('survey_id', $validated['survey_id'])->update(['is_submitted' => 3]);
 
         return response()->json(['ok' => true]);
     }
@@ -4867,9 +5849,76 @@ class ValidatorDashboardController extends Controller
         if (! $exists) {
             return response()->json(['message' => 'Not found'], 404);
         }
-        $updated = DB::table('survey')->where('survey_id', $survey_id)->update(['is_submitted' => 2]);
+        // Only approve surveys that are currently validated (is_submitted = 1)
+        // Don't change surveys that are already approved (2) or assigned (3)
+        $updated = DB::table('survey')
+            ->where('survey_id', $survey_id)
+            ->where('is_submitted', 1)
+            ->update(['is_submitted' => 2]);
 
         return response()->json(['ok' => true, 'updated' => (bool) $updated]);
+    }
+
+    /**
+     * Send a validated survey back for revalidation.
+     * Sets is_submitted = 0 so it goes back to the validator's queue.
+     */
+    public function adminRevalidateSurvey(Request $request, int $surveyId)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        
+        $exists = DB::table('survey')->where('survey_id', $surveyId)->first();
+        if (! $exists) {
+            return response()->json(['message' => 'Survey not found'], 404);
+        }
+        
+        // Only revalidate surveys that are currently validated (is_submitted = 1)
+        if ((int) $exists->is_submitted !== 1) {
+            return response()->json(['message' => 'Only validated surveys can be sent for revalidation'], 400);
+        }
+        
+        $updated = DB::table('survey')
+            ->where('survey_id', $surveyId)
+            ->where('is_submitted', 1)
+            ->update(['is_submitted' => 0]);
+
+        return response()->json([
+            'success' => (bool) $updated,
+            'message' => $updated ? 'Survey sent back for revalidation' : 'Failed to update survey status'
+        ]);
+    }
+
+    /**
+     * Disapprove a validated survey.
+     * Sets is_submitted = 5 to mark it as disapproved.
+     */
+    public function adminDisapproveSurvey(Request $request, int $surveyId)
+    {
+        if (session('role') !== 'admin') {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+        
+        $exists = DB::table('survey')->where('survey_id', $surveyId)->first();
+        if (! $exists) {
+            return response()->json(['message' => 'Survey not found'], 404);
+        }
+        
+        // Only disapprove surveys that are currently validated (is_submitted = 1)
+        if ((int) $exists->is_submitted !== 1) {
+            return response()->json(['message' => 'Only validated surveys can be disapproved'], 400);
+        }
+        
+        $updated = DB::table('survey')
+            ->where('survey_id', $surveyId)
+            ->where('is_submitted', 1)
+            ->update(['is_submitted' => 5]);
+
+        return response()->json([
+            'success' => (bool) $updated,
+            'message' => $updated ? 'Survey has been disapproved' : 'Failed to update survey status'
+        ]);
     }
 
     public function adminDbInfo(Request $request)
@@ -4920,7 +5969,7 @@ class ValidatorDashboardController extends Controller
                 ->leftJoin('classification as c', 'c.survey_id', '=', 's.survey_id')
                 ->leftJoin('economic as e', 'e.survey_id', '=', 's.survey_id')
                 ->leftJoin('household as h', 'h.survey_id', '=', 's.survey_id')
-                ->whereIn('s.is_submitted', [1, 2]);
+                ->whereIn('s.is_submitted', [1, 2, 3]);
             if ($barangay !== '') {
                 $baseFilter->where('d.barangay', $barangay);
             }
@@ -5164,7 +6213,7 @@ class ValidatorDashboardController extends Controller
                 ->leftJoin('classification as c', 'c.survey_id', '=', 's.survey_id')
                 ->leftJoin('economic as e', 'e.survey_id', '=', 's.survey_id')
                 ->leftJoin('household as h', 'h.survey_id', '=', 's.survey_id')
-                ->whereIn('s.is_submitted', [1, 2]);
+                ->whereIn('s.is_submitted', [1, 2, 3]);
             if ($barangay !== '') {
                 $baseFilter->where('d.barangay', $barangay);
             }
@@ -5189,6 +6238,7 @@ class ValidatorDashboardController extends Controller
                 return [
                     'base_total' => 0,
                     'surveys_per_month' => [],
+                    'surveys_per_month_by_status' => [],
                     'followups_per_month' => [],
                     'classification_per_month' => [],
                     'avg_income_per_month' => [],
@@ -5200,6 +6250,17 @@ class ValidatorDashboardController extends Controller
                 ->whereNotNull('s.date_interviewed')
                 ->selectRaw("DATE_FORMAT(s.date_interviewed, '%Y-%m') AS ym, COUNT(*) AS count")
                 ->groupBy('ym')
+                ->orderBy('ym', 'asc')
+                ->get();
+
+            // Surveys per month by status (for multi-line chart)
+            // Status: 1=Validated, 2=Approved/Pending, 3=Assigned
+            $surveysPerMonthByStatus = DB::table('survey as s')
+                ->whereIn('s.survey_id', $surveyIds)
+                ->whereNotNull('s.date_interviewed')
+                ->whereIn('s.is_submitted', [1, 2, 3])
+                ->selectRaw("DATE_FORMAT(s.date_interviewed, '%Y-%m') AS ym, s.is_submitted AS status, COUNT(*) AS count")
+                ->groupBy('ym', 's.is_submitted')
                 ->orderBy('ym', 'asc')
                 ->get();
 
@@ -5240,6 +6301,7 @@ class ValidatorDashboardController extends Controller
             return [
                 'base_total' => $baseTotal,
                 'surveys_per_month' => $surveysPerMonth,
+                'surveys_per_month_by_status' => $surveysPerMonthByStatus,
                 'followups_per_month' => $followupsPerMonth,
                 'classification_per_month' => $classificationPerMonth,
                 'avg_income_per_month' => $avgIncomePerMonth,
@@ -5272,7 +6334,7 @@ class ValidatorDashboardController extends Controller
             ->leftJoin('classification as c', 'c.survey_id', '=', 's.survey_id')
             ->leftJoin('economic as e', 'e.survey_id', '=', 's.survey_id')
             ->leftJoin('household as h', 'h.survey_id', '=', 's.survey_id')
-            ->whereIn('s.is_submitted', [1, 2]);
+            ->whereIn('s.is_submitted', [1, 2, 3]);
         if ($barangay !== '') {
             $baseFilter->where('d.barangay', $barangay);
         }
@@ -5374,7 +6436,7 @@ class ValidatorDashboardController extends Controller
                 ->leftJoin('demographic as d', 'd.survey_id', '=', 's.survey_id')
                 ->leftJoin('classification as c', 'c.survey_id', '=', 's.survey_id')
                 ->leftJoin('household as h', 'h.survey_id', '=', 's.survey_id')
-                ->whereIn('s.is_submitted', [1, 2]);
+                ->whereIn('s.is_submitted', [1, 2, 3]);
             if ($barangay !== '') {
                 $baseFilter->where('d.barangay', $barangay);
             }
@@ -5440,7 +6502,7 @@ class ValidatorDashboardController extends Controller
             $baseFilter = DB::table('survey as s')
                 ->leftJoin('demographic as d', 'd.survey_id', '=', 's.survey_id')
                 ->leftJoin('classification as c', 'c.survey_id', '=', 's.survey_id')
-                ->whereIn('s.is_submitted', [1, 2]);
+                ->whereIn('s.is_submitted', [1, 2, 3]);
             if ($barangay !== '') {
                 $baseFilter->where('d.barangay', $barangay);
             }
@@ -5561,7 +6623,17 @@ class ValidatorDashboardController extends Controller
         $signaturePath = null;
         if ($request->hasFile('signature')) {
             $file = $request->file('signature');
-            $signaturePath = $file->store('signatures', 'public');
+            $stored = $file->store('signatures', 'public');
+            $relative = ltrim($stored, '/');
+            $sourcePath = Storage::disk('public')->path($relative);
+            $docRoot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/\\');
+            $publicDir = $docRoot ? ($docRoot.'/storage/signatures') : (rtrim(dirname(base_path(), 2), '/\\').'/public_html/storage/signatures');
+            if (! is_dir($publicDir)) {
+                @mkdir($publicDir, 0775, true);
+            }
+            $destinationPath = $publicDir.'/'.basename($relative);
+            @copy($sourcePath, $destinationPath);
+            $signaturePath = 'storage/signatures/'.basename($relative);
         }
         DB::table('validator')->insert([
             'username' => $username,
@@ -5675,8 +6747,17 @@ class ValidatorDashboardController extends Controller
             }
             $path = 'signatures/'.uniqid().'.png';
             Storage::disk('public')->put($path, $dataBin);
+            $relative = ltrim($path, '/');
+            $sourcePath = Storage::disk('public')->path($relative);
+            $docRoot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/\\');
+            $publicDir = $docRoot ? ($docRoot.'/storage/signatures') : (rtrim(dirname(base_path(), 2), '/\\').'/public_html/storage/signatures');
+            if (! is_dir($publicDir)) {
+                @mkdir($publicDir, 0775, true);
+            }
+            $destinationPath = $publicDir.'/'.basename($relative);
+            @copy($sourcePath, $destinationPath);
 
-            return $path;
+            return 'storage/signatures/'.basename($relative);
         };
 
         $validator_signature = $saveSignature($val('validator_signature') ?: $request->input('validator_signature'));
@@ -6211,6 +7292,22 @@ class ValidatorDashboardController extends Controller
 
                 DB::table('household_mem')->insert($payload);
             }
+        }
+
+        // Calculate and save priority score
+        try {
+            $survey = Survey::find($survey_id);
+            if ($survey) {
+                $scoreService = new BeneficiaryScoreService();
+                $scoreService->calculateAndSave($survey);
+            }
+        } catch (ScoreCalculationException $e) {
+            // Log the error but don't fail the survey submission
+            Log::error('Failed to calculate priority score for mobile survey', [
+                'survey_id' => $survey_id,
+                'error' => $e->getMessage(),
+                'context' => $e->getContext()
+            ]);
         }
 
         return response()->json(['success' => true, 'survey_id' => $survey_id, 'tag_number' => $tagNumber, 'message' => 'Survey submitted successfully']);

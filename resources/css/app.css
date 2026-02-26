@@ -31,7 +31,7 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
     to {
         opacity: 1;
         transform: translateY(0);
-    }
+    }   
 }
 
 .animate-table-fade {
@@ -55,43 +55,588 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
     will-change: transform, opacity;
 }
 
+/* Simple chart canvas styling - let Chart.js handle dimensions */
+.admin-dashboard-main canvas {
+    display: block !important;
+    margin: 0 auto !important;
+}
+
+/* Ensure doughnut charts have consistent size */
+.admin-dashboard-main [data-printable-section="education-chart"] canvas,
+.admin-dashboard-main [data-printable-section="isf-classification-chart"] canvas {
+    max-width: 280px !important;
+    max-height: 280px !important;
+}
+
+/* Multi-column legend layout for education chart - target Chart.js generated legend */
+[data-printable-section="education-chart"] .chartjs-legend,
+#education-chart-legend {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    column-gap: 16px !important;
+    row-gap: 6px !important;
+}
+
+/* Style for Chart.js canvas legend container */
+canvas#education-chart ~ div,
+[data-printable-section="education-chart"] canvas ~ div {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    column-gap: 16px !important;
+    row-gap: 6px !important;
+}
+
+/* Mobile Responsive Design - Requirements 6.1, 6.3 */
+@media (max-width: 767px) {
+    /* Form fields - full width and vertical stacking */
+    input[type="text"],
+    input[type="email"],
+    input[type="tel"],
+    input[type="number"],
+    input[type="date"],
+    select,
+    textarea {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    /* Ensure form containers stack vertically */
+    .field-group,
+    .form-group {
+        display: flex !important;
+        flex-direction: column !important;
+        width: 100% !important;
+    }
+
+    /* Other specify fields - prevent horizontal overflow */
+    .other-specify-field,
+    [class*="other-specify"] {
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
+    }
+
+    .other-specify-field input,
+    [class*="other-specify"] input {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Prevent any horizontal scrolling */
+    body {
+        overflow-x: hidden !important;
+    }
+
+    /* Ensure dropdowns are full width on mobile */
+    .dropdown-container,
+    [role="listbox"] {
+        width: 100% !important;
+    }
+
+    /* File upload button sizing - Requirement 6.4 */
+    input[type="file"] + label,
+    label[for*="file"],
+    button[type="button"]:has(input[type="file"]),
+    .file-upload-button,
+    input[type="file"]::file-selector-button {
+        min-width: 44px !important;
+        min-height: 44px !important;
+        padding: 12px 16px !important;
+        touch-action: manipulation !important;
+    }
+
+    /* Ensure file input labels have proper touch targets */
+    label:has(input[type="file"]) {
+        min-width: 44px !important;
+        min-height: 44px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+}
+
+/* Print Media Queries - Admin Dashboard Print Functionality */
 @media print {
+    /* Page setup */
     @page {
         size: 8.5in 13in;
-        margin: 0.5cm;
+        margin: 1cm;
     }
+    
     html,
     body {
         height: auto !important;
         overflow: visible !important;
         background: #ffffff !important;
     }
-    .admin-dashboard-root,
-    .admin-dashboard-main {
-        height: auto !important;
-        max-height: none !important;
-        overflow: visible !important;
-    }
-    .admin-dashboard-main {
-        padding-top: 8px !important;
-    }
-    .admin-analytics-print {
-        margin-top: 0 !important;
-    }
-    .print-include {
-        display: block !important;
-    }
-    canvas {
-        max-width: 100% !important;
-    }
+    
+    /* Generic no-print class */
     .no-print {
         display: none !important;
     }
-    .global-isf-bar {
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-        color-adjust: exact;
-        border: 1px solid #4b5563 !important;
-        box-sizing: border-box;
+    
+    /* Hide navigation elements - Requirement 4.1 */
+    nav,
+    [role="navigation"],
+    header[class*="nav"],
+    .navigation,
+    .navbar {
+        display: none !important;
+    }
+    
+    /* Hide sidebar - Requirement 4.4 */
+    aside,
+    [class*="sidebar"],
+    .sidebar,
+    [data-sidebar] {
+        display: none !important;
+    }
+    
+    /* Hide all buttons except those explicitly marked for print - Requirement 4.2 */
+    button:not([data-print-button]),
+    [type="button"]:not([data-print-button]),
+    [type="submit"],
+    [type="reset"],
+    .btn:not([data-print-button]),
+    a[class*="button"]:not([data-print-button]) {
+        display: none !important;
+    }
+    
+    /* Hide filter controls - Requirement 4.3 */
+    [class*="filter"],
+    [data-filter],
+    select:not([data-print-metadata]),
+    [role="listbox"],
+    [class*="dropdown"]:not([data-print-metadata]) {
+        display: none !important;
+    }
+    
+    /* Hide chart containers but keep canvases visible - Requirements 1.3, 2.5, 3.5 */
+    [class*="chart-container"]:not(canvas),
+    [data-chart-container]:not(canvas) {
+        display: none !important;
+    }
+    
+    /* Ensure chart canvases remain visible - Requirements 1.3, 2.5, 3.5 */
+    canvas {
+        display: block !important;
+        page-break-inside: avoid !important;
+        max-width: 100% !important;
+        height: auto !important;
+    }
+    
+    /* Preserve chart legends and titles that are part of canvas - Requirement 4.5 */
+    canvas + div[class*="legend"],
+    canvas + div[class*="title"],
+    [data-chart-legend],
+    [data-chart-title] {
+        display: block !important;
+        page-break-inside: avoid !important;
+    }
+    
+    /* Page break prevention for charts - Requirement 8.1 */
+    [data-printable-section],
+    [data-print-section],
+    .chart-wrapper,
+    .chart-section {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    
+    /* Page break prevention for tables - Requirement 8.2 */
+    table,
+    .table-wrapper,
+    [data-table-section] {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    
+    /* Prevent table rows from breaking across pages */
+    tr,
+    thead,
+    tbody {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    
+    /* Page break before rules for section separation */
+    [data-page-break-before],
+    .page-break-before {
+        page-break-before: always !important;
+        break-before: page !important;
+    }
+    
+    /* Ensure sections that should stay together don't break */
+    [data-keep-together],
+    .keep-together {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    
+    /* Hide mobile navigation toggle */
+    [data-mobile-nav],
+    [class*="mobile-nav"],
+    .mobile-menu-button {
+        display: none !important;
+    }
+    
+    /* Hide notification panels and modals */
+    [role="dialog"],
+    [class*="modal"],
+    [class*="notification"],
+    [data-notification] {
+        display: none !important;
+    }
+    
+    /* Ensure print metadata is visible */
+    [data-print-metadata],
+    .print-metadata {
+        display: block !important;
+    }
+    
+    /* Hide scrollbars in print */
+    * {
+        overflow: visible !important;
+        -webkit-overflow-scrolling: auto !important;
+    }
+    
+    /* Optimize text for print */
+    body {
+        font-size: 10pt !important;
+        line-height: 1.4 !important;
+        color: #000000 !important;
+    }
+    
+    /* Ensure tables are readable */
+    table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+    }
+    
+    th,
+    td {
+        padding: 4pt 8pt !important;
+        border: 1pt solid #cccccc !important;
+    }
+    
+    /* Preserve background colors for better readability */
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+    }
+    
+    /* Hide form inputs in print */
+    input:not([data-print-metadata]),
+    textarea:not([data-print-metadata]) {
+        display: none !important;
+    }
+    
+    /* Ensure links are visible but not interactive */
+    a {
+        text-decoration: none !important;
+        color: inherit !important;
+    }
+    
+    /* Hide tooltips and popovers */
+    [role="tooltip"],
+    [class*="tooltip"],
+    [class*="popover"] {
+        display: none !important;
+    }
+    
+    /* Optimize spacing for print */
+    .container,
+    .wrapper,
+    main {
+        padding: 0 !important;
+        margin: 0 !important;
+        max-width: 100% !important;
+    }
+    
+    /* Ensure content starts immediately after metadata - no blank first page */
+    .print-metadata + *,
+    [data-print-metadata] + * {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+    
+    /* By Year Summary section - keep both charts together - Requirements 1.2, 1.5 */
+    #by-year-summary,
+    [data-print-section="by-year-summary"],
+    #summary-and-subclass-group > div:first-child,
+    #summary-and-subclass-group .bg-white:first-child {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        page-break-after: auto !important;
+        margin-top: 0 !important; /* Start immediately after metadata */
+    }
+    
+    /* Ensure both charts in by-year-summary stay on same page */
+    #by-year-summary .grid,
+    #by-year-summary [class*="grid"] {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    
+    /* Prevent page break between classification chart and global ISF chart */
+    #by-year-summary > div,
+    #by-year-summary .chart-wrapper,
+    #by-year-summary [class*="bg-gray-50"] {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+    }
+    
+    /* Ensure print-vertical-layout class keeps content together */
+    .print-vertical-layout {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    
+    /* Make sure global ISF chart section is visible in print */
+    .print-include {
+        display: block !important;
+        page-break-inside: avoid !important;
+    }
+}
+
+/* Subclass table print styles - Requirements 2.1, 2.2, 2.3, 2.4, 2.5, 2.6 */
+@media print {
+    /* Page break between subclass tables when printing multiple - Requirement 2.6 */
+    .print-page-break {
+        page-break-before: auto !important;
+        page-break-after: auto !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    
+    /* When printing individual subclass sections, ensure they stay together */
+    #subclass-displaced,
+    #subclass-double-up,
+    #subclass-homeless,
+    [data-print-section="subclass-displaced"],
+    [data-print-section="subclass-double-up"],
+    [data-print-section="subclass-homeless"] {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        display: block !important;
+    }
+    
+    /* Ensure subclass charts are visible in print - Requirement 2.3 */
+    #subclass-displaced canvas,
+    #subclass-double-up canvas,
+    #subclass-homeless canvas {
+        display: block !important;
+        page-break-inside: avoid !important;
+        max-width: 100% !important;
+        height: auto !important;
+        margin: 0 auto !important;
+    }
+    
+    /* Ensure subclass tables are visible and properly formatted - Requirement 2.2 */
+    #subclass-displaced table,
+    #subclass-double-up table,
+    #subclass-homeless table {
+        display: table !important;
+        width: 100% !important;
+        page-break-inside: avoid !important;
+        border-collapse: collapse !important;
+    }
+    
+    /* Ensure summary statistics are visible - Requirement 2.4 */
+    #subclass-displaced [id*="summary"],
+    #subclass-double-up [id*="summary"],
+    #subclass-homeless [id*="summary"],
+    .print-only {
+        display: block !important;
+        page-break-inside: avoid !important;
+    }
+    
+    /* Ensure chart and table stay together within each subclass section */
+    #subclass-displaced > div,
+    #subclass-double-up > div,
+    #subclass-homeless > div {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    
+    /* Optimize subclass table text for print */
+    #subclass-displaced table th,
+    #subclass-displaced table td,
+    #subclass-double-up table th,
+    #subclass-double-up table td,
+    #subclass-homeless table th,
+    #subclass-homeless table td {
+        font-size: 8pt !important;
+        padding: 3pt 6pt !important;
+    }
+    
+    /* Ensure subclass section titles are visible */
+    #subclass-displaced .font-medium,
+    #subclass-double-up .font-medium,
+    #subclass-homeless .font-medium {
+        display: block !important;
+        font-size: 12pt !important;
+        font-weight: bold !important;
+        margin-bottom: 8pt !important;
+    }
+}
+
+/* Screen-only and print-only utility classes */
+@media screen {
+    .print-only {
+        display: none !important;
+    }
+}
+
+@media print {
+    .print-only {
+        display: block !important;
+    }
+}
+
+/* Filtered Analytics section print styles - Requirements 3.1, 3.2, 3.3, 3.5, 3.6 */
+@media print {
+    /* Ensure filtered analytics section is visible, centered, and starts on a new page */
+    #filtered-analytics,
+    [data-print-section="filtered-analytics"] {
+        display: block !important;
+        page-break-before: always !important; /* Move entire section to its own page */
+        page-break-inside: auto !important;
+        page-break-after: auto !important;
+        max-width: 800px !important; /* Keep content within a readable column */
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+    
+    /* Ensure indicator cards are visible - Requirement 3.2 */
+    #filtered-analytics [data-print-element="indicator-cards"],
+    #filtered-analytics .print-include {
+        display: grid !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    
+    /* Individual indicator cards */
+    #filtered-analytics [data-print-element="indicator-cards"] > div {
+        display: block !important;
+        page-break-inside: avoid !important;
+    }
+    
+    /* Ensure analytics charts are visible - Requirement 3.1 */
+    #filtered-analytics [data-print-element="analytics-charts"],
+    #filtered-analytics canvas {
+        display: block !important;
+        page-break-inside: avoid !important;
+        max-width: 100% !important;
+        height: auto !important;
+    }
+    
+    /* Chart containers in filtered analytics - center graphs on the page */
+    #filtered-analytics .chart-container {
+        display: block !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        margin-bottom: 12pt !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+    }
+    
+    /* Ensure crosstab tables are visible if present - Requirement 3.3 */
+    #filtered-analytics table,
+    #filtered-analytics [data-crosstab] {
+        display: table !important;
+        width: 100% !important;
+        page-break-inside: avoid !important;
+        border-collapse: collapse !important;
+    }
+    
+    /* Optimize chart grid layout for print */
+    #filtered-analytics [data-print-element="analytics-charts"] {
+        display: block !important;
+    }
+    
+    #filtered-analytics [data-print-element="analytics-charts"] > div {
+        display: block !important;
+        page-break-inside: avoid !important;
+        margin-bottom: 16pt !important;
+    }
+    
+    /* Ensure chart titles are visible */
+    #filtered-analytics .text-emerald-800,
+    #filtered-analytics [class*="font-medium"] {
+        display: block !important;
+        font-size: 11pt !important;
+        font-weight: bold !important;
+        margin-bottom: 6pt !important;
+    }
+    
+    /* Optimize indicator card layout for print - keep ALL cards on ONE page */
+    /* Combine both card groups into single compact layout */
+    #filtered-analytics [data-print-element="indicator-cards"] {
+        grid-template-columns: repeat(3, 1fr) !important; /* 3 columns to fit more cards */
+        gap: 3pt !important; /* Very tight gap */
+        margin-bottom: 2pt !important; /* Minimal space between card groups */
+        padding: 2pt !important; /* Minimal padding */
+        page-break-inside: avoid !important; /* Keep all cards together */
+        break-inside: avoid !important;
+    }
+    
+    /* Ensure ALL indicator cards stay on same page - no page breaks between groups */
+    #filtered-analytics [data-print-element="indicator-cards"]:first-of-type {
+        margin-bottom: 2pt !important; /* Minimal gap between first and second card group */
+    }
+    
+    #filtered-analytics [data-print-element="indicator-cards"]:last-of-type {
+        margin-bottom: 2pt !important; /* Minimal gap before graphs */
+    }
+    
+    /* Ensure ALL indicator cards stay on same page - no page breaks */
+    #filtered-analytics [data-print-element="indicator-cards"] > div {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+    }
+    
+    /* Indicator card text sizing */
+    #filtered-analytics [data-print-element="indicator-cards"] .text-xs {
+        font-size: 8pt !important;
+    }
+    
+    #filtered-analytics [data-print-element="indicator-cards"] .text-2xl {
+        font-size: 14pt !important;
+    }
+    
+    /* Hide section title in print to avoid blank header-only page */
+    #filtered-analytics h2 {
+        display: none !important;
+    }
+    
+    /* Place graphs immediately after cards - fill empty space */
+    #filtered-analytics [data-print-element="analytics-charts"] {
+        margin-top: 2pt !important; /* Minimal gap - graphs right after cards */
+        margin-bottom: 4pt !important;
+        page-break-before: avoid !important; /* Don't break before graphs */
+    }
+    
+    /* Ensure graphs stay with cards on same page when possible */
+    #filtered-analytics [data-print-element="indicator-cards"] + [data-print-element="analytics-charts"] {
+        page-break-before: avoid !important;
+        break-before: avoid !important;
+    }
+    
+    /* Apply intelligent page breaks between chart groups */
+    #filtered-analytics [data-print-element="analytics-charts"]:not(:first-child) {
+        page-break-before: auto !important;
+    }
+    
+    /* Prevent awkward splits - if less than 30% of content on first page, move to next */
+    #filtered-analytics > div {
+        orphans: 3 !important;
+        widows: 3 !important;
     }
 }

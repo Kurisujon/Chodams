@@ -4,9 +4,12 @@ import axios from 'axios'
 import { Link } from '@inertiajs/react'
 import Modal from '../Components/Modal'
 import { Listbox, Transition } from '@headlessui/react'
+import { AdminSidebarWrapper } from '../Components/AdminSidebar'
+import chartCoordinator from '../Services/ChartRenderingCoordinator'
+import PrintButton from '../Components/PrintButton'
 
 const barangays = [
-  'Aplaya','Balabag','Binaton','Cogon','Colorado','Dawis','Dulangan','Goma','Igpit','Kapatagan','Kiagot','Lungag','Mahayahay','Matti','Ruparan','San_Agustin','San_Jose','San_Miguel','San_Roque','Sinawilan','Soong','Tiguman','Tres_De_Mayo','Zone_1','Zone_2','Zone_3'
+  'Aplaya','Balabag','Binaton','Cogon','Colorado','Dawis','Dulangan','Goma','Igpit','Kapatagan','Kiagot','Lungag','Mahayahay','Matti','Ruparan','San_Agustin','San_Jose','San_Miguel','San_Roque','Sinawilan','Soong','Tiguman','Tres_De_Mayo','Zone_I','Zone_II','Zone_III'
 ]
 
 const classOrder = ['Displaced', 'Double-up', 'Homeless', 'Upgrading of Land Tenure']
@@ -38,6 +41,11 @@ export default function AdminDashboard() {
   const [notifModal, setNotifModal] = useState({ open: false, item: null })
   const [showNotifPanel, setShowNotifPanel] = useState(false)
   const [activeNotifId, setActiveNotifId] = useState(null)
+
+  // HOA, Monitoring, and Revocation dashboard stats
+  const [hoaStats, setHoaStats] = useState({ total_hoas: 0, active_officers: 0, inactive_officers: 0, total_officers: 0 })
+  const [monitoringStats, setMonitoringStats] = useState({ upcoming_visits_this_month: 0, due_visits_count: 0, current_month: '' })
+  const [revocationStats, setRevocationStats] = useState({ total: 0, recent: 0, this_month: 0 })
 
   const [showClassification, setShowClassification] = useState(true)
   const [showClassificationDesc, setShowClassificationDesc] = useState(false)
@@ -159,6 +167,53 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     setMounted(true)
+    
+    // Initialize chart coordinator
+    // The coordinator will handle window resize and visibility change events automatically
+    const initCoordinator = async () => {
+      try {
+        await chartCoordinator.initialize()
+        console.log('Chart coordinator initialized successfully')
+        
+        // Force resize all charts after a delay to ensure they're visible
+        setTimeout(() => {
+          const chartIds = [
+            'barangay-chart',
+            'classification-chart',
+            'displaced-chart',
+            'doubleup-chart',
+            'homeless-chart',
+            'income-chart',
+            'education-chart',
+            'isf-classification-chart',
+            'surveys-month-chart',
+            'followup-month-chart'
+          ]
+          
+          chartIds.forEach(chartId => {
+            try {
+              const chart = chartCoordinator.lifecycleManager?.getChart(chartId)
+              if (chart && typeof chart.resize === 'function') {
+                requestAnimationFrame(() => {
+                  chart.resize()
+                })
+              }
+            } catch (e) {
+              // Chart might not be registered yet, that's okay
+            }
+          })
+        }, 500)
+      } catch (error) {
+        console.error('Failed to initialize chart coordinator:', error)
+      }
+    }
+    
+    initCoordinator()
+    
+    // Cleanup on unmount
+    return () => {
+      chartCoordinator.cleanup()
+    }
   }, [])
 
   useEffect(() => {
@@ -169,12 +224,16 @@ export default function AdminDashboard() {
         await Promise.all([
           fetchTotals(),
           fetchBarangay(),
+          fetchClassification(),
           fetchSubclassDisplaced(),
           fetchSubclassDoubleUp(),
           fetchSubclassHomeless(),
           fetchAssignedCount(),
           fetchNotifications(),
           fetchProfile(),
+          fetchHoaStats(),
+          fetchMonitoringStats(),
+          fetchRevocationStats(),
         ])
       } finally {
         if (!cancelled) setInitialLoading(false)
@@ -310,6 +369,33 @@ export default function AdminDashboard() {
     } catch (e) {}
   }
 
+  async function fetchHoaStats() {
+    try {
+      const res = await axios.get('/admin/api/hoa-dashboard-stats')
+      if (res.data.success) {
+        setHoaStats(res.data.hoa_stats)
+      }
+    } catch (e) {}
+  }
+
+  async function fetchMonitoringStats() {
+    try {
+      const res = await axios.get('/admin/api/monitoring-dashboard-stats')
+      if (res.data.success) {
+        setMonitoringStats(res.data.monitoring_stats)
+      }
+    } catch (e) {}
+  }
+
+  async function fetchRevocationStats() {
+    try {
+      const res = await axios.get('/admin/api/revocation-statistics')
+      if (res.data.success) {
+        setRevocationStats(res.data.statistics)
+      }
+    } catch (e) {}
+  }
+
   function toggleNotifPanel() {
     setShowNotifPanel(v => !v)
   }
@@ -324,40 +410,145 @@ export default function AdminDashboard() {
   }
 
   useEffect(() => {
-    if (!window.Chart) return
-    if (barangayChart.current) barangayChart.current.destroy()
-    if (!barangayRef.current) return
+    // Don't render if no data
+    if (!barangayRef.current || !barangayData || barangayData.length === 0) return
+    
+    const chartId = 'barangay-chart'
+
+    // #region agent log
+    try {
+      const canvas = barangayRef.current
+      const parent = canvas ? canvas.parentElement : null
+      const canvasRect = canvas ? canvas.getBoundingClientRect() : { width: 0, height: 0 }
+      const parentRect = parent ? parent.getBoundingClientRect() : { width: 0, height: 0 }
+
+      fetch('http://127.0.0.1:7242/ingest/36b80014-4a16-4bd1-8a7c-ecd551ae87f9', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: 'debug-session',
+          runId: 'initial',
+          hypothesisId: 'H1',
+          location: 'AdminDashboard.useEffect[barangayData]',
+          message: 'Barangay chart effect - canvas and parent dimensions',
+          data: {
+            chartId,
+            canvasWidth: canvasRect.width,
+            canvasHeight: canvasRect.height,
+            parentWidth: parentRect.width,
+            parentHeight: parentRect.height,
+            windowWidth: typeof window !== 'undefined' ? window.innerWidth : null,
+            windowHeight: typeof window !== 'undefined' ? window.innerHeight : null
+          },
+          timestamp: Date.now()
+        })
+      }).catch(() => {})
+    } catch (e) {}
+    // #endregion
+    
+    // Prepare chart data
     const top = [...barangayData].sort((a, b) => (Number(b.count || 0) - Number(a.count || 0))).slice(0, 10)
     const labels = top.map(i => String(i.barangay || 'Unknown').replace(/_/g,' '))
     const values = top.map(i => Number(i.count) || 0)
     const colors = emeraldColors(labels.length)
-    barangayChart.current = new window.Chart(barangayRef.current, {
-      type: 'doughnut',
-      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: '#fff', borderWidth: 2, hoverOffset: 6 }] },
-      options: { responsive: true, cutout: '78%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle' } } }, animation: { duration: 800 } }
+    
+    // Register chart with coordinator
+    chartCoordinator.registerChart(chartId, {
+      canvasRef: barangayRef,
+      chartType: 'doughnut',
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: colors,
+          borderColor: '#fff',
+          borderWidth: 2,
+          hoverOffset: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '65%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            align: 'center',
+            labels: {
+              usePointStyle: true,
+              pointStyle: 'rect',
+              padding: 12,
+              boxWidth: 12,
+              boxHeight: 12
+            }
+          }
+        },
+        animation: { duration: 800 }
+      },
+      priority: 10, // High priority for main chart
+      dependencies: [] // No dependencies
     })
+    
+    // Request render through coordinator
+    chartCoordinator.requestRender(chartId).catch(error => {
+      console.error('Failed to render barangay chart:', error)
+    })
+    
+    // Cleanup on unmount
+    return () => {
+      chartCoordinator.unregisterChart(chartId)
+    }
   }, [barangayData])
 
+  // Classification chart - migrated to use coordinator
   useEffect(() => {
-    if (!window.Chart) return
-    if (classificationChart.current) classificationChart.current.destroy()
-    if (!classificationRef.current) return
+    // Don't render if no data
+    if (!classificationRef.current || !periodBarangayData || periodBarangayData.length === 0) return
+    
+    const chartId = 'classification-chart'
+    
+    // Prepare chart data
     const sorted = [...periodBarangayData].sort((a, b) => (Number(b.count || 0) - Number(a.count || 0)))
     const labels = sorted.map(i => String(i.barangay || 'Unknown').replace(/_/g,' '))
     const values = sorted.map(i => Number(i.count) || 0)
     const colors = byYearColors(labels.length)
-    classificationChart.current = new window.Chart(classificationRef.current, {
-      type: 'doughnut',
-      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: '#fff', borderWidth: 2, hoverOffset: 4 }] },
+    
+    // Validate data
+    if (labels.length === 0 || values.every(v => v === 0)) {
+      return
+    }
+    
+    // Register chart with coordinator
+    chartCoordinator.registerChart(chartId, {
+      canvasRef: classificationRef,
+      chartType: 'doughnut',
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: colors,
+          borderColor: '#fff',
+          borderWidth: 2,
+          hoverOffset: 4
+        }]
+      },
       options: {
         responsive: true,
-        cutout: '66%',
+        maintainAspectRatio: false,
+        cutout: '60%',
         plugins: {
           legend: {
             position: 'bottom',
+            align: 'start',
             labels: {
               usePointStyle: true,
-              pointStyle: 'circle',
+              pointStyle: 'rect',
+              padding: 8,
+              boxWidth: 10,
+              boxHeight: 10,
+              font: {
+                size: 9
+              },
               generateLabels: (chart) => {
                 const data = chart.data || {}
                 const ds = (data.datasets && data.datasets[0]) || {}
@@ -377,18 +568,35 @@ export default function AdminDashboard() {
                   }
                 })
               }
-            }
+            },
+            maxHeight: 120
           }
         },
         animation: { duration: 800 }
-      }
+      },
+      priority: 9, // High priority, slightly lower than barangay chart
+      dependencies: [] // No dependencies
     })
+    
+    // Request render through coordinator
+    chartCoordinator.requestRender(chartId).catch(error => {
+      console.error('Failed to render classification chart:', error)
+    })
+    
+    // Cleanup on unmount
+    return () => {
+      chartCoordinator.unregisterChart(chartId)
+    }
   }, [periodBarangayData])
 
+  // Displaced chart - migrated to use coordinator
   useEffect(() => {
-    if (!window.Chart) return
-    if (displacedChart.current) displacedChart.current.destroy()
-    if (!displacedRef.current) return
+    // Don't render if no data
+    if (!displacedRef.current || !subclassDisplacedData || subclassDisplacedData.length === 0) return
+    
+    const chartId = 'displaced-chart'
+    
+    // Prepare chart data
     const subclasses = Array.from(new Set(subclassDisplacedData.map(i => i.subclass_displaced || 'Unknown')))
     const barangaysRaw = Array.from(new Set(subclassDisplacedData.map(i => i.barangay || 'Unknown')))
     const labels = barangaysRaw.map(b => String(b).replace(/_/g,' '))
@@ -405,11 +613,15 @@ export default function AdminDashboard() {
       barPercentage: 0.9,
       categoryPercentage: 0.7
     }))
-    displacedChart.current = new window.Chart(displacedRef.current, {
-      type: 'bar',
+    
+    // Register chart with coordinator
+    chartCoordinator.registerChart(chartId, {
+      canvasRef: displacedRef,
+      chartType: 'bar',
       data: { labels, datasets },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         indexAxis: 'y',
         scales: {
           x: { grid: { color: 'rgba(16,185,129,0.06)' }, ticks: { display: false, stepSize: 1 } },
@@ -428,14 +640,30 @@ export default function AdminDashboard() {
           }
         },
         animation: { duration: 800 }
-      }
+      },
+      priority: 6, // Lower priority than main charts
+      dependencies: [] // No dependencies
     })
+    
+    // Request render through coordinator
+    chartCoordinator.requestRender(chartId).catch(error => {
+      console.error('Failed to render displaced chart:', error)
+    })
+    
+    // Cleanup on unmount
+    return () => {
+      chartCoordinator.unregisterChart(chartId)
+    }
   }, [subclassDisplacedData])
 
+  // Double-up chart - migrated to use coordinator
   useEffect(() => {
-    if (!window.Chart) return
-    if (doubleUpChart.current) doubleUpChart.current.destroy()
-    if (!doubleUpRef.current) return
+    // Don't render if no data
+    if (!doubleUpRef.current || !subclassDoubleUpData || subclassDoubleUpData.length === 0) return
+    
+    const chartId = 'doubleup-chart'
+    
+    // Prepare chart data
     const subclasses = Array.from(new Set(subclassDoubleUpData.map(i => i.subclass_doubleup || 'Unknown')))
     const barangaysRaw = Array.from(new Set(subclassDoubleUpData.map(i => i.barangay || 'Unknown')))
     const labels = barangaysRaw.map(b => String(b).replace(/_/g,' '))
@@ -452,11 +680,15 @@ export default function AdminDashboard() {
       barPercentage: 0.9,
       categoryPercentage: 0.7
     }))
-    doubleUpChart.current = new window.Chart(doubleUpRef.current, {
-      type: 'bar',
+    
+    // Register chart with coordinator
+    chartCoordinator.registerChart(chartId, {
+      canvasRef: doubleUpRef,
+      chartType: 'bar',
       data: { labels, datasets },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         indexAxis: 'y',
         scales: {
           x: { grid: { color: 'rgba(16,185,129,0.06)' }, ticks: { display: false, stepSize: 1 } },
@@ -475,14 +707,30 @@ export default function AdminDashboard() {
           }
         },
         animation: { duration: 800 }
-      }
+      },
+      priority: 5, // Lower priority than main charts
+      dependencies: [] // No dependencies
     })
+    
+    // Request render through coordinator
+    chartCoordinator.requestRender(chartId).catch(error => {
+      console.error('Failed to render double-up chart:', error)
+    })
+    
+    // Cleanup on unmount
+    return () => {
+      chartCoordinator.unregisterChart(chartId)
+    }
   }, [subclassDoubleUpData])
 
+  // Homeless chart - migrated to use coordinator
   useEffect(() => {
-    if (!window.Chart) return
-    if (homelessChart.current) homelessChart.current.destroy()
-    if (!homelessRef.current) return
+    // Don't render if no data
+    if (!homelessRef.current || !subclassHomelessData || subclassHomelessData.length === 0) return
+    
+    const chartId = 'homeless-chart'
+    
+    // Prepare chart data
     const subclasses = Array.from(new Set(subclassHomelessData.map(i => i.subclass_homeless || 'Unknown')))
     const barangaysRaw = Array.from(new Set(subclassHomelessData.map(i => i.barangay || 'Unknown')))
     const labels = barangaysRaw.map(b => String(b).replace(/_/g,' '))
@@ -499,11 +747,15 @@ export default function AdminDashboard() {
       barPercentage: 0.9,
       categoryPercentage: 0.7
     }))
-    homelessChart.current = new window.Chart(homelessRef.current, {
-      type: 'bar',
+    
+    // Register chart with coordinator
+    chartCoordinator.registerChart(chartId, {
+      canvasRef: homelessRef,
+      chartType: 'bar',
       data: { labels, datasets },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         indexAxis: 'y',
         scales: {
           x: { grid: { color: 'rgba(16,185,129,0.06)' }, ticks: { display: false, stepSize: 1 } },
@@ -522,29 +774,73 @@ export default function AdminDashboard() {
           }
         },
         animation: { duration: 800 }
-      }
+      },
+      priority: 4, // Lower priority than main charts
+      dependencies: [] // No dependencies
     })
+    
+    // Request render through coordinator
+    chartCoordinator.requestRender(chartId).catch(error => {
+      console.error('Failed to render homeless chart:', error)
+    })
+    
+    // Cleanup on unmount
+    return () => {
+      chartCoordinator.unregisterChart(chartId)
+    }
   }, [subclassHomelessData])
 
+  // Income chart - migrated to use coordinator
   useEffect(() => {
-    if (!window.Chart || !indicators) return
-    if (incomeChart.current) incomeChart.current.destroy()
-    if (!incomeRef.current) return
+    // Don't render if no data
+    if (!incomeRef.current || !indicators) return
+    
+    const chartId = 'income-chart'
+    
+    // Prepare chart data
     const b = indicators.economic?.bands || { '0_2999': 0, '3000_5999': 0, '6000_8999': 0, '9000_12999': 0, '13000_plus': 0 }
     const labels = ['0–2,999','3,000–5,999','6,000–8,999','9,000–12,999','13,000+']
     const values = [Number(b['0_2999']||0), Number(b['3000_5999']||0), Number(b['6000_8999']||0), Number(b['9000_12999']||0), Number(b['13000_plus']||0)]
     const colors = emeraldColors(labels.length)
-    incomeChart.current = new window.Chart(incomeRef.current, {
-      type: 'bar',
+    
+    // Register chart with coordinator
+    chartCoordinator.registerChart(chartId, {
+      canvasRef: incomeRef,
+      chartType: 'bar',
       data: { labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 8, maxBarThickness: 22 }] },
-      options: { responsive: true, scales: { x: { grid: { display: false } }, y: { grid: { color: 'rgba(16,185,129,0.1)' }, ticks: { stepSize: 1 } } }, plugins: { legend: { display: false } }, animation: { duration: 800 } }
+      options: { 
+        responsive: true, 
+        maintainAspectRatio: false,
+        scales: { 
+          x: { grid: { display: false } }, 
+          y: { grid: { color: 'rgba(16,185,129,0.1)' }, ticks: { stepSize: 1 } } 
+        }, 
+        plugins: { legend: { display: false } }, 
+        animation: { duration: 800 } 
+      },
+      priority: 7, // Medium priority
+      dependencies: [] // No dependencies
     })
+    
+    // Request render through coordinator
+    chartCoordinator.requestRender(chartId).catch(error => {
+      console.error('Failed to render income chart:', error)
+    })
+    
+    // Cleanup on unmount
+    return () => {
+      chartCoordinator.unregisterChart(chartId)
+    }
   }, [indicators])
 
+  // Education chart - migrated to use coordinator
   useEffect(() => {
-    if (!window.Chart || !indicators) return
-    if (educationChart.current) educationChart.current.destroy()
-    if (!educationRef.current) return
+    // Don't render if no data
+    if (!educationRef.current || !indicators) return
+    
+    const chartId = 'education-chart'
+    
+    // Prepare chart data
     const ed = indicators.education_skills?.education_breakdown || {}
     const aggregated = {}
     Object.entries(ed).forEach(([rawKey, v]) => {
@@ -557,25 +853,103 @@ export default function AdminDashboard() {
     const labels = entries.map(e => e.label)
     const values = entries.map(e => e.value)
     const colors = emeraldColors(labels.length)
-    educationChart.current = new window.Chart(educationRef.current, {
-      type: 'doughnut',
+    
+    // Register chart with coordinator
+    chartCoordinator.registerChart(chartId, {
+      canvasRef: educationRef,
+      chartType: 'doughnut',
       data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: '#fff', borderWidth: 2, hoverOffset: 4 }] },
-      options: { responsive: true, cutout: '70%', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle' } } }, animation: { duration: 800 } }
+      options: { 
+        responsive: true, 
+        maintainAspectRatio: false,
+        cutout: '60%',
+        layout: {
+          padding: {
+            bottom: 20
+          }
+        },
+        plugins: { 
+          legend: { 
+            position: 'bottom', 
+            align: 'start',
+            labels: { 
+              usePointStyle: true, 
+              pointStyle: 'circle', 
+              padding: 6,
+              boxWidth: 8,
+              boxHeight: 8,
+              font: {
+                size: 9
+              },
+              generateLabels: (chart) => {
+                const data = chart.data;
+                if (data.labels.length && data.datasets.length) {
+                  return data.labels.map((label, i) => {
+                    const value = data.datasets[0].data[i];
+                    // Truncate long labels to fit better in rows
+                    const shortLabel = label.length > 25 ? label.substring(0, 22) + '...' : label;
+                    return {
+                      text: `${shortLabel} (${value})`,
+                      fillStyle: data.datasets[0].backgroundColor[i],
+                      strokeStyle: 'transparent',
+                      lineWidth: 0,
+                      hidden: false,
+                      index: i
+                    };
+                  });
+                }
+                return [];
+              }
+            } 
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const label = context.label || '';
+                const value = context.parsed || 0;
+                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                const percentage = ((value / total) * 100).toFixed(1);
+                return `${label}: ${value} (${percentage}%)`;
+              }
+            }
+          }
+        }, 
+        animation: { duration: 800 } 
+      },
+      priority: 7,
+      dependencies: []
     })
+    
+    // Request render through coordinator
+    chartCoordinator.requestRender(chartId).catch(error => {
+      console.error('Failed to render education chart:', error)
+    })
+    
+    // Cleanup on unmount
+    return () => {
+      chartCoordinator.unregisterChart(chartId)
+    }
   }, [indicators])
 
+  // ISF Classification chart - migrated to use coordinator
   useEffect(() => {
-    if (!window.Chart || !indicators) return
-    if (isfClassificationChart.current) isfClassificationChart.current.destroy()
-    if (!isfClassificationRef.current) return
+    // Don't render if no data
+    if (!isfClassificationRef.current || !indicators) return
+    
+    const chartId = 'isf-classification-chart'
+    
+    // Prepare chart data
     const counts = indicators.vulnerability?.classification_count || {}
     const order = ['Displaced', 'Double-up', 'Homeless', 'Upgrading of Land Tenure']
     const labels = order.filter(name => counts[name] !== undefined && counts[name] !== null)
     if (labels.length === 0) return
     const values = labels.map(name => Number(counts[name] || 0))
     const colors = emeraldColors(labels.length)
-    isfClassificationChart.current = new window.Chart(isfClassificationRef.current, {
-      type: 'doughnut',
+    
+    // Register chart with coordinator
+    chartCoordinator.registerChart(chartId, {
+      canvasRef: isfClassificationRef,
+      chartType: 'doughnut',
       data: {
         labels,
         datasets: [{
@@ -588,56 +962,228 @@ export default function AdminDashboard() {
       },
       options: {
         responsive: true,
-        cutout: '70%',
+        maintainAspectRatio: true,
+        aspectRatio: 1,
+        cutout: '60%',
         plugins: {
           legend: {
             position: 'bottom',
-            labels: { usePointStyle: true, pointStyle: 'circle' }
+            align: 'start',
+            labels: { 
+              usePointStyle: true, 
+              pointStyle: 'circle', 
+              padding: 8,
+              boxWidth: 8,
+              boxHeight: 8,
+              font: {
+                size: 10
+              },
+              generateLabels: (chart) => {
+                const data = chart.data;
+                if (data.labels.length && data.datasets.length) {
+                  return data.labels.map((label, i) => {
+                    const value = data.datasets[0].data[i];
+                    return {
+                      text: `${label} (${value})`,
+                      fillStyle: data.datasets[0].backgroundColor[i],
+                      strokeStyle: 'transparent',
+                      lineWidth: 0,
+                      hidden: false,
+                      index: i
+                    };
+                  });
+                }
+                return [];
+              }
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const label = context.label || '';
+                const value = context.parsed || 0;
+                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                const percentage = ((value / total) * 100).toFixed(1);
+                return `${label}: ${value} (${percentage}%)`;
+              }
+            }
           }
         },
         animation: { duration: 800 }
-      }
+      },
+      priority: 7,
+      dependencies: []
     })
+    
+    // Request render through coordinator
+    chartCoordinator.requestRender(chartId).catch(error => {
+      console.error('Failed to render ISF classification chart:', error)
+    })
+    
+    // Cleanup on unmount
+    return () => {
+      chartCoordinator.unregisterChart(chartId)
+    }
   }, [indicators])
 
+  // Surveys month chart - migrated to use coordinator
   useEffect(() => {
-    if (!window.Chart || !timeSeries) return
-    if (surveysMonthChart.current) surveysMonthChart.current.destroy()
-    if (!surveysMonthRef.current) return
-    const rows = timeSeries.surveys_per_month || []
-    const labels = rows.map(r => String(r.ym || ''))
-    const values = rows.map(r => Number(r.count || 0))
-    surveysMonthChart.current = new window.Chart(surveysMonthRef.current, {
-      type: 'line',
+    // Don't render if no data
+    if (!surveysMonthRef.current || !timeSeries) return
+    
+    const chartId = 'surveys-month-chart'
+    
+    // Get data by status for multi-line chart
+    const byStatusData = timeSeries.surveys_per_month_by_status || []
+    const allMonths = [...new Set(byStatusData.map(r => String(r.ym || '')))].sort()
+    
+    // If no by-status data, fall back to total surveys
+    if (allMonths.length === 0) {
+      const rows = timeSeries.surveys_per_month || []
+      const labels = rows.map(r => String(r.ym || ''))
+      const values = rows.map(r => Number(r.count || 0))
+      
+      // Register chart with coordinator
+      chartCoordinator.registerChart(chartId, {
+        canvasRef: surveysMonthRef,
+        chartType: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Total Surveys',
+            data: values,
+            borderColor: '#10B981',
+            backgroundColor: 'rgba(16,185,129,0.15)',
+            fill: true,
+            tension: 0.35,
+            pointRadius: 3
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { grid: { display: false }, ticks: { color: '#374151' } },
+            y: { grid: { color: 'rgba(16,185,129,0.08)' }, ticks: { stepSize: 1, color: '#374151' } }
+          },
+          plugins: { legend: { display: true, position: 'bottom' } },
+          animation: { duration: 800 }
+        },
+        priority: 3, // Lower priority
+        dependencies: [] // No dependencies
+      })
+      
+      // Request render through coordinator
+      chartCoordinator.requestRender(chartId).catch(error => {
+        console.error('Failed to render surveys month chart:', error)
+      })
+      
+      // Cleanup on unmount
+      return () => {
+        chartCoordinator.unregisterChart(chartId)
+      }
+    }
+    
+    // Create maps for each status
+    const validatedMap = new Map()
+    const pendingMap = new Map()
+    const assignedMap = new Map()
+    
+    byStatusData.forEach(r => {
+      const ym = String(r.ym || '')
+      const count = Number(r.count || 0)
+      const status = Number(r.status)
+      if (status === 1) validatedMap.set(ym, count)
+      else if (status === 2) pendingMap.set(ym, count)
+      else if (status === 3) assignedMap.set(ym, count)
+    })
+    
+    const validatedData = allMonths.map(ym => validatedMap.get(ym) || 0)
+    const pendingData = allMonths.map(ym => pendingMap.get(ym) || 0)
+    const assignedData = allMonths.map(ym => assignedMap.get(ym) || 0)
+    
+    // Register chart with coordinator
+    chartCoordinator.registerChart(chartId, {
+      canvasRef: surveysMonthRef,
+      chartType: 'line',
       data: {
-        labels,
-        datasets: [{
-          label: 'Surveys',
-          data: values,
-          borderColor: '#10B981',
-          backgroundColor: 'rgba(16,185,129,0.15)',
-          fill: true,
-          tension: 0.35,
-          pointRadius: 2
-        }]
+        labels: allMonths,
+        datasets: [
+          {
+            label: 'Validated',
+            data: validatedData,
+            borderColor: '#10B981',
+            backgroundColor: 'rgba(16,185,129,0.1)',
+            fill: false,
+            tension: 0.35,
+            pointRadius: 3,
+            pointBackgroundColor: '#10B981'
+          },
+          {
+            label: 'Approved/Pending',
+            data: pendingData,
+            borderColor: '#F59E0B',
+            backgroundColor: 'rgba(245,158,11,0.1)',
+            fill: false,
+            tension: 0.35,
+            pointRadius: 3,
+            pointBackgroundColor: '#F59E0B'
+          },
+          {
+            label: 'Assigned',
+            data: assignedData,
+            borderColor: '#3B82F6',
+            backgroundColor: 'rgba(59,130,246,0.1)',
+            fill: false,
+            tension: 0.35,
+            pointRadius: 3,
+            pointBackgroundColor: '#3B82F6'
+          }
+        ]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
         scales: {
           x: { grid: { display: false }, ticks: { color: '#374151' } },
-          y: { grid: { color: 'rgba(16,185,129,0.08)' }, ticks: { stepSize: 1, color: '#374151' } }
+          y: { grid: { color: 'rgba(16,185,129,0.08)' }, ticks: { stepSize: 1, color: '#374151' }, beginAtZero: true }
         },
-        plugins: { legend: { display: false } },
+        plugins: { 
+          legend: { display: false },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+          }
+        },
         animation: { duration: 800 }
-      }
+      },
+      priority: 3, // Lower priority
+      dependencies: [] // No dependencies
     })
+    
+    // Request render through coordinator
+    chartCoordinator.requestRender(chartId).catch(error => {
+      console.error('Failed to render surveys month chart:', error)
+    })
+    
+    // Cleanup on unmount
+    return () => {
+      chartCoordinator.unregisterChart(chartId)
+    }
   }, [timeSeries])
 
+  // Follow-up month chart - migrated to use coordinator
   useEffect(() => {
-    if (!window.Chart || !timeSeries) return
-    if (followupMonthChart.current) followupMonthChart.current.destroy()
-    if (!followupMonthRef.current) return
+    // Don't render if no data
+    if (!followupMonthRef.current || !timeSeries) return
+    
+    const chartId = 'followup-month-chart'
+    
+    // Prepare chart data
     const totals = timeSeries.surveys_per_month || []
     const followups = timeSeries.followups_per_month || []
     const fuMap = new Map(followups.map(r => [String(r.ym || ''), Number(r.count || 0)]))
@@ -645,8 +1191,11 @@ export default function AdminDashboard() {
     const followupVals = labels.map(l => fuMap.get(l) || 0)
     const newVals = totals.map(r => Math.max(0, Number(r.count || 0) - (fuMap.get(String(r.ym || '')) || 0)))
     const stackColors = emeraldColors(2)
-    followupMonthChart.current = new window.Chart(followupMonthRef.current, {
-      type: 'bar',
+    
+    // Register chart with coordinator
+    chartCoordinator.registerChart(chartId, {
+      canvasRef: followupMonthRef,
+      chartType: 'bar',
       data: {
         labels,
         datasets: [
@@ -656,14 +1205,27 @@ export default function AdminDashboard() {
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
         scales: {
           x: { stacked: true, grid: { display: false }, ticks: { color: '#374151' } },
           y: { stacked: true, grid: { color: 'rgba(16,185,129,0.08)' }, ticks: { stepSize: 1, color: '#374151' } }
         },
         plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'circle' } } },
         animation: { duration: 800 }
-      }
+      },
+      priority: 2, // Lower priority
+      dependencies: [] // No dependencies
     })
+    
+    // Request render through coordinator
+    chartCoordinator.requestRender(chartId).catch(error => {
+      console.error('Failed to render follow-up chart:', error)
+    })
+    
+    // Cleanup on unmount
+    return () => {
+      chartCoordinator.unregisterChart(chartId)
+    }
   }, [timeSeries])
 
   useEffect(() => {
@@ -708,7 +1270,7 @@ export default function AdminDashboard() {
         marker.on('click', () => {
           const name = p.name || 'Unknown'
           const cls = p.classification || 'Unknown'
-          const status = p.is_submitted === 1 ? 'Validated' : (p.is_submitted === 2 ? 'Assigned' : '')
+          const status = p.is_submitted === 1 ? 'Validated' : (p.is_submitted === 2 ? 'Approved' : (p.is_submitted === 3 ? 'Assigned' : ''))
           const tag = p.tag_number ? `<div style="margin-top:4px;background:#f0fdf4;color:#047857;padding:3px 8px;border-radius:6px;font-size:12px;display:inline-block">Tag: ${p.tag_number}</div>` : ''
           const house = p.photo_url 
             ? `<img src="${p.photo_url}" alt="House Photo" loading="lazy" style="width:100%;border-radius:8px;border:1px solid #e5e7eb"/>`
@@ -720,7 +1282,7 @@ export default function AdminDashboard() {
             <div style="min-width:280px">
               <div style="display:flex;align-items:center;justify-content:space-between">
                 <div style="font-weight:700;color:#065f46;font-size:14px">${name}</div>
-                <div style="display:flex;gap:6px;align-items:center">${status ? `<span style="background:${p.is_submitted===2?'#eff6ff':'#ecfdf5'};color:${p.is_submitted===2?'#1d4ed8':'#065f46'};padding:4px 8px;border-radius:9999px;font-size:11px">${status}</span>` : ''}</div>
+                <div style="display:flex;gap:6px;align-items:center">${status ? `<span style="background:${p.is_submitted===3?'#eff6ff':(p.is_submitted===2?'#fef3c7':'#ecfdf5')};color:${p.is_submitted===3?'#1d4ed8':(p.is_submitted===2?'#92400e':'#065f46')};padding:4px 8px;border-radius:9999px;font-size:11px">${status}</span>` : ''}</div>
               </div>
               <div style="margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
                 <span style="background:#ecfdf5;color:#065f46;padding:4px 8px;border-radius:9999px;font-size:11px">${cls}</span>
@@ -838,90 +1400,40 @@ export default function AdminDashboard() {
     return { subclasses, rows }
   })()
 
+  // Prepare filter metadata for print header
+  const getActiveFilters = () => {
+    const filters = []
+    if (filterBarangay) {
+      filters.push({ label: 'Barangay', value: filterBarangay.replace(/_/g, ' ') })
+    }
+    if (filterClass) {
+      filters.push({ label: 'Classification', value: filterClass })
+    }
+    if (filterIncome) {
+      const incomeLabel = incomeFilterOptions.find(opt => opt.value === filterIncome)?.label || filterIncome
+      filters.push({ label: 'Income', value: incomeLabel })
+    }
+    if (filterWater) {
+      const waterLabel = waterFilterOptions.find(opt => opt.value === filterWater)?.label || filterWater
+      filters.push({ label: 'Water', value: waterLabel })
+    }
+    if (filterElectricity) {
+      const electricityLabel = electricityFilterOptions.find(opt => opt.value === filterElectricity)?.label || filterElectricity
+      filters.push({ label: 'Electricity', value: electricityLabel })
+    }
+    return filters
+  }
+
+  const activeFilters = getActiveFilters()
+  const hasActiveFilters = activeFilters.length > 0
+
   return (
     <div className={`admin-dashboard-root flex h-screen overflow-hidden transition-opacity duration-500 ease-in-out ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-      <aside className="hidden md:block w-64 flex flex-col flex-shrink-0 bg-white text-gray-700 p-6 border-r border-gray-200 h-screen sticky top-0 overflow-hidden">
-        <div className="flex items-center gap-3 mb-8">
-          <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
-          <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
-        </div>
-        <nav className="space-y-2 flex flex-col flex-1">
-          <Link href="/admin/dashboard" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/dashboard') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/dashboardicon.png" alt="Dashboard" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">Dashboard</span>
-          </Link>
-          <Link href="/admin/beneficiaries" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/beneficiaries') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/beneficiariesicon.png" alt="Beneficiaries" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">Beneficiaries</span>
-          </Link>
-          <Link href="/admin/project-sites" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/project-sites') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/projectsiteicon.png" alt="Project Sites" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">Project Sites</span>
-          </Link>
-          <Link href="/admin/assignments" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/assignments') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/assignmenticon.png" alt="Assignments" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">Assignments</span>
-          </Link>
-          <Link href="/admin/mapping" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/mapping') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/projectsiteicon.png" alt="Mapping" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">Mapping</span>
-          </Link>
-          <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-            <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
-            <span className="tracking-wider uppercase text-xs">My Profile</span>
-          </Link>
-          <div className="mt-auto">
-            <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
-              <img src="/icons/logouticon.png" alt="Log out" className="w-5 h-5"/>
-              <span className="tracking-wider uppercase text-xs">Log out</span>
-            </button>
-          </div>
-        </nav>
-      </aside>
-
-      {mobileNavOpen && (
-        <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setMobileNavOpen(false)}></div>
-          <div className="absolute inset-y-0 left-0 w-72 bg-white p-6 shadow-xl flex flex-col h-full">
-            <div className="flex items-center gap-3 mb-8">
-              <img src="/icons/appicon3.png" alt="App" className="w-10 h-10 rounded-xl ring-1 ring-emerald-200"/>
-              <span className="text-lg font-semibold text-emerald-700">CHoDaMS</span>
-            </div>
-            <nav className="space-y-2 flex flex-col flex-1">
-              <Link href="/admin/dashboard" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/dashboard') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/dashboardicon.png" alt="Dashboard" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Dashboard</span>
-              </Link>
-              <Link href="/admin/beneficiaries" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/beneficiaries') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/beneficiariesicon.png" alt="Beneficiaries" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Beneficiaries</span>
-              </Link>
-              <Link href="/admin/project-sites" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/project-sites') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/projectsiteicon.png" alt="Project Sites" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Project Sites</span>
-              </Link>
-              <Link href="/admin/assignments" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/assignments') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/assignmenticon.png" alt="Assignments" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Assignments</span>
-              </Link>
-              <Link href="/admin/mapping" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/mapping') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/projectsiteicon.png" alt="Mapping" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">Mapping</span>
-              </Link>
-              <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
-                <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
-                <span className="tracking-wider uppercase text-xs">My Profile</span>
-              </Link>
-              <div className="mt-auto">
-                <button onClick={logoutAdmin} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-red-50 hover:text-red-700">
-                  <img src="/icons/logouticon.png" alt="Log out" className="w-5 h-5"/>
-                  <span className="tracking-wider uppercase text-xs">Log out</span>
-                </button>
-              </div>
-            </nav>
-          </div>
-        </div>
-      )}
+      <AdminSidebarWrapper
+        mobileNavOpen={mobileNavOpen}
+        setMobileNavOpen={setMobileNavOpen}
+        onLogout={logoutAdmin}
+      />
 
       <main className="admin-dashboard-main flex-1 h-screen overflow-y-auto p-6 bg-gray-50">
         <DashboardFade delay={0}>
@@ -1055,11 +1567,54 @@ export default function AdminDashboard() {
                 <div className="mt-1 text-xs text-gray-500">Across all projects</div>
               </div>
             </div>
+
+            {/* HOA, Monitoring, and Revocation Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                {/* HOA Summary Card - Requirements: 8.1, 8.2 */}
+                <Link href="/admin/hoa" className="text-left bg-white rounded-2xl border border-gray-200 shadow-sm p-6 min-h-[160px] hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-blue-50 text-blue-600 ring-1 ring-blue-100">
+                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                  </div>
+                  <div className="mt-4 text-3xl font-semibold text-gray-900">{hoaStats.total_hoas}</div>
+                  <div className="mt-1 text-sm text-gray-600">Total HOAs</div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    <span className="text-green-600">{hoaStats.active_officers} active</span> / <span className="text-gray-400">{hoaStats.inactive_officers} inactive</span> officers
+                  </div>
+                </Link>
+
+                {/* Monitoring Summary Card - Requirements: 8.3 */}
+                <Link href="/admin/monitoring" className="text-left bg-white rounded-2xl border border-gray-200 shadow-sm p-6 min-h-[160px] hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-amber-50 text-amber-600 ring-1 ring-amber-100">
+                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  </div>
+                  <div className="mt-4 text-3xl font-semibold text-gray-900">{monitoringStats.upcoming_visits_this_month}</div>
+                  <div className="mt-1 text-sm text-gray-600">Upcoming Visits</div>
+                  <div className="mt-1 text-xs">
+                    {monitoringStats.due_visits_count > 0 ? (
+                      <span className="text-amber-600 font-medium">{monitoringStats.due_visits_count} due visits need attention</span>
+                    ) : (
+                      <span className="text-gray-500">{monitoringStats.current_month}</span>
+                    )}
+                  </div>
+                </Link>
+
+                {/* Revocation Summary Card - Requirements: 8.4, 8.5 */}
+                <Link href="/admin/revocations" className="text-left bg-white rounded-2xl border border-gray-200 shadow-sm p-6 min-h-[160px] hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-50 text-red-600 ring-1 ring-red-100">
+                    <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                  </div>
+                  <div className="mt-4 text-3xl font-semibold text-gray-900">{revocationStats.this_month}</div>
+                  <div className="mt-1 text-sm text-gray-600">Revocations This Month</div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    {revocationStats.recent} in last 30 days • {revocationStats.total} total
+                  </div>
+                </Link>
+              </div>
           </section>
 
         </DashboardFade>
 
-        <DashboardFade delay={500}>
+        <DashboardFade delay={500} skipFade={true}>
           <section className="mt-6 admin-analytics-print">
             {initialLoading ? (
               <div className="mt-6 bg-white rounded-2xl border border-gray-200 p-6 animate-pulse">
@@ -1081,106 +1636,124 @@ export default function AdminDashboard() {
                 </div>
               </div>
             ) : (
-              <div className="mt-6 bg-white rounded-2xl border border-gray-200 p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className={`bg-gray-50 rounded-2xl border border-gray-100 p-4 ${!showClassification && 'hidden'}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-sm font-medium text-emerald-800">By Year Summary ({rangeMode === 'past' ? `Past ${rangeYears} years` : `${classificationPeriod.start} - ${classificationPeriod.end}`})</h3>
-                      <div className="flex items-center gap-2">
-                        <select
-                          value={rangeMode}
-                          onChange={(e) => setRangeMode(e.target.value)}
-                          className="text-[10px] rounded-lg bg-white ring-1 ring-emerald-100 px-2 py-1 text-emerald-700 hover:ring-emerald-200"
-                        >
-                          <option value="past">Past years</option>
-                          <option value="custom">Custom range</option>
-                        </select>
-                        {rangeMode === 'past' ? (
+              <div id="summary-and-subclass-group" data-print-section="summary-and-subclass-group" className="mt-6">
+                <div className="bg-white rounded-2xl border border-gray-200 p-6">
+                  <div id="by-year-summary" className="grid grid-cols-1 md:grid-cols-2 gap-6 print-vertical-layout">
+                    <div className={`bg-gray-50 rounded-2xl border border-gray-100 p-4 ${!showClassification && 'hidden'}`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-sm font-medium text-emerald-800 print-include">By Year Summary ({rangeMode === 'past' ? `Past ${rangeYears} years` : `${classificationPeriod.start} - ${classificationPeriod.end}`})</h3>
+                          <div className="flex items-center gap-2 no-print">
+                            <PrintButton 
+                              sectionId="summary-and-subclass-group"
+                              label="Print"
+                              className="text-[10px] px-2 py-1"
+                              printOptions={{
+                                includeTimestamp: true,
+                                // Avoid JS-based isolation for this complex section.
+                                // Rely on CSS (.no-print, .print-include, .print-only)
+                                // so opening/closing the print dialog won't hide
+                                // or break any charts on the dashboard.
+                                skipIsolation: true,
+                              }}
+                            />
                           <select
-                            value={String(rangeYears)}
-                            onChange={(e) => setRangeYears(Number(e.target.value))}
+                            value={rangeMode}
+                            onChange={(e) => setRangeMode(e.target.value)}
                             className="text-[10px] rounded-lg bg-white ring-1 ring-emerald-100 px-2 py-1 text-emerald-700 hover:ring-emerald-200"
                           >
-                            <option value="1">Past 1 year</option>
-                            <option value="2">Past 2 years</option>
-                            <option value="3">Past 3 years</option>
+                            <option value="past">Past years</option>
+                            <option value="custom">Custom range</option>
                           </select>
-                        ) : (
-                          <div className="flex items-center gap-1">
+                          {rangeMode === 'past' ? (
                             <select
-                              value={String(classificationPeriod.start)}
-                              onChange={(e) => setClassificationPeriod(p => ({ ...p, start: Number(e.target.value) }))}
+                              value={String(rangeYears)}
+                              onChange={(e) => setRangeYears(Number(e.target.value))}
                               className="text-[10px] rounded-lg bg-white ring-1 ring-emerald-100 px-2 py-1 text-emerald-700 hover:ring-emerald-200"
                             >
-                              {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(y => (
-                                <option key={`s-${y}`} value={y}>{y}</option>
-                              ))}
+                              <option value="1">Past 1 year</option>
+                              <option value="2">Past 2 years</option>
+                              <option value="3">Past 3 years</option>
                             </select>
-                            <span className="text-[10px] text-gray-400">to</span>
-                            <select
-                              value={String(classificationPeriod.end)}
-                              onChange={(e) => setClassificationPeriod(p => ({ ...p, end: Number(e.target.value) }))}
-                              className="text-[10px] rounded-lg bg-white ring-1 ring-emerald-100 px-2 py-1 text-emerald-700 hover:ring-emerald-200"
-                            >
-                              {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(y => (
-                                <option key={`e-${y}`} value={y}>{y}</option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <select
+                                value={String(classificationPeriod.start)}
+                                onChange={(e) => setClassificationPeriod(p => ({ ...p, start: Number(e.target.value) }))}
+                                className="text-[10px] rounded-lg bg-white ring-1 ring-emerald-100 px-2 py-1 text-emerald-700 hover:ring-emerald-200"
+                              >
+                                {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                                  <option key={`s-${y}`} value={y}>{y}</option>
+                                ))}
+                              </select>
+                              <span className="text-[10px] text-gray-400">to</span>
+                              <select
+                                value={String(classificationPeriod.end)}
+                                onChange={(e) => setClassificationPeriod(p => ({ ...p, end: Number(e.target.value) }))}
+                                className="text-[10px] rounded-lg bg-white ring-1 ring-emerald-100 px-2 py-1 text-emerald-700 hover:ring-emerald-200"
+                              >
+                                {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                                  <option key={`e-${y}`} value={y}>{y}</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+                        </div>
                       </div>
+                      <div className="h-[500px] relative">
+                        <canvas ref={classificationRef} className="w-full h-full" />
+                      </div>
+                      <div className="mt-8 text-[11px] text-gray-600">{describeBarangayCounts(periodBarangayData)}</div>
                     </div>
-                    <canvas ref={classificationRef} style={{ height: 140 }} />
-                    <div className="mt-3 text-[11px] text-gray-600 line-clamp-2">{describeBarangayCounts(periodBarangayData)}</div>
-                  </div>
 
                   <div className="bg-gray-50 rounded-2xl border border-gray-100 p-6 print-include">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-lg font-medium text-emerald-800">Global ISF classification</h3>
-                    </div>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-3xl font-semibold text-emerald-900">{globalIsfSummary.total || 0}</span>
-                      <span className="text-sm text-gray-500">Total ISF households</span>
-                    </div>
-                    <div className="mt-6 space-y-4">
-                      {globalIsfSummary.items.length === 0 && (
-                        <div className="text-xs text-gray-400 italic">No data available yet.</div>
-                      )}
-                      {globalIsfSummary.items.map((item, index) => {
-                        const pct = globalIsfSummary.total
-                          ? Math.round((item.value / globalIsfSummary.total) * 100)
-                          : 0
-                        const barColors = emeraldColors(globalIsfSummary.items.length)
-                        const barColor = barColors[index] || '#10B981'
-                        return (
-                          <div key={item.name} className="flex items-center gap-4">
-                            <div className="flex-1">
-                              <div className="flex justify-between text-sm text-gray-500">
-                                <span>{item.name}</span>
-                                <span>{pct}%</span>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-lg font-medium text-emerald-800">Global ISF classification</h3>
+                      </div>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-3xl font-semibold text-emerald-900">{globalIsfSummary.total || 0}</span>
+                        <span className="text-sm text-gray-500">Total ISF households</span>
+                      </div>
+                      <div className="mt-6 space-y-4">
+                        {globalIsfSummary.items.length === 0 && (
+                          <div className="text-xs text-gray-400 italic">No data available yet.</div>
+                        )}
+                        {globalIsfSummary.items.map((item, index) => {
+                          const pct = globalIsfSummary.total
+                            ? Math.round((item.value / globalIsfSummary.total) * 100)
+                            : 0
+                          const barColors = emeraldColors(globalIsfSummary.items.length)
+                          const barColor = barColors[index] || '#10B981'
+                          return (
+                            <div key={item.name} className="flex items-center gap-4">
+                              <div className="flex-1">
+                                <div className="flex justify-between text-sm text-gray-500">
+                                  <span>{item.name}</span>
+                                  <span>{pct}%</span>
+                                </div>
+                                <div className="mt-2 h-2.5 rounded-full bg-gray-200/50 overflow-hidden">
+                                  <div
+                                    className="h-2.5 rounded-full global-isf-bar"
+                                    style={{ width: `${pct}%`, backgroundColor: barColor }}
+                                  />
+                                </div>
                               </div>
-                              <div className="mt-2 h-2.5 rounded-full bg-gray-200/50 overflow-hidden">
-                                <div
-                                  className="h-2.5 rounded-full global-isf-bar"
-                                  style={{ width: `${pct}%`, backgroundColor: barColor }}
-                                />
+                              <div className="w-14 text-right text-sm font-medium text-gray-700">
+                                {item.value}
                               </div>
                             </div>
-                            <div className="w-14 text-right text-sm font-medium text-gray-700">
-                              {item.value}
-                            </div>
-                          </div>
-                        )
-                      })}
+                          )
+                        })}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
 
-              <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                  <div className="mb-3 font-medium text-emerald-800">Subclass Displaced per barangay</div>
+                <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6 print-include" data-print-element="subclass-tables">
+                  <div id="subclass-displaced" className="bg-white rounded-2xl border border-gray-200 p-6 print-page-break">
+                    <div className="mb-3">
+                      <span className="font-medium text-emerald-800">Subclass Displaced per barangay</span>
+                    </div>
+                  
                   <div className="mt-2 overflow-x-auto">
                     <table className="min-w-full text-xs">
                       <thead>
@@ -1215,10 +1788,10 @@ export default function AdminDashboard() {
                       </tbody>
                     </table>
                   </div>
-                  <div className="mt-3">
+                  <div className="mt-3 print-include">
                     <button
                       onClick={() => setShowDisplacedDesc(v => !v)}
-                      className="text-xs text-emerald-600 hover:text-emerald-700 font-medium inline-flex items-center gap-1"
+                      className="text-xs text-emerald-600 hover:text-emerald-700 font-medium inline-flex items-center gap-1 no-print"
                       aria-expanded={showDisplacedDesc}
                       aria-controls="subclass-displaced-summary"
                     >
@@ -1226,13 +1799,18 @@ export default function AdminDashboard() {
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
                     </button>
                     {showDisplacedDesc && (
-                      <p id="subclass-displaced-summary" className="mt-2 text-sm text-gray-700">{describeDisplaced(subclassDisplacedData)}</p>
+                      <p id="subclass-displaced-summary" className="mt-2 text-sm text-gray-700 print-include">{describeDisplaced(subclassDisplacedData)}</p>
                     )}
+                    {/* Always show summary in print mode */}
+                    <p className="mt-2 text-sm text-gray-700 print-only">{describeDisplaced(subclassDisplacedData)}</p>
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                  <div className="mb-3 font-medium text-emerald-800">Subclass Double-Up per barangay</div>
+                <div id="subclass-double-up" className="bg-white rounded-2xl border border-gray-200 p-6 print-page-break">
+                    <div className="mb-3">
+                      <span className="font-medium text-emerald-800">Subclass Double-Up per barangay</span>
+                    </div>
+                  
                   <div className="mt-2 overflow-x-auto">
                     <table className="min-w-full text-xs">
                       <thead>
@@ -1267,10 +1845,10 @@ export default function AdminDashboard() {
                       </tbody>
                     </table>
                   </div>
-                  <div className="mt-3">
+                  <div className="mt-3 print-include">
                     <button
                       onClick={() => setShowDoubleUpDesc(v => !v)}
-                      className="text-xs text-emerald-600 hover:text-emerald-700 font-medium inline-flex items-center gap-1"
+                      className="text-xs text-emerald-600 hover:text-emerald-700 font-medium inline-flex items-center gap-1 no-print"
                       aria-expanded={showDoubleUpDesc}
                       aria-controls="subclass-doubleup-summary"
                     >
@@ -1278,13 +1856,18 @@ export default function AdminDashboard() {
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
                     </button>
                     {showDoubleUpDesc && (
-                      <p id="subclass-doubleup-summary" className="mt-2 text-sm text-gray-700">{describeDoubleUp(subclassDoubleUpData)}</p>
+                      <p id="subclass-doubleup-summary" className="mt-2 text-sm text-gray-700 print-include">{describeDoubleUp(subclassDoubleUpData)}</p>
                     )}
+                    {/* Always show summary in print mode */}
+                    <p className="mt-2 text-sm text-gray-700 print-only">{describeDoubleUp(subclassDoubleUpData)}</p>
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border border-gray-200 p-6">
-                  <div className="mb-3 font-medium text-emerald-800">Subclass Homeless per barangay</div>
+                <div id="subclass-homeless" className="bg-white rounded-2xl border border-gray-200 p-6 print-page-break">
+                    <div className="mb-3">
+                      <span className="font-medium text-emerald-800">Subclass Homeless per barangay</span>
+                    </div>
+                  
                   <div className="mt-2 overflow-x-auto">
                     <table className="min-w-full text-xs">
                       <thead>
@@ -1319,10 +1902,10 @@ export default function AdminDashboard() {
                       </tbody>
                     </table>
                   </div>
-                  <div className="mt-3">
+                  <div className="mt-3 print-include">
                     <button
                       onClick={() => setShowHomelessDesc(v => !v)}
-                      className="text-xs text-emerald-600 hover:text-emerald-700 font-medium inline-flex items-center gap-1"
+                      className="text-xs text-emerald-600 hover:text-emerald-700 font-medium inline-flex items-center gap-1 no-print"
                       aria-expanded={showHomelessDesc}
                       aria-controls="subclass-homeless-summary"
                     >
@@ -1330,13 +1913,43 @@ export default function AdminDashboard() {
                       <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
                     </button>
                     {showHomelessDesc && (
-                      <p id="subclass-homeless-summary" className="mt-2 text-sm text-gray-700">{describeHomeless(subclassHomelessData)}</p>
+                      <p id="subclass-homeless-summary" className="mt-2 text-sm text-gray-700 print-include">{describeHomeless(subclassHomelessData)}</p>
                     )}
+                    {/* Always show summary in print mode */}
+                    <p className="mt-2 text-sm text-gray-700 print-only">{describeHomeless(subclassHomelessData)}</p>
                   </div>
                 </div>
               </div>
+            </div>
+            )}
 
-              <div className="mt-10 pt-6 border-t border-gray-100">
+              <div className="mt-10 pt-6 border-t border-gray-100" id="filtered-analytics" data-print-section="filtered-analytics">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900 no-print">Filtered Data Analytics</h2>
+                  <PrintButton
+                    sectionId="filtered-analytics"
+                    label="Print Analytics"
+                    printOptions={{
+                      includeFilters: false,
+                      includeTimestamp: false,
+                      paperFormat: 'A4',
+                      skipIsolation: true,
+                    }}
+                    onPrintStart={() => {
+                      // Pass current filter state to print handler
+                      const filterState = {
+                        barangay: filterBarangay,
+                        classification: filterClass,
+                        income: filterIncome,
+                        water: filterWater,
+                        electricity: filterElectricity
+                      };
+                      // Store filter state for metadata
+                      window.__printFilterState = filterState;
+                    }}
+                    className="no-print"
+                  />
+                </div>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap gap-2">
                     <SmoothSelect
@@ -1384,156 +1997,95 @@ export default function AdminDashboard() {
                     >
                       Reset filters
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => window.print()}
-                      className="text-xs px-3 py-2 rounded-xl bg-white text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-50 no-print"
-                    >
-                      Print analytics
-                    </button>
                   </div>
                 </div>
 
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="rounded-2xl bg-emerald-50 ring-1 ring-emerald-100 p-4">
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4 print-include" data-print-element="indicator-cards">
+                  <div className="rounded-2xl bg-emerald-50 ring-1 ring-emerald-100 p-4 print-include">
                     <div className="text-xs text-emerald-700">Filtered total</div>
                     <div className="mt-1 text-2xl font-semibold text-emerald-900">{indicators?.base_total ?? timeSeries?.base_total ?? 0}</div>
                   </div>
-                  <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4">
+                  <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4 print-include">
                     <div className="text-xs text-gray-600">No lot ownership</div>
                     <div className="mt-1 text-2xl font-semibold text-gray-900">{indicators?.vulnerability?.no_lot?.pct ?? 0}%</div>
                     <div className="mt-1 text-xs text-gray-500">{indicators?.vulnerability?.no_lot?.count ?? 0}/{indicators?.vulnerability?.no_lot?.total ?? 0}</div>
                   </div>
-                  <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4">
+                  <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4 print-include">
                     <div className="text-xs text-gray-600">No house ownership</div>
                     <div className="mt-1 text-2xl font-semibold text-gray-900">{indicators?.vulnerability?.no_house?.pct ?? 0}%</div>
                     <div className="mt-1 text-xs text-gray-500">{indicators?.vulnerability?.no_house?.count ?? 0}/{indicators?.vulnerability?.no_house?.total ?? 0}</div>
                   </div>
-                  <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4">
+                  <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4 print-include">
                     <div className="text-xs text-gray-600">Temporary living area</div>
                     <div className="mt-1 text-2xl font-semibold text-gray-900">{indicators?.vulnerability?.temporary_living?.pct ?? 0}%</div>
                     <div className="mt-1 text-xs text-gray-500">{indicators?.vulnerability?.temporary_living?.count ?? 0}/{indicators?.vulnerability?.temporary_living?.total ?? 0}</div>
                   </div>
                 </div>
 
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4">
+                <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-4 print-include" data-print-element="indicator-cards">
+                  <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4 print-include">
                     <div className="text-xs text-gray-600">Has water</div>
                     <div className="mt-1 text-2xl font-semibold text-gray-900">{indicators?.service?.has_water?.pct ?? 0}%</div>
                     <div className="mt-1 text-xs text-gray-500">{indicators?.service?.has_water?.count ?? 0}/{indicators?.service?.has_water?.total ?? 0}</div>
                   </div>
-                  <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4">
+                  <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4 print-include">
                     <div className="text-xs text-gray-600">Has electricity</div>
                     <div className="mt-1 text-2xl font-semibold text-gray-900">{indicators?.service?.has_electricity?.pct ?? 0}%</div>
                     <div className="mt-1 text-xs text-gray-500">{indicators?.service?.has_electricity?.count ?? 0}/{indicators?.service?.has_electricity?.total ?? 0}</div>
                   </div>
-                  <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4">
+                  <div className="rounded-2xl bg-white ring-1 ring-gray-200 p-4 print-include">
                     <div className="text-xs text-gray-600">Has livelihood skills</div>
                     <div className="mt-1 text-2xl font-semibold text-gray-900">{indicators?.education_skills?.skills_for_living?.pct ?? 0}%</div>
                     <div className="mt-1 text-xs text-gray-500">{indicators?.education_skills?.skills_for_living?.yes_count ?? 0}/{indicators?.education_skills?.skills_for_living?.total ?? 0}</div>
                   </div>
                 </div>
 
-                <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-gray-50 rounded-2xl border border-gray-200 p-5">
-                    <div className="text-sm font-medium text-emerald-800">Income distribution</div>
-                    <div className="mt-3">
-                      <canvas ref={incomeRef} style={{ height: 170 }} />
+                <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-6 print-include" data-print-element="analytics-charts">
+                  <div className="bg-gray-50 rounded-2xl border border-gray-200 p-5 print-include chart-container">
+                      <div className="text-sm font-medium text-emerald-800">Income distribution</div>
+                      <div className="mt-3 relative overflow-hidden" style={{ height: '240px' }}>
+                        <canvas ref={incomeRef} className="w-full h-full" id="income-chart" />
+                      </div>
                     </div>
-                  </div>
-                  <div className="bg-gray-50 rounded-2xl border border-gray-200 p-5">
-                    <div className="text-sm font-medium text-emerald-800">Highest education</div>
-                    <div className="mt-3">
-                      <canvas ref={educationRef} style={{ height: 170 }} />
+
+                  <div className="bg-gray-50 rounded-2xl border border-gray-200 p-6 print-include chart-container">
+                      <div className="text-sm font-medium text-emerald-800 mb-4">Highest education</div>
+                      <div className="relative flex items-center justify-center" style={{ height: '320px' }}>
+                        <canvas ref={educationRef} id="education-chart" />
+                      </div>
                     </div>
-                  </div>
-                  <div className="bg-gray-50 rounded-2xl border border-gray-200 p-5">
-                    <div className="text-sm font-medium text-emerald-800">ISF classification (filtered)</div>
-                    <div className="mt-3">
-                      <canvas ref={isfClassificationRef} style={{ height: 170 }} />
+
+                  <div className="bg-gray-50 rounded-2xl border border-gray-200 p-6 print-include chart-container">
+                      <div className="text-sm font-medium text-emerald-800 mb-4">ISF classification (filtered)</div>
+                      <div className="relative flex items-center justify-center" style={{ height: '320px' }}>
+                        <canvas ref={isfClassificationRef} id="isf-classification-chart" />
+                      </div>
                     </div>
-                  </div>
                 </div>
 
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-1 gap-6">
-                <div className="bg-gray-50 rounded-2xl border border-gray-200 p-10">
-                  <div className="text-sm font-medium text-emerald-800">Surveys per month</div>
-                  <div className="mt-4">
-                    <canvas ref={surveysMonthRef} style={{ height: 200 }} />
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-1 gap-6 print-include" data-print-element="analytics-charts">
+                  <div className="bg-gray-50 rounded-2xl border border-gray-200 p-10 print-include chart-container">
+                    <div className="text-sm font-medium text-emerald-800">Surveys per month by status</div>
+                    <div className="mt-4" style={{ height: '240px' }}>
+                      <canvas ref={surveysMonthRef} className="w-full h-full" id="surveys-month-chart" />
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-4 justify-center text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
+                        <span className="text-gray-600">Validated</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full bg-amber-500"></span>
+                        <span className="text-gray-600">Approved/Pending</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full bg-blue-500"></span>
+                        <span className="text-gray-600">Assigned</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white rounded-2xl border border-gray-200 p-5 overflow-hidden">
-                  <div className="text-sm font-medium text-emerald-800">Income band × Classification</div>
-                  <div className="mt-3 overflow-auto">
-                    <table className="min-w-full text-xs">
-                      <thead>
-                        <tr className="text-left text-gray-600">
-                          <th className="py-2 pr-3">Classification</th>
-                          <th className="py-2 pr-3">0–2,999</th>
-                          <th className="py-2 pr-3">3,000–5,999</th>
-                          <th className="py-2 pr-3">6,000–8,999</th>
-                          <th className="py-2 pr-3">9,000–12,999</th>
-                          <th className="py-2 pr-3">13,000+</th>
-                          <th className="py-2">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(crosstabIncomeClassification || []).map((r, idx) => (
-                          <tr key={idx} className="border-t">
-                            <td className="py-2 pr-3 text-gray-900">{r.classification}</td>
-                            <td className="py-2 pr-3 text-gray-700">{Number(r['0_2999'] || 0)}</td>
-                            <td className="py-2 pr-3 text-gray-700">{Number(r['3000_5999'] || 0)}</td>
-                            <td className="py-2 pr-3 text-gray-700">{Number(r['6000_8999'] || 0)}</td>
-                            <td className="py-2 pr-3 text-gray-700">{Number(r['9000_12999'] || 0)}</td>
-                            <td className="py-2 pr-3 text-gray-700">{Number(r['13000_plus'] || 0)}</td>
-                            <td className="py-2 text-gray-900 font-medium">{Number(r.total || 0)}</td>
-                          </tr>
-                        ))}
-                        {(crosstabIncomeClassification || []).length === 0 && (
-                          <tr className="border-t">
-                            <td className="py-3 text-gray-500" colSpan={7}>No data</td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-2xl border border-gray-200 p-5 overflow-hidden">
-                  <div className="text-sm font-medium text-emerald-800">Classification × Barangay (top 10)</div>
-                  <div className="mt-3 overflow-auto">
-                    <table className="min-w-full text-xs">
-                      <thead>
-                        <tr className="text-left text-gray-600">
-                          <th className="py-2 pr-3">Barangay</th>
-                          {classOrder.map(c => (<th key={c} className="py-2 pr-3">{c}</th>))}
-                          <th className="py-2">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {barangayCrosstabTop.map(row => (
-                          <tr key={row.barangay} className="border-t">
-                            <td className="py-2 pr-3 text-gray-900">{String(row.barangay).replace(/_/g, ' ')}</td>
-                            {classOrder.map(c => (
-                              <td key={`${row.barangay}-${c}`} className="py-2 pr-3 text-gray-700">{Number(row.counts?.[c] || 0)}</td>
-                            ))}
-                            <td className="py-2 text-gray-900 font-medium">{Number(row.total || 0)}</td>
-                          </tr>
-                        ))}
-                        {barangayCrosstabTop.length === 0 && (
-                          <tr className="border-t">
-                            <td className="py-3 text-gray-500" colSpan={6}>No data</td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-          </div>
         </section>
       </DashboardFade>
 
@@ -1567,7 +2119,7 @@ function SmoothSelect({ value, onChange, options, buttonClassName, disabled = fa
   return (
     <Listbox value={value} onChange={onChange} disabled={disabled}>
       {({ open }) => (
-        <div className="relative">
+        <div className={`relative ${open ? 'z-[1001]' : 'z-[1]'}`}>
           <Listbox.Button
             type="button"
             className={`${buttonClassName} ${disabled ? 'cursor-not-allowed opacity-60' : ''} flex items-center justify-between gap-2`}
@@ -1600,7 +2152,7 @@ function SmoothSelect({ value, onChange, options, buttonClassName, disabled = fa
             leaveFrom="opacity-100 translate-y-0"
             leaveTo="opacity-0 translate-y-1"
           >
-            <Listbox.Options className="absolute left-0 z-50 mt-2 max-h-64 w-full overflow-auto rounded-2xl bg-white p-1 shadow-lg ring-1 ring-black/5 focus:outline-none">
+            <Listbox.Options className="absolute left-0 z-[1000] mt-2 max-h-64 w-full overflow-auto rounded-2xl bg-white p-1 shadow-lg ring-1 ring-black/5 focus:outline-none">
               {options.map((opt, idx) => (
                 <Listbox.Option
                   key={`${opt.value ?? 'opt'}-${idx}`}
@@ -1633,11 +2185,15 @@ function SmoothSelect({ value, onChange, options, buttonClassName, disabled = fa
   )
 }
 
-function DashboardFade({ children, delay = 0, className = "" }) {
-  const [isVisible, setIsVisible] = useState(false)
+function DashboardFade({ children, delay = 0, className = "", skipFade = false }) {
+  const [isVisible, setIsVisible] = useState(skipFade)
   const ref = useRef(null)
 
   useEffect(() => {
+    if (skipFade) {
+      setIsVisible(true)
+      return
+    }
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -1649,7 +2205,7 @@ function DashboardFade({ children, delay = 0, className = "" }) {
     )
     if (ref.current) observer.observe(ref.current)
     return () => observer.disconnect()
-  }, [])
+  }, [skipFade])
 
   return (
     <div

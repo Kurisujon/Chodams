@@ -2,10 +2,15 @@
 
 namespace App\Console\Commands;
 
+use App\Exceptions\ScoreCalculationException;
+use App\Models\Survey;
 use App\Models\Validator;
+use App\Services\BeneficiaryScoreService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use App\Services\FileStorageService;
 
 class GenerateDummySurveys extends Command
 {
@@ -15,18 +20,19 @@ class GenerateDummySurveys extends Command
 
     public function handle(): int
     {
-        $validatorUsernames = ['Kent Andrey', 'Cris John'];
+        // Cris = validator_id 1, Kent = validator_id 2
+        $cris = Validator::find(1);
+        $kent = Validator::find(2);
 
-        $validators = Validator::query()
-            ->whereIn('username', $validatorUsernames)
-            ->get()
-            ->keyBy('username');
-
-        if ($validators->count() < 2) {
-            $this->error('Required validator accounts not found. Make sure "Kent Andrey" and "Cris John" exist.');
-
+        if (!$cris || !$kent) {
+            $this->error('Required validator accounts not found. Make sure validator_id 1 (Cris) and 2 (Kent) exist.');
             return 1;
         }
+
+        $validators = [
+            'Cris' => $cris,
+            'Kent' => $kent,
+        ];
 
         $barangays = [
             'Aplaya',
@@ -52,9 +58,9 @@ class GenerateDummySurveys extends Command
             'Soong',
             'Tiguman',
             'Tres_De_Mayo',
-            'Zone_1',
-            'Zone_2',
-            'Zone_3',
+            'Zone_I',
+            'Zone_II',
+            'Zone_III',
         ];
 
         $classifications = [
@@ -92,9 +98,9 @@ class GenerateDummySurveys extends Command
             'Soong' => ['lat' => '6.735000', 'lon' => '125.365000'],
             'Tiguman' => ['lat' => '6.722000', 'lon' => '125.332000'],
             'Tres_De_Mayo' => ['lat' => '6.745000', 'lon' => '125.347000'],
-            'Zone_1' => ['lat' => '6.749720', 'lon' => '125.357220'],
-            'Zone_2' => ['lat' => '6.752000', 'lon' => '125.359000'],
-            'Zone_3' => ['lat' => '6.747000', 'lon' => '125.355000'],
+            'Zone_I' => ['lat' => '6.749720', 'lon' => '125.357220'],
+            'Zone_II' => ['lat' => '6.752000', 'lon' => '125.359000'],
+            'Zone_III' => ['lat' => '6.747000', 'lon' => '125.355000'],
         ];
 
         $affiliationOptions = [
@@ -109,58 +115,56 @@ class GenerateDummySurveys extends Command
             '4Ps',
         ];
 
+        // Expanded diverse Filipino names - no repetition
         $maleFirstNames = [
-            'Juan',
-            'Jose',
-            'Mark',
-            'Christian',
-            'Michael',
-            'John Paul',
-            'Carlo',
-            'Jerome',
-            'Joshua',
-            'Raymond',
-            'Paolo',
-            'Rafael',
-            'Jomar',
-            'Emmanuel',
-            'Allan',
+            'Adrian', 'Albert', 'Alfredo', 'Angelo', 'Antonio', 'Ariel', 'Arnold', 'Benjamin', 'Bernard', 'Carlos',
+            'Cesar', 'Christian', 'Christopher', 'Daniel', 'David', 'Edgar', 'Eduardo', 'Edwin', 'Elmer', 'Emmanuel',
+            'Enrique', 'Eric', 'Ernesto', 'Ferdinand', 'Fernando', 'Francis', 'Francisco', 'Gabriel', 'George', 'Gerald',
+            'Gilbert', 'Gregorio', 'Harold', 'Henry', 'Herbert', 'Ignacio', 'Isidro', 'Jaime', 'James', 'Jason',
+            'Jeffrey', 'Jerome', 'Jesus', 'Joel', 'John', 'Jonathan', 'Jorge', 'Jose', 'Joseph', 'Joshua',
+            'Juan', 'Julian', 'Julio', 'Kenneth', 'Kevin', 'Leonardo', 'Lorenzo', 'Luis', 'Manuel', 'Marco',
+            'Mario', 'Mark', 'Martin', 'Marvin', 'Michael', 'Miguel', 'Nelson', 'Nestor', 'Oscar', 'Pablo',
+            'Patrick', 'Paul', 'Pedro', 'Peter', 'Philip', 'Rafael', 'Ramon', 'Raul', 'Raymond', 'Rene',
+            'Ricardo', 'Richard', 'Robert', 'Roberto', 'Rodolfo', 'Roger', 'Roland', 'Romeo', 'Ronald', 'Roy',
+            'Ruben', 'Salvador', 'Samuel', 'Santiago', 'Sergio', 'Stephen', 'Teodoro', 'Thomas', 'Victor', 'Vincent',
         ];
 
         $femaleFirstNames = [
-            'Maria',
-            'Ana',
-            'Angelica',
-            'Christine',
-            'Nicole',
-            'Rose Ann',
-            'Joanna',
-            'Jasmine',
-            'Clarissa',
-            'May',
-            'Shiela',
-            'Diana',
-            'Patricia',
-            'Catherine',
-            'Michelle',
+            'Abigail', 'Agnes', 'Aileen', 'Alexandra', 'Alice', 'Alma', 'Amanda', 'Ana', 'Andrea', 'Angela',
+            'Angelica', 'Anita', 'Anna', 'Annabelle', 'Antonia', 'April', 'Aurora', 'Barbara', 'Beatrice', 'Bella',
+            'Bernadette', 'Betty', 'Carmela', 'Carmen', 'Carol', 'Carolina', 'Catherine', 'Cecilia', 'Celia', 'Charmaine',
+            'Christina', 'Christine', 'Clara', 'Clarissa', 'Claudia', 'Concepcion', 'Cristina', 'Cynthia', 'Daisy', 'Delia',
+            'Diana', 'Dolores', 'Donna', 'Dora', 'Dorothy', 'Elena', 'Elizabeth', 'Elvira', 'Emily', 'Emma',
+            'Erlinda', 'Esmeralda', 'Esperanza', 'Estela', 'Esther', 'Eva', 'Evelyn', 'Fe', 'Felicidad', 'Felisa',
+            'Flora', 'Florence', 'Francisca', 'Gemma', 'Gloria', 'Grace', 'Gregoria', 'Helen', 'Imelda', 'Irene',
+            'Isabel', 'Jacqueline', 'Janet', 'Jasmine', 'Jennifer', 'Jessica', 'Joanna', 'Josefa', 'Josephine', 'Joyce',
+            'Judith', 'Julia', 'Juliana', 'Karen', 'Katherine', 'Laura', 'Leonora', 'Leticia', 'Lilia', 'Linda',
+            'Lourdes', 'Lucia', 'Luisa', 'Luz', 'Lydia', 'Magdalena', 'Margarita', 'Maria', 'Marilyn', 'Marina',
+            'Martha', 'Mary', 'Mercedes', 'Michelle', 'Milagros', 'Monica', 'Nancy', 'Natalia', 'Nicole', 'Nora',
+            'Norma', 'Olivia', 'Patricia', 'Paula', 'Paz', 'Perla', 'Pilar', 'Priscilla', 'Rachel', 'Rebecca',
+            'Regina', 'Remedios', 'Rita', 'Rosa', 'Rosalie', 'Rosario', 'Rose', 'Rowena', 'Ruby', 'Ruth',
+            'Sandra', 'Sara', 'Sharon', 'Sofia', 'Soledad', 'Stella', 'Susan', 'Susana', 'Teresa', 'Teresita',
+            'Thelma', 'Theresa', 'Trinidad', 'Valentina', 'Veronica', 'Victoria', 'Vilma', 'Virginia', 'Vivian', 'Yolanda',
         ];
 
         $lastNames = [
-            'Dela Cruz',
-            'Santos',
-            'Reyes',
-            'Garcia',
-            'Mendoza',
-            'Flores',
-            'Gonzales',
-            'Torres',
-            'Ramos',
-            'Aquino',
-            'Domingo',
-            'Castillo',
-            'Navarro',
-            'Villanueva',
-            'Jimenez',
+            'Abad', 'Abella', 'Acosta', 'Aguilar', 'Alcaraz', 'Alcantara', 'Alejandro', 'Alfonso', 'Alvarez', 'Andres',
+            'Angeles', 'Aquino', 'Arellano', 'Arias', 'Asuncion', 'Austria', 'Avila', 'Ayala', 'Bautista', 'Benitez',
+            'Bernardo', 'Blanco', 'Bravo', 'Buenaventura', 'Cabrera', 'Calderon', 'Camacho', 'Campos', 'Canlas', 'Capistrano',
+            'Cardenas', 'Carlos', 'Carrillo', 'Castillo', 'Castro', 'Cervantes', 'Chavez', 'Concepcion', 'Contreras', 'Cordero',
+            'Corona', 'Cortez', 'Cruz', 'Cuevas', 'Dalisay', 'David', 'De Guzman', 'De Jesus', 'De La Cruz', 'De Leon',
+            'De Los Reyes', 'De Los Santos', 'Del Rosario', 'Delgado', 'Diaz', 'Domingo', 'Dominguez', 'Duran', 'Enriquez', 'Escobar',
+            'Espinosa', 'Estrada', 'Evangelista', 'Fernandez', 'Ferrer', 'Figueroa', 'Flores', 'Francisco', 'Fuentes', 'Galang',
+            'Galvez', 'Garcia', 'Gomez', 'Gonzales', 'Gonzalez', 'Guerrero', 'Gutierrez', 'Guzman', 'Hernandez', 'Herrera',
+            'Hidalgo', 'Ignacio', 'Jimenez', 'Lacson', 'Lara', 'Laurel', 'Leon', 'Lim', 'Lopez', 'Lorenzo',
+            'Luna', 'Magno', 'Manalang', 'Manalo', 'Mangubat', 'Manuel', 'Marquez', 'Martin', 'Martinez', 'Medina',
+            'Mejia', 'Mendez', 'Mendoza', 'Miranda', 'Molina', 'Montero', 'Morales', 'Moreno', 'Muñoz', 'Navarro',
+            'Ocampo', 'Olivares', 'Ortega', 'Ortiz', 'Padilla', 'Palma', 'Pascual', 'Pena', 'Perez', 'Pineda',
+            'Ponce', 'Prieto', 'Quijano', 'Quintana', 'Quirino', 'Ramirez', 'Ramos', 'Reyes', 'Rivera', 'Robles',
+            'Rodriguez', 'Rojas', 'Romero', 'Rosales', 'Rosario', 'Ruiz', 'Salazar', 'Salcedo', 'Sanchez', 'Sandoval',
+            'Santiago', 'Santos', 'Sarmiento', 'Silva', 'Solis', 'Soriano', 'Suarez', 'Tan', 'Tolentino', 'Torres',
+            'Trinidad', 'Valdez', 'Valencia', 'Valenzuela', 'Vargas', 'Vasquez', 'Vega', 'Velasco', 'Velasquez', 'Vera',
+            'Vicente', 'Villa', 'Villanueva', 'Villar', 'Villegas', 'Zamora', 'Zapata',
         ];
 
         $educationChoices = [
@@ -174,14 +178,6 @@ class GenerateDummySurveys extends Command
             'College_Graduate',
             'Postgraduate_Level',
             'ALS',
-        ];
-
-        $incomeChoices = [
-            '0 - 2,999 PHP',
-            '3,000 - 5,999 PHP',
-            '6,000 - 8,999 PHP',
-            '9,000 - 12,999_PHP',
-            '13,000 and above',
         ];
 
         $civilStatusChoices = [
@@ -211,20 +207,21 @@ class GenerateDummySurveys extends Command
             'Farmer',
             'Fisherfolk',
             'Housekeeper',
-        ];
-
-        $housingStructureOptions = [
-            'Full_Concrete',
-            'Made_of_wood_and_metal_roof',
-            'Made_of_Amakan_and_Nipa',
-            'Combination_of_concrete_and_wood',
-            'Made_of_Amakan_and_metal_roof',
-        ];
-
-        $toiletOptions = [
-            'Water-sealed',
-            'Pit',
-            'None',
+            'Construction Worker',
+            'Factory Worker',
+            'Security Guard',
+            'Sales Clerk',
+            'Jeepney Driver',
+            'Habal-habal Driver',
+            'Carpenter',
+            'Electrician',
+            'Plumber',
+            'Seamstress',
+            'Cook',
+            'Waiter/Waitress',
+            'Janitor',
+            'Laundry Worker',
+            'Delivery Rider',
         ];
 
         $mainIncomeOptions = [
@@ -259,10 +256,41 @@ class GenerateDummySurveys extends Command
             'Within the Country',
         ];
 
-        $housePhotoPath = 'pics/Redirect Notice.jpg';
-        $personPhotoPath = 'pics/passport.jpg';
+        $housePhotoPath = 'pics/house.png';
+        $personPhotoPath = 'pics/person.png';
+
+        // Housing structure options
+        $housingStructureOptions = [
+            'Full Concrete',
+            'Made of wood and metal roof',
+            'Made of Amakan and Nipa',
+            'Made of Amakan and metal roof',
+            'Combination of concrete and wood',
+            'Makeshift/Salvaged/Improvised material',
+        ];
+
+        // Toilet options
+        $toiletOptions = ['Water Sealed', 'Open Pit/Antipolo', 'No Toilet'];
+
+        // Water sources
+        $waterSources = [
+            'Community Water System (NAWASA)',
+            'Deep Well',
+            'Spring',
+            'Rainwater',
+            'Surface water (river, lake, dam)',
+        ];
+
+        // Electricity sources
+        $electricitySources = [
+            'With own meter',
+            'Solar Panel',
+            'Candle/Lamp',
+            'Tapping to the neighbor',
+        ];
 
         $totalCreated = 0;
+        $createdSurveyIds = [];
         $now = Carbon::now()->toDateString();
 
         DB::transaction(function () use (
@@ -279,12 +307,13 @@ class GenerateDummySurveys extends Command
             $femaleFirstNames,
             $lastNames,
             $educationChoices,
-            $incomeChoices,
             $civilStatusChoices,
             $relationshipChoices,
             $occupationChoices,
             $housingStructureOptions,
             $toiletOptions,
+            $waterSources,
+            $electricitySources,
             $mainIncomeOptions,
             $workStatusOptions,
             $skillOptions,
@@ -292,27 +321,45 @@ class GenerateDummySurveys extends Command
             $workLocationOptions,
             $housePhotoPath,
             $personPhotoPath,
-            &$totalCreated
+            &$totalCreated,
+            &$createdSurveyIds
         ) {
-            $kent = $validators['Kent Andrey'] ?? null;
-            $cris = $validators['Cris John'] ?? null;
+            $cris = $validators['Cris'] ?? null;
+            $kent = $validators['Kent'] ?? null;
 
-            $kentId = (int) ($kent->validator_id ?? 0);
-            $crisId = (int) ($cris->validator_id ?? 0);
+            $crisId = 1; // Cris is always validator_id 1
+            $kentId = 2; // Kent is always validator_id 2
 
-            $kentName = trim((string) ($kent->name ?? $kent->username ?? 'Kent Andrey'));
-            $crisName = trim((string) ($cris->name ?? $cris->username ?? 'Cris John'));
+            $crisName = trim((string) ($cris->name ?? $cris->username ?? 'Cris'));
+            $kentName = trim((string) ($kent->name ?? $kent->username ?? 'Kent'));
 
-            $totalTarget = 100;
-            $perValidatorTarget = 50;
+            $totalTarget = 200;
+            $perValidatorTarget = 100;
 
-            $barangayCount = count($barangays);
-            $basePerBarangay = intdiv($totalTarget, max($barangayCount, 1));
-            $extraPerBarangay = $totalTarget % max($barangayCount, 1);
-
-            $barangayQuotas = [];
-            foreach ($barangays as $idx => $b) {
-                $barangayQuotas[$b] = $basePerBarangay + ($idx < $extraPerBarangay ? 1 : 0);
+            // Kapatagan gets the highest number of surveys (30% of total)
+            // Remaining barangays get distributed unevenly
+            $kapataganQuota = (int) ($totalTarget * 0.30); // 60 surveys for Kapatagan
+            $remainingTarget = $totalTarget - $kapataganQuota;
+            
+            // Create uneven distribution for other barangays
+            $otherBarangays = array_filter($barangays, fn($b) => $b !== 'Kapatagan');
+            $barangayQuotas = ['Kapatagan' => $kapataganQuota];
+            
+            // Assign random quotas to other barangays (between 2-10 surveys each)
+            $remainingCount = $remainingTarget;
+            $otherBarangayCount = count($otherBarangays);
+            
+            foreach ($otherBarangays as $idx => $barangay) {
+                if ($idx === $otherBarangayCount - 1) {
+                    // Last barangay gets whatever is left
+                    $barangayQuotas[$barangay] = $remainingCount;
+                } else {
+                    // Random allocation between 2-10
+                    $maxAllocation = min(10, $remainingCount - ($otherBarangayCount - $idx - 1) * 2);
+                    $allocation = random_int(2, max(2, $maxAllocation));
+                    $barangayQuotas[$barangay] = $allocation;
+                    $remainingCount -= $allocation;
+                }
             }
 
             $kentCount = 0;
@@ -320,7 +367,7 @@ class GenerateDummySurveys extends Command
             $surveyCounter = 0;
 
             $existingSurveyIds = DB::table('survey')
-                ->whereIn('validator_id', [$kentId, $crisId])
+                ->whereIn('validator_id', [1, 2]) // Cris (1) and Kent (2)
                 ->where('is_submitted', 0)
                 ->pluck('survey_id');
 
@@ -413,6 +460,7 @@ class GenerateDummySurveys extends Command
                         'created_at' => Carbon::now(),
                         'updated_at' => Carbon::now(),
                     ]);
+                    $createdSurveyIds[] = (int) $surveyId;
 
                     DB::table('classification')->insert([
                         'survey_id' => $surveyId,
@@ -473,25 +521,88 @@ class GenerateDummySurveys extends Command
                         'tag_number' => $tagNumber,
                     ]);
 
+                    // Derive housing and income details based on the household classification
+                    $lotOwnership = random_int(0, 1) === 1 ? 'Owned' : 'Rented';
+                    $houseOwnership = random_int(0, 1) === 1 ? 'Owned' : 'Rented';
+                    $availSocializedHousing = random_int(0, 1) === 1 ? 'Yes' : 'No';
+                    $temporaryLivingArea = random_int(0, 1) === 1 ? 'Yes' : 'No';
+                    
+                    // Select housing structure from predefined options
+                    $housingStructure = $housingStructureOptions[array_rand($housingStructureOptions)];
+                    
+                    // Select toilet type from predefined options
+                    $typeOfToilet = $toiletOptions[array_rand($toiletOptions)];
+                    
+                    // Select water source from predefined options
+                    $sourceOfWater = $waterSources[array_rand($waterSources)];
+                    
+                    // Select electricity source from predefined options
+                    $sourceOfElectricity = $electricitySources[array_rand($electricitySources)];
+
+                    // Generate realistic income for household head based on classification
+                    $headMonthlyIncome = 0;
+                    
+                    if ($class['code'] === 3) {
+                        // Homeless: very low income, no ownership, temporary shelter
+                        $lotOwnership = 'None';
+                        $houseOwnership = 'None';
+                        $temporaryLivingArea = 'Yes';
+                        $housingStructure = 'Makeshift/Salvaged/Improvised material';
+                        $typeOfToilet = 'No Toilet';
+                        $sourceOfWater = random_int(0, 1) ? 'Surface water (river, lake, dam)' : 'Rainwater';
+                        $sourceOfElectricity = 'Candle/Lamp';
+                        $headMonthlyIncome = random_int(500, 2500); // Very low income
+                    } elseif ($class['code'] === 2) {
+                        // Double-up: no house ownership, low to mid income
+                        $houseOwnership = 'Shared';
+                        $temporaryLivingArea = 'Yes';
+                        $housingStructure = random_int(0, 1) ? 'Made of Amakan and Nipa' : 'Made of wood and metal roof';
+                        $typeOfToilet = random_int(0, 1) ? 'Open Pit/Antipolo' : 'Water Sealed';
+                        $sourceOfWater = random_int(0, 1) ? 'Deep Well' : 'Spring';
+                        $sourceOfElectricity = random_int(0, 1) ? 'Tapping to the neighbor' : 'With own meter';
+                        $headMonthlyIncome = random_int(2000, 5500); // Low to mid income
+                    } elseif ($class['code'] === 1) {
+                        // Displaced: more likely to avail socialized housing, lower income
+                        $availSocializedHousing = random_int(1, 100) <= 70 ? 'Yes' : 'No';
+                        $housingStructure = random_int(0, 1) ? 'Made of Amakan and metal roof' : 'Combination of concrete and wood';
+                        $typeOfToilet = random_int(0, 1) ? 'Open Pit/Antipolo' : 'Water Sealed';
+                        $sourceOfWater = random_int(0, 1) ? 'Deep Well' : 'Community Water System (NAWASA)';
+                        $sourceOfElectricity = random_int(0, 1) ? 'Tapping to the neighbor' : 'With own meter';
+                        $headMonthlyIncome = random_int(3000, 8000); // Low to moderate income
+                    } elseif ($class['code'] === 4) {
+                        // Upgrading of Land Tenure: has ownership, higher income
+                        $lotOwnership = 'Owned';
+                        $houseOwnership = 'Owned';
+                        $housingStructure = random_int(0, 1) ? 'Combination of concrete and wood' : 'Full Concrete';
+                        $typeOfToilet = 'Water Sealed';
+                        $sourceOfWater = random_int(0, 1) ? 'Community Water System (NAWASA)' : 'Deep Well';
+                        $sourceOfElectricity = 'With own meter';
+                        $headMonthlyIncome = random_int(7000, 15000); // Moderate to higher income
+                    }
+
+                    // Store head income for later calculation
+                    $householdHeadIncome = $headMonthlyIncome;
+
                     DB::table('household')->insert([
                         'survey_id' => $surveyId,
-                        'lot_ownership' => random_int(0, 1) === 1 ? 'Yes' : 'No',
-                        'house_ownership' => random_int(0, 1) === 1 ? 'Yes' : 'No',
-                        'avail_socialized_housing' => random_int(0, 1) === 1 ? 'Yes' : 'No',
-                        'temporary_living_area' => random_int(0, 1) === 1 ? 'Yes' : 'No',
-                        'housing_structure' => $housingStructureOptions[array_rand($housingStructureOptions)],
-                        'type_of_toilet' => $toiletOptions[array_rand($toiletOptions)],
-                        'source_of_water' => 'NAWASA',
-                        'source_of_electricity' => 'With_own_meter',
+                        'lot_ownership' => $lotOwnership,
+                        'house_ownership' => $houseOwnership,
+                        'avail_socialized_housing' => $availSocializedHousing,
+                        'temporary_living_area' => $temporaryLivingArea,
+                        'housing_structure' => $housingStructure,
+                        'type_of_toilet' => $typeOfToilet,
+                        'source_of_water' => $sourceOfWater,
+                        'source_of_electricity' => $sourceOfElectricity,
                     ]);
 
-                    DB::table('economic')->insert([
+                    // Placeholder for economic data - will be updated after calculating combined income
+                    $economicId = DB::table('economic')->insertGetId([
                         'survey_id' => $surveyId,
                         'main_income_source' => $mainIncomeOptions[array_rand($mainIncomeOptions)],
                         'work_status' => $workStatusOptions[array_rand($workStatusOptions)],
                         'work_location_head' => $workLocationOptions[array_rand($workLocationOptions)],
-                        'monthly_salary' => $incomeChoices[array_rand($incomeChoices)],
-                        'combine_monthly_income' => $incomeChoices[array_rand($incomeChoices)],
+                        'monthly_salary' => '0 - 2,999 PHP', // Temporary, will update
+                        'combine_monthly_income' => 0, // Will calculate after adding members
                     ]);
 
                     DB::table('training')->insert([
@@ -506,22 +617,41 @@ class GenerateDummySurveys extends Command
                         'remarks' => 'No additional remarks.',
                         'latitude' => $coord['lat'],
                         'longitude' => $coord['lon'],
-                        'respondent_signature' => null,
+                        'respondent_signature' => $this->getDummySignaturePath(),
                     ]);
 
                     $memberCount = random_int(2, 6);
                     $members = [];
+                    $totalHouseholdIncome = $householdHeadIncome; // Start with head's income
+                    
+                    // Generate spouse income based on classification
+                    $spouseIncome = 0;
+                    if ($class['code'] === 3) {
+                        // Homeless: spouse may have very low or no income
+                        $spouseIncome = random_int(0, 2000);
+                    } elseif ($class['code'] === 2) {
+                        // Double-up: spouse may have low income
+                        $spouseIncome = random_int(0, 4000);
+                    } elseif ($class['code'] === 1) {
+                        // Displaced: spouse may have low to moderate income
+                        $spouseIncome = random_int(1000, 5000);
+                    } elseif ($class['code'] === 4) {
+                        // Upgrading: spouse may have moderate income
+                        $spouseIncome = random_int(2000, 8000);
+                    }
+                    
+                    $totalHouseholdIncome += $spouseIncome;
 
                     $members[] = [
                         'survey_id' => $surveyId,
                         'name' => $spouseName,
                         'age' => $spouseAge,
                         'relationship' => 'Spouse',
-                        'occupation' => $occupationChoices[array_rand($occupationChoices)],
+                        'occupation' => $spouseIncome > 0 ? $occupationChoices[array_rand($occupationChoices)] : 'Housekeeper',
                         'gender' => $spouseGenderText,
                         'civil_status' => 'Married',
                         'educational_attainment' => $educationChoices[array_rand($educationChoices)],
-                        'monthly_income' => $incomeChoices[array_rand($incomeChoices)],
+                        'monthly_income' => $spouseIncome,
                         'code' => '',
                     ];
 
@@ -529,19 +659,37 @@ class GenerateDummySurveys extends Command
                     $childSlots = random_int(1, max(1, $remainingSlots));
                     $otherSlots = max(0, $remainingSlots - $childSlots);
 
+                    // Track used names to avoid repetition
+                    $usedNames = [$respondentName, $spouseName];
+
                     for ($i = 0; $i < $childSlots; $i++) {
                         $memberGender = $i % 2 === 0 ? 'Male' : 'Female';
                         $relationship = $memberGender === 'Male' ? 'Son' : 'Daughter';
-                        $memberFirstName = $memberGender === 'Male'
-                            ? $maleFirstNames[array_rand($maleFirstNames)]
-                            : $femaleFirstNames[array_rand($femaleFirstNames)];
-                        $memberName = $memberFirstName.' '.$lastName;
+                        
+                        // Get unique name
+                        do {
+                            $memberFirstName = $memberGender === 'Male'
+                                ? $maleFirstNames[array_rand($maleFirstNames)]
+                                : $femaleFirstNames[array_rand($femaleFirstNames)];
+                            $memberName = $memberFirstName.' '.$lastName;
+                        } while (in_array($memberName, $usedNames));
+                        $usedNames[] = $memberName;
 
                         $memberAge = random_int(1, 21);
                         $civilStatus = 'Single';
                         $memberEducation = $memberAge < 7 ? 'none' : $educationChoices[array_rand($educationChoices)];
-                        $memberIncome = '0 - 2,999 PHP';
+                        
+                        // Children income: students have no income, working age may have part-time income
+                        $memberIncome = 0;
                         $memberOccupation = 'Student';
+                        if ($memberAge >= 18) {
+                            // Working age children may contribute
+                            $memberIncome = random_int(0, 4000);
+                            if ($memberIncome > 0) {
+                                $memberOccupation = $occupationChoices[array_rand($occupationChoices)];
+                            }
+                            $totalHouseholdIncome += $memberIncome;
+                        }
 
                         $members[] = [
                             'survey_id' => $surveyId,
@@ -581,10 +729,15 @@ class GenerateDummySurveys extends Command
                             $memberGender = $i % 2 === 0 ? 'Male' : 'Female';
                         }
 
-                        $memberFirstName = $memberGender === 'Male'
-                            ? $maleFirstNames[array_rand($maleFirstNames)]
-                            : $femaleFirstNames[array_rand($femaleFirstNames)];
-                        $memberName = $memberFirstName.' '.$lastName;
+                        // Get unique name
+                        do {
+                            $memberFirstName = $memberGender === 'Male'
+                                ? $maleFirstNames[array_rand($maleFirstNames)]
+                                : $femaleFirstNames[array_rand($femaleFirstNames)];
+                            $memberLastName = $lastNames[array_rand($lastNames)];
+                            $memberName = $memberFirstName.' '.$memberLastName;
+                        } while (in_array($memberName, $usedNames));
+                        $usedNames[] = $memberName;
 
                         if ($relationship === 'Grandson' || $relationship === 'Granddaughter' || $relationship === 'Nephew' || $relationship === 'Niece') {
                             $memberAge = random_int(1, 25);
@@ -599,10 +752,20 @@ class GenerateDummySurveys extends Command
                             : $civilStatusChoices[array_rand($civilStatusChoices)];
 
                         $memberEducation = $memberAge < 7 ? 'none' : $educationChoices[array_rand($educationChoices)];
-                        $memberIncome = $memberAge < 18
-                            ? '0 - 2,999 PHP'
-                            : $incomeChoices[array_rand($incomeChoices)];
-                        $memberOccupation = $memberAge < 18 ? 'Student' : $occupationChoices[array_rand($occupationChoices)];
+                        
+                        // Other relatives may contribute income if working age
+                        $memberIncome = 0;
+                        $memberOccupation = 'Student';
+                        if ($memberAge >= 18 && $memberAge < 65) {
+                            // Working age may contribute
+                            $memberIncome = random_int(0, 6000);
+                            if ($memberIncome > 0) {
+                                $memberOccupation = $occupationChoices[array_rand($occupationChoices)];
+                            }
+                            $totalHouseholdIncome += $memberIncome;
+                        } elseif ($memberAge >= 65) {
+                            $memberOccupation = 'Retired';
+                        }
 
                         $members[] = [
                             'survey_id' => $surveyId,
@@ -619,6 +782,14 @@ class GenerateDummySurveys extends Command
                     }
 
                     DB::table('household_mem')->insert($members);
+                    
+                    // Now update the economic table with the calculated combined income
+                    DB::table('economic')
+                        ->where('survey_id', $surveyId)
+                        ->update([
+                            'monthly_salary' => $this->getIncomeRangeLabel($householdHeadIncome),
+                            'combine_monthly_income' => $totalHouseholdIncome,
+                        ]);
 
                     $totalCreated++;
                     $surveyCounter++;
@@ -626,7 +797,23 @@ class GenerateDummySurveys extends Command
             }
         });
 
-        $this->info('Dummy surveys created: '.$totalCreated.' (27 barangays x 4 classifications each, all is_submitted = 0).');
+        // After inserting dummy surveys, calculate priority scores using the new scoring system
+        if (! empty($createdSurveyIds)) {
+            $this->info('Calculating priority scores for dummy surveys...');
+
+            $scoreService = new BeneficiaryScoreService();
+            $surveys = Survey::whereIn('survey_id', $createdSurveyIds)->get();
+
+            foreach ($surveys as $survey) {
+                try {
+                    $scoreService->calculateAndSave($survey);
+                } catch (ScoreCalculationException $e) {
+                    $this->error('Failed to calculate score for survey ID '.$survey->survey_id.': '.$e->getMessage());
+                }
+            }
+        }
+
+        $this->info('Dummy surveys created: '.$totalCreated.' (200 total, Kapatagan has highest count, split between Cris and Kent, all is_submitted = 0, scores calculated using new scoring system with realistic combined household income).');
 
         return 0;
     }
@@ -679,11 +866,64 @@ class GenerateDummySurveys extends Command
             'Soong' => 'U',
             'Tiguman' => 'V',
             'Tres_De_Mayo' => 'W',
-            'Zone_1' => 'X',
-            'Zone_2' => 'Y',
-            'Zone_3' => 'Z',
+            'Zone_I' => 'X',
+            'Zone_II' => 'Y',
+            'Zone_III' => 'Z',
         ];
 
         return $map[$barangay] ?? 'X';
+    }
+
+    /**
+     * Get the dummy signature path by copying the dummy_esign.png to signatures directory
+     */
+    private function getDummySignaturePath(): ?string
+    {
+        $dummySignaturePath = public_path('pics/dummy_esign.png');
+        
+        if (!file_exists($dummySignaturePath)) {
+            $this->warn('Dummy signature file not found at: ' . $dummySignaturePath);
+            return null;
+        }
+        
+        // Read the dummy signature file
+        $signatureData = file_get_contents($dummySignaturePath);
+        if ($signatureData === false) {
+            $this->warn('Failed to read dummy signature file');
+            return null;
+        }
+        
+        // Generate unique filename
+        $filename = 'dummy_sig_' . uniqid() . '.png';
+        
+        // Store in Laravel storage
+        Storage::disk('public')->put('signatures/' . $filename, $signatureData);
+        
+        // Also copy to public directory using FileStorageService
+        try {
+            FileStorageService::copyToPublicDirectory('signatures', $filename);
+        } catch (\Exception $e) {
+            $this->warn('Failed to copy signature to public directory: ' . $e->getMessage());
+        }
+        
+        return 'signatures/' . $filename;
+    }
+    
+    /**
+     * Convert numeric income to income range label
+     */
+    private function getIncomeRangeLabel(int $income): string
+    {
+        if ($income < 3000) {
+            return '0 - 2,999 PHP';
+        } elseif ($income < 6000) {
+            return '3,000 - 5,999 PHP';
+        } elseif ($income < 9000) {
+            return '6,000 - 8,999 PHP';
+        } elseif ($income < 13000) {
+            return '9,000 - 12,999_PHP';
+        } else {
+            return '13,000 and above';
+        }
     }
 }

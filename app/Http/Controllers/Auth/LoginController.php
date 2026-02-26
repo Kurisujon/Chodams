@@ -43,7 +43,7 @@ class LoginController extends Controller
         }
 
         $admin = DB::table('admin')
-            ->select('username', 'password')
+            ->select('id', 'username', 'password')
             ->whereRaw('LOWER(username) = ?', [strtolower($username)])
             ->first();
 
@@ -54,7 +54,7 @@ class LoginController extends Controller
                 || (md5($password) === $adminPassword);
             if ($isValid) {
                 $request->session()->regenerate();
-                session([ 'loggedin' => true, 'role' => 'admin', 'username' => $admin->username ]);
+                session([ 'loggedin' => true, 'role' => 'admin', 'username' => $admin->username, 'admin_id' => $admin->id ]);
                 return redirect('/admin/dashboard');
             }
         }

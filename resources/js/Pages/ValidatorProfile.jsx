@@ -225,15 +225,11 @@ export default function ValidatorProfile() {
             </div>
 
             <section className="mt-6 w-full max-w-5xl mx-auto">
-              <div className="bg-white rounded-2xl border border-gray-200 p-2 mb-6">
-                <div className="flex gap-2">
-                  <button type="button" onClick={()=>setActiveTab('account')} className={`px-3 py-2 rounded-xl text-sm font-medium ${activeTab==='account' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700'}`}>Account Details</button>
-                  <button type="button" onClick={()=>setActiveTab('password')} className={`px-3 py-2 rounded-xl text-sm font-medium ${activeTab==='password' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-700'}`}>Change Password</button>
-                </div>
-              </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className={`bg-white rounded-2xl border border-gray-200 shadow-sm p-6 w-full ${activeTab==='account' ? 'ring-2 ring-emerald-200' : ''} flex flex-col`}>
+                <div 
+                  onClick={() => setActiveTab('account')} 
+                  className={`bg-white rounded-2xl border border-gray-200 shadow-sm p-6 w-full ${activeTab==='account' ? 'ring-2 ring-emerald-200' : ''} flex flex-col cursor-pointer transition-all hover:shadow-md`}
+                >
                   <div className="mb-4">
                     <h3 className="text-lg font-semibold text-emerald-800">Account details</h3>
                     <p className="mt-1 text-sm text-gray-500">Your validator profile information.</p>
@@ -266,23 +262,34 @@ export default function ValidatorProfile() {
                           setEmailErrors({});
                           setEmailSaved(false);
                         }}
+                        disabled={activeTab !== 'account'}
                       />
                       {emailErrors.email && (
                         <p className="mt-1 text-xs text-red-600">{emailErrors.email[0]}</p>
                       )}
                     </div>
                   </div>
-                  <div className="mt-4 flex items-center justify-between">
-                    <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-xs">Active</span>
-                    <button
-                      type="button"
-                      onClick={submitEmailUpdate}
-                      className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs disabled:opacity-60"
-                      disabled={emailSaving || !emailValue || emailValue === (profile.email || '')}
-                    >
-                      {emailSaving ? 'Saving...' : 'Update Email'}
-                    </button>
-                  </div>
+                  {activeTab === 'account' && (
+                    <div className="mt-4 flex items-center justify-between">
+                      <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-xs">Active</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          submitEmailUpdate();
+                        }}
+                        className="px-3 py-1.5 bg-emerald-600 text-white rounded-xl text-xs disabled:opacity-60"
+                        disabled={emailSaving || !emailValue || emailValue === (profile.email || '')}
+                      >
+                        {emailSaving ? 'Saving...' : 'Update Email'}
+                      </button>
+                    </div>
+                  )}
+                  {activeTab !== 'account' && (
+                    <div className="mt-4 flex items-center justify-between">
+                      <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-700 px-2 py-0.5 text-xs">Active</span>
+                    </div>
+                  )}
                   {emailErrors.form && (
                     <div className="mt-2 text-xs text-red-600">{emailErrors.form[0]}</div>
                   )}
@@ -291,7 +298,11 @@ export default function ValidatorProfile() {
                   )}
                 </div>
 
-                <form onSubmit={submitPassword} className={`bg-white rounded-2xl border border-gray-200 shadow-sm p-6 w-full ${activeTab==='password' ? 'ring-2 ring-emerald-200' : ''} flex flex-col`}>
+                <form 
+                  onSubmit={submitPassword} 
+                  onClick={() => setActiveTab('password')} 
+                  className={`bg-white rounded-2xl border border-gray-200 shadow-sm p-6 w-full ${activeTab==='password' ? 'ring-2 ring-emerald-200' : ''} flex flex-col cursor-pointer transition-all hover:shadow-md`}
+                >
                   <div className="mb-4">
                     <h3 className="text-lg font-semibold text-emerald-800">Change password</h3>
                     <p className="mt-1 text-sm text-gray-500">Update your password using your current credentials.</p>
@@ -305,6 +316,7 @@ export default function ValidatorProfile() {
                           className="border border-gray-300 rounded-xl p-2.5 w-full pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
                           value={form.current_password}
                           onChange={e => updateFormField('current_password', e.target.value)}
+                          disabled={activeTab !== 'password'}
                           required
                         />
                         <button
@@ -340,6 +352,7 @@ export default function ValidatorProfile() {
                           className="border border-gray-300 rounded-xl p-2.5 w-full pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
                           value={form.password}
                           onChange={e => updateFormField('password', e.target.value)}
+                          disabled={activeTab !== 'password'}
                           required
                         />
                         <button
@@ -389,6 +402,7 @@ export default function ValidatorProfile() {
                           className="border border-gray-300 rounded-xl p-2.5 w-full pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
                           value={form.password_confirmation}
                           onChange={e => updateFormField('password_confirmation', e.target.value)}
+                          disabled={activeTab !== 'password'}
                           required
                         />
                         <button
@@ -423,21 +437,24 @@ export default function ValidatorProfile() {
                       <div className="text-xs text-emerald-700">Password updated successfully.</div>
                     )}
                   </div>
-                  <div className="mt-4 flex justify-end">
-                    <button
-                      type="submit"
-                      className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm disabled:opacity-60"
-                      disabled={
-                        saving ||
-                        !form.current_password ||
-                        !form.password ||
-                        !form.password_confirmation ||
-                        passwordStrength.score < 2
-                      }
-                    >
-                      {saving ? 'Updating...' : 'Update Password'}
-                    </button>
-                  </div>
+                  {activeTab === 'password' && (
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        type="submit"
+                        onClick={(e) => e.stopPropagation()}
+                        className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm disabled:opacity-60"
+                        disabled={
+                          saving ||
+                          !form.current_password ||
+                          !form.password ||
+                          !form.password_confirmation ||
+                          passwordStrength.score < 2
+                        }
+                      >
+                        {saving ? 'Updating...' : 'Update Password'}
+                      </button>
+                    </div>
+                  )}
                 </form>
               </div>
             </section>

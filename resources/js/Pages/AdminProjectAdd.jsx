@@ -127,6 +127,22 @@ export default function AdminProjectAdd() {
             <img src="/icons/assignmenticon.png" alt="Assignments" className="w-5 h-5"/>
             <span className="tracking-wider uppercase text-xs">Assignments</span>
           </Link>
+          <Link href="/admin/mapping" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/mapping') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+            <img src="/icons/projectsiteicon.png" alt="Mapping" className="w-5 h-5"/>
+            <span className="tracking-wider uppercase text-xs">Mapping</span>
+          </Link>
+          <Link href="/admin/hoa" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/hoa') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+            <img src="/icons/beneficiariesicon.png" alt="HOA Management" className="w-5 h-5"/>
+            <span className="tracking-wider uppercase text-xs">HOA Management</span>
+          </Link>
+          <Link href="/admin/monitoring" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/monitoring') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+            <img src="/icons/projectsiteicon.png" alt="Monitoring" className="w-5 h-5"/>
+            <span className="tracking-wider uppercase text-xs">Monitoring</span>
+          </Link>
+          <Link href="/admin/revocations" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/revocations') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+            <img src="/icons/assignmenticon.png" alt="Revocations" className="w-5 h-5"/>
+            <span className="tracking-wider uppercase text-xs">Revocations</span>
+          </Link>
           <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
             <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
             <span className="tracking-wider uppercase text-xs">My Profile</span>
@@ -172,6 +188,18 @@ export default function AdminProjectAdd() {
           <Link href="/admin/mapping" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/mapping') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
             <img src="/icons/projectsiteicon.png" alt="Mapping" className="w-5 h-5"/>
             <span className="tracking-wider uppercase text-xs">Mapping</span>
+          </Link>
+          <Link href="/admin/hoa" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/hoa') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+            <img src="/icons/beneficiariesicon.png" alt="HOA Management" className="w-5 h-5"/>
+            <span className="tracking-wider uppercase text-xs">HOA Management</span>
+          </Link>
+          <Link href="/admin/monitoring" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/monitoring') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+            <img src="/icons/projectsiteicon.png" alt="Monitoring" className="w-5 h-5"/>
+            <span className="tracking-wider uppercase text-xs">Monitoring</span>
+          </Link>
+          <Link href="/admin/revocations" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/revocations') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
+            <img src="/icons/assignmenticon.png" alt="Revocations" className="w-5 h-5"/>
+            <span className="tracking-wider uppercase text-xs">Revocations</span>
           </Link>
           <Link href="/admin/profile" className={`flex items-center gap-3 px-3 py-3 rounded-xl ${typeof window !== 'undefined' && window.location.pathname.startsWith('/admin/profile') ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-gray-100 hover:text-emerald-700'}`}>
             <img src="/icons/profileicon.png" alt="Profile" className="w-5 h-5"/>
