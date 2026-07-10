@@ -1,7 +1,13 @@
 # CHoDaMS Web Application
 
 ## Overview
-CHoDaMS (City Housing Data Management System) Web Application is the primary platform designed for the Digos City Housing and Relocation Office (DCHRO). It supports office operations and field use (where internet access is available) for managing the selection phase of the city's housing relocation program. It digitizes applicant profiling, enables point-based eligibility scoring, provides descriptive analytics, and facilitates administrative management of housing projects and beneficiaries.
+A robust, multi-layered City Housing Data Management System driven by a PHP RESTful API and MariaDB. Engineered for enterprise-level LGU operations, key highlights include a custom **Weighted Scoring Algorithm** for automated eligibility evaluation, interactive **geo-spatial mapping** (GeoJSON/KML integration) for site monitoring, dynamic descriptive analytics dashboards for data-driven decisions, and secure **Role-Based Access Control (RBAC)**.
+
+## Key Technical Highlights 🚀
+*   **Algorithmic Processing:** Employs a custom Weighted Scoring Algorithm to automate and compute complex eligibility points based on demographic, hazard, and economic inputs.
+*   **Geo-Spatial Integration:** Real-time interactive mapping utilizing KML/GeoJSON polygons to visually track and manage project boundaries and beneficiary distribution.
+*   **Advanced Data Analytics:** Transforms raw census data into dynamic, actionable visual dashboards, filtering across intricate socio-economic metrics.
+*   **Multi-Layered Architecture:** Secure RESTful architecture ensuring strong separation of concerns between the frontend, PHP backend logic, and MariaDB.
 
 ## Tech Stack
 *   **Frontend:** HTML, CSS, JavaScript (Bootstrap/Tailwind)
