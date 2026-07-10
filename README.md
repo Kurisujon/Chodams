@@ -1,7 +1,7 @@
 # CHoDaMS Web Application
 
 ## Overview
-A multi-layered PHP/MariaDB housing data system featuring a custom **Weighted Scoring Algorithm**, interactive **GeoJSON mapping**, descriptive analytics dashboards, and secure **Role-Based Access Control (RBAC)**.
+A multi-layered PHP web application that manages city housing relocation, automates eligibility scoring, and provides interactive geo-spatial analytics using a custom Weighted Scoring Algorithm and MariaDB.
 
 ## Key Technical Highlights 🚀
 *   **Algorithmic Processing:** Employs a custom Weighted Scoring Algorithm to automate and compute complex eligibility points based on demographic, hazard, and economic inputs.
