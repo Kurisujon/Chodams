@@ -1,7 +1,7 @@
 # CHoDaMS Web Application
 
 ## Overview
-A robust, multi-layered City Housing Data Management System driven by a PHP RESTful API and MariaDB. Engineered for enterprise-level LGU operations, key highlights include a custom **Weighted Scoring Algorithm** for automated eligibility evaluation, interactive **geo-spatial mapping** (GeoJSON/KML integration) for site monitoring, dynamic descriptive analytics dashboards for data-driven decisions, and secure **Role-Based Access Control (RBAC)**.
+A multi-layered PHP/MariaDB housing data system featuring a custom **Weighted Scoring Algorithm**, interactive **GeoJSON mapping**, descriptive analytics dashboards, and secure **Role-Based Access Control (RBAC)**.
 
 ## Key Technical Highlights 🚀
 *   **Algorithmic Processing:** Employs a custom Weighted Scoring Algorithm to automate and compute complex eligibility points based on demographic, hazard, and economic inputs.
